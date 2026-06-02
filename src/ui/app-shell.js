@@ -34,6 +34,7 @@ import {
   createDescriptionSpecialOptions,
   drawIscdSymbol,
   ensureIscdSymbolDb,
+  existingDescriptionSpecialForTarget,
   getIscdSymbolOptions,
   iscdSymbolLabel,
   storageForIscdSelection,
@@ -423,15 +424,14 @@ export class PurplePenApp extends HTMLElement {
           ${this.toolButton("tool-control", "Control", "control")}
           ${this.toolButton("tool-finish", "Finish", "finish")}
           ${this.toolButton("tool-line-cut", "Cut Line", "cut")}
+          ${this.toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")}
           ${this.toolButton("tool-text", "Text", "text")}
           ${this.toolButton("tool-line", "Line", "line")}
           ${this.toolButton("tool-rectangle", "Rectangle", "rectangle")}
           <span class="separator"></span>
           ${this.toolButton("fit-course", "Entire Course", "fit", "Fit")}
           ${this.toolButton("set-print-area", "Set Export Area", "print-area", "Export Area")}
-          <label class="zoom-control">${escapeHtml(this.t("Zoom"))} <input id="zoomSlider" type="range" min="20" max="400" value="100"></label>
-          <label class="zoom-control">${escapeHtml(this.t("Intensity"))} <input id="intensitySlider" type="range" min="10" max="100" value="65"></label>
-          <label class="zoom-control">${escapeHtml(this.t("Language"))}
+          <label class="toolbar-control">${escapeHtml(this.t("Language"))}
             <select id="appLanguage">${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${code}" ${code === this.language ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>
           </label>
         </section>
@@ -453,7 +453,13 @@ export class PurplePenApp extends HTMLElement {
           </aside>
           <div id="workspaceDivider" class="workspace-divider" role="separator" aria-orientation="vertical" aria-label="${escapeAttr(this.t("Resize panels"))}"></div>
           <section class="map-panel">
-            <div id="courseBanner" class="course-banner"></div>
+            <div id="courseBanner" class="course-banner">
+              <div id="courseBannerText" class="course-banner-text"></div>
+              <div class="map-view-controls" aria-label="${escapeAttr(this.t("Map view controls"))}">
+                <label class="map-view-control"><span>${escapeHtml(this.t("Zoom"))}</span><input id="zoomSlider" type="range" min="20" max="400" value="100"></label>
+                <label class="map-view-control"><span>${escapeHtml(this.t("Intensity"))}</span><input id="intensitySlider" type="range" min="10" max="100" value="65"></label>
+              </div>
+            </div>
             <canvas id="mapCanvas" class="map-canvas"></canvas>
           </section>
         </main>
@@ -722,7 +728,7 @@ export class PurplePenApp extends HTMLElement {
     const details = course
       ? `${optionLabel(course.kind)} | ${formatLength(courseLength(eventModel, course.id))} | ${courseView(eventModel, course.id).length} ${this.t("controls")}`
       : `${eventModel.controls.length} ${this.t("controls")} | ${eventModel.specials.length} ${this.t("special objects")}`;
-    this.querySelector("#courseBanner").innerHTML = `<strong>${escapeHtml(eventModel.event.title || this.t("Untitled Event"))}</strong><span>${escapeHtml(title)}</span><span>${escapeHtml(details)}</span>`;
+    this.querySelector("#courseBannerText").innerHTML = `<strong>${escapeHtml(eventModel.event.title || this.t("Untitled Event"))}</strong><span>${escapeHtml(title)}</span><span>${escapeHtml(details)}</span>`;
   }
 
   renderDescription({ eventModel, ui }) {
@@ -1093,6 +1099,7 @@ export class PurplePenApp extends HTMLElement {
         <label>${escapeHtml(this.t("Shown for"))} <select data-field="special.descriptionTarget">${courseOptions.map(([value, label]) => `<option value="${value}" ${value === target ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>
         <label>${escapeHtml(this.t("Format"))} <select data-field="special.descriptionKind">${DESCRIPTION_KINDS.map(kind => `<option value="${kind}" ${kind === (special.descriptionKind || "symbols") ? "selected" : ""}>${escapeHtml(this.t(descriptionKindLabel(kind)))}</option>`).join("")}</select></label>
         <label>${escapeHtml(this.t("Columns"))} <select data-field="special.numColumns">${[1, 2, 3, 4, 5, 6].map(value => `<option value="${value}" ${value === Number(special.numColumns || 1) ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+        <label>${escapeHtml(this.t("Line height (mm)"))} <input data-field="special.cellSize" type="number" min="1.2" step="0.1" value="${Number(special.cellSize || 5.2).toFixed(1)}"></label>
         <label>${escapeHtml(this.t("Color"))} <select data-field="special.color">${["black", "upper-purple"].map(color => `<option value="${color}" ${color === (special.color || "black") ? "selected" : ""}>${escapeHtml(optionLabel(color))}</option>`).join("")}</select></label>
         <p class="muted">${escapeHtml(this.t("Drag the block to move it. Drag the lower-right handle to resize; columns and cell size update together."))}</p>
       </div>
@@ -1368,6 +1375,11 @@ export class PurplePenApp extends HTMLElement {
         return;
       }
       if (kind === "descriptions") {
+        const existing = existingDescriptionSpecialForTarget(state.eventModel, selectedCourseId);
+        if (existing) {
+          this.selectExistingDescriptionSpecial(existing);
+          return;
+        }
         Object.assign(options, createDescriptionSpecialOptions(this.store.snapshot().eventModel, point, selectedCourseId));
       }
       if (toolOptions.locations) {
@@ -1407,6 +1419,13 @@ export class PurplePenApp extends HTMLElement {
   }
 
   addDescriptionSpecial(point, options) {
+    const state = this.store.snapshot();
+    const targetCourseId = options?.allCourses ? "all" : options?.courses?.[0]?.course || state.ui.selectedCourseId || "all";
+    const existing = existingDescriptionSpecialForTarget(state.eventModel, targetCourseId);
+    if (existing) {
+      this.selectExistingDescriptionSpecial(existing);
+      return;
+    }
     this.store.updateEvent(model => {
       const selection = addSpecialAt(model, "descriptions", point, options);
       model.metadata.pendingSelection = selection;
@@ -1416,6 +1435,14 @@ export class PurplePenApp extends HTMLElement {
       ui.selection = pending;
       ui.tool = "select";
     }, "Select mode");
+  }
+
+  selectExistingDescriptionSpecial(special) {
+    this.store.updateUi(ui => {
+      ui.selection = { type: "special", id: special.id };
+      ui.tool = "select";
+      ui.status = this.t("This course already has a control description table.");
+    }, "Select existing descriptions");
   }
 
   addManualLegCut(point, legHit) {
@@ -1581,6 +1608,13 @@ export class PurplePenApp extends HTMLElement {
     const field = target.dataset.field;
     if (!field) return;
     if (field === "special.kind") return;
+    if (field === "special.descriptionTarget" && selection?.type === "special") {
+      const existing = existingDescriptionSpecialForTarget(this.store.snapshot().eventModel, target.value, selection.id);
+      if (existing) {
+        this.selectExistingDescriptionSpecial(existing);
+        return;
+      }
+    }
     this.store.updateEvent(model => {
       const object = objectForSelection(model, selection);
       if (!object) return;
@@ -1594,6 +1628,10 @@ export class PurplePenApp extends HTMLElement {
       if (field === "special.descriptionTarget" && object.kind === "descriptions") {
         object.allCourses = target.value === "all";
         object.courses = object.allCourses ? [] : [{ course: Number(target.value), part: -1 }];
+        return;
+      }
+      if (field === "special.cellSize" && object.kind === "descriptions") {
+        object.cellSize = Math.max(1.2, Number(target.value) || 5.2);
         return;
       }
       if (field.startsWith("special.font.")) {

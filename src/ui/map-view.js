@@ -11,7 +11,8 @@ import {
   createDescriptionSpecialOptions,
   descriptionBounds,
   drawControlDescriptionBlock,
-  resizedDescriptionSpecial
+  resizedDescriptionSpecial,
+  specialVisibleForCourse
 } from "../domain/control-descriptions.js";
 import { effectivePrintArea } from "../domain/print-area.js";
 import {
@@ -620,6 +621,9 @@ export class MapView {
     const selectedCourse = ui.selectedCourseId === "all" ? null : getCourse(eventModel, ui.selectedCourseId);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), false);
     for (const special of eventModel.specials) {
+      if (!specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) {
+        continue;
+      }
       const points = (special.locations || []).map(point => this.toScreen(point, ui));
       ctx.save();
       if (["boundary", "line"].includes(special.kind) && points.length >= 2) {
@@ -782,20 +786,13 @@ export class MapView {
     }
     else if (ui.selection.type === "special") {
       const special = eventModel.specials.find(item => item.id === ui.selection.id);
-      if (special?.locations?.length) {
+      if (special?.locations?.length && specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) {
         const sourcePoints = special.kind === "descriptions"
           ? descriptionCornerPoints(eventModel, special, ui.selectedCourseId).map(point => this.toScreen(point, ui))
           : specialSelectionPoints(special, ui, this.scale(ui)).map(point => this.toScreen(point, ui));
         if (sourcePoints.length) {
           const rect = screenRectFromPoints(sourcePoints);
           ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-        }
-        if (special.kind === "descriptions") {
-          const points = descriptionCornerPoints(eventModel, special, ui.selectedCourseId).map(point => this.toScreen(point, ui));
-          const rect = screenRectFromPoints(points);
-          ctx.setLineDash([]);
-          ctx.fillStyle = "#2477c9";
-          ctx.fillRect(rect.x + rect.w + 2, rect.y + rect.h + 2, 10, 10);
         }
       }
     }
@@ -805,7 +802,7 @@ export class MapView {
   drawSpecialHandles(ctx, eventModel, ui) {
     if (ui.selection?.type !== "special") return;
     const special = eventModel.specials.find(item => Number(item.id) === Number(ui.selection.id));
-    if (!special) return;
+    if (!special || !specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) return;
     const scale = this.scale(ui);
     ctx.save();
     const handles = specialResizeHandles(special, ui, scale, eventModel);
@@ -1293,6 +1290,9 @@ export class MapView {
     }
 
     for (const special of state.eventModel.specials) {
+      if (!specialVisibleForCourse(special, state.ui.selectedCourseId, state.ui.showAllControls)) {
+        continue;
+      }
       if (special.kind === "descriptions") {
         const bounds = descriptionBounds(state.eventModel, special, state.ui.selectedCourseId);
         const handleDistance = Math.hypot(bounds.right - point.x, bounds.bottom - point.y);
@@ -1384,7 +1384,7 @@ export class MapView {
     let best = null;
     let bestDistance = Infinity;
     const special = state.eventModel.specials.find(item => Number(item.id) === Number(state.ui.selection.id));
-    if (!special) return null;
+    if (!special || !specialVisibleForCourse(special, state.ui.selectedCourseId, state.ui.showAllControls)) return null;
     for (const handle of specialResizeHandles(special, state.ui, scale, state.eventModel)) {
       const candidateDistance = distance(point, handle.point);
       if (candidateDistance <= threshold * 0.9 && candidateDistance < bestDistance) {
@@ -1603,11 +1603,17 @@ function specialResizeHandles(special, ui, scale, eventModel) {
   if (!special?.locations?.length) return [];
   if (special.kind === "descriptions") {
     const bounds = eventModel ? descriptionBounds(eventModel, special, ui.selectedCourseId) : null;
-    return bounds ? [{
-      handle: "resize-se",
-      point: { x: bounds.right, y: bounds.bottom },
-      anchor: { x: bounds.left, y: bounds.top }
-    }] : [];
+    return bounds ? [
+      {
+        handle: "move-anchor",
+        point: { x: bounds.left, y: bounds.top }
+      },
+      {
+        handle: "resize-se",
+        point: { x: bounds.right, y: bounds.bottom },
+        anchor: { x: bounds.left, y: bounds.top }
+      }
+    ] : [];
   }
   if (["line", "boundary", "out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(special.kind)) {
     return special.locations.map((point, index) => ({

@@ -248,7 +248,7 @@ export function createSpecial(id, kind, point) {
       height: -1
     },
     numColumns: 1,
-    cellSize: kind === "descriptions" ? 6 : null,
+    cellSize: kind === "descriptions" ? 5.2 : null,
     descriptionKind: "symbols",
     imageData: null
   };

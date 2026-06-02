@@ -307,6 +307,7 @@ export function removeCourseControl(eventModel, courseControlId) {
 
 export function addCourse(eventModel, name, kind = "normal") {
   const course = createCourse(nextId(eventModel.courses), name, kind, eventModel.courses.length + 1);
+  course.options.printScale = positiveMapScale(eventModel);
   const start = eventModel.controls.find(control => control.kind === "start");
   const finish = eventModel.controls.find(control => control.kind === "finish");
   if (start) {
@@ -320,6 +321,11 @@ export function addCourse(eventModel, name, kind = "normal") {
   eventModel.courses.push(course);
   resequenceCourses(eventModel);
   return { type: "course", id: course.id };
+}
+
+function positiveMapScale(eventModel) {
+  const scale = Number(eventModel?.event?.map?.scale);
+  return Number.isFinite(scale) && scale > 0 ? scale : 15000;
 }
 
 export function duplicateCourse(eventModel, courseId, name) {

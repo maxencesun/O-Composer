@@ -13,6 +13,7 @@ const ICONS = {
   line: '<path d="M5 18 19 6"/>',
   cut: '<path d="M5 18 19 6"/><path d="m8 6 8 12"/><circle cx="8" cy="6" r="1.5"/><circle cx="16" cy="18" r="1.5"/>',
   rectangle: '<rect x="5" y="6" width="14" height="12"/>',
+  descriptions: '<rect x="4.5" y="5" width="15" height="14" rx="1"/><path d="M4.5 9h15"/><path d="M4.5 13h15"/><path d="M8.25 5v14"/><path d="M12 5v14"/><path d="M15.75 5v14"/>',
   "print-area": '<rect x="5" y="4" width="14" height="16" rx="1.5"/><path d="M8 8h8"/><path d="M8 16h8"/><path d="M8 4v3"/><path d="M16 17v3"/>',
   fit: '<path d="M8 4H4v4"/><path d="M16 4h4v4"/><path d="M8 20H4v-4"/><path d="M16 20h4v-4"/><path d="M4 4l5 5"/><path d="m20 4-5 5"/><path d="m4 20 5-5"/><path d="m20 20-5-5"/>'
 };

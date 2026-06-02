@@ -33,7 +33,7 @@ export const ISCD_SYMBOLS = Object.freeze({
   H: [["", "Not specified"], ["taped-route", "Taped route"], ["marked-route", "Marked route"], ["mandatory-crossing", "Mandatory crossing"], ["refreshment", "Refreshment"], ["radio", "Radio control"], ["first-aid", "First aid"], ["map-exchange", "Map exchange"], ["map-flip", "Map flip"]]
 });
 
-const DEFAULT_CELL_SIZE = 6;
+const DEFAULT_CELL_SIZE = 5.2;
 const MIN_CELL_SIZE = 1.2;
 const COLUMN_GAP_CELLS = 0.6;
 const MARGIN_CELLS = 0.05;
@@ -115,17 +115,28 @@ export function storageForIscdSelection(column, value) {
 }
 
 export function createDescriptionSpecialOptions(eventModel, point, selectedCourseId = "all") {
-  const rows = buildControlDescriptionRows(eventModel, selectedCourseId, "symbols");
+  const targetCourseId = descriptionTargetForNewSpecial(eventModel, selectedCourseId);
+  const rows = buildControlDescriptionRows(eventModel, targetCourseId, "symbols");
   const cellSize = DEFAULT_CELL_SIZE;
   return {
     locations: [{ x: point.x, y: point.y }, { x: point.x + cellSize, y: point.y }],
     numColumns: bestDescriptionColumns(rows.length, 8),
     cellSize,
     descriptionKind: "symbols",
-    allCourses: selectedCourseId === "all",
-    courses: selectedCourseId === "all" ? [] : [{ course: Number(selectedCourseId), part: -1 }],
+    allCourses: targetCourseId === "all",
+    courses: targetCourseId === "all" ? [] : [{ course: Number(targetCourseId), part: -1 }],
     color: "black"
   };
+}
+
+export function existingDescriptionSpecialForTarget(eventModel, selectedCourseId = "all", excludedSpecialId = null) {
+  const targetCourseId = descriptionTargetForNewSpecial(eventModel, selectedCourseId);
+  return (eventModel?.specials || []).find(special => {
+    if (special.kind !== "descriptions") return false;
+    if (excludedSpecialId !== null && Number(special.id) === Number(excludedSpecialId)) return false;
+    if (targetCourseId === "all") return !!special.allCourses;
+    return !special.allCourses && (special.courses || []).some(course => Number(course.course) === Number(targetCourseId));
+  }) || null;
 }
 
 export function buildControlDescriptionRows(eventModel, selectedCourseId = "all", descriptionKind = "symbols") {
@@ -166,6 +177,22 @@ export function descriptionKindForSpecial(special, eventModel, selectedCourseId 
 export function descriptionCoursesTarget(special, selectedCourseId = "all") {
   if (special?.allCourses) return "all";
   return special?.courses?.[0]?.course || selectedCourseId || "all";
+}
+
+export function specialVisibleForCourse(special, selectedCourseId = "all", showAllControls = false) {
+  if (!special) return false;
+  const courseId = selectedCourseId === undefined || selectedCourseId === null ? "all" : selectedCourseId;
+  if (special.kind === "descriptions") {
+    if (courseId === "all" || showAllControls) {
+      return !!special.allCourses;
+    }
+    return !special.allCourses && (special.courses || []).some(course => Number(course.course) === Number(courseId));
+  }
+  if (courseId === "all" || showAllControls) {
+    return !!special.allCourses;
+  }
+  if (special.allCourses) return true;
+  return (special.courses || []).some(course => Number(course.course) === Number(courseId));
 }
 
 export function descriptionMetrics(eventModel, special, selectedCourseId = "all") {
@@ -808,6 +835,12 @@ function descriptionKindFromCourse(eventModel, selectedCourseId) {
   return course?.options?.descriptionKind || eventModel.event?.allControls?.descriptionKind || "symbols";
 }
 
+function descriptionTargetForNewSpecial(eventModel, selectedCourseId) {
+  if (selectedCourseId === "all") return "all";
+  const course = getCourse(eventModel, selectedCourseId);
+  return course ? course.id : "all";
+}
+
 function bestDescriptionColumns(rowCount, heightCells) {
   if (rowCount <= heightCells) return 1;
   return Math.min(4, Math.max(1, Math.ceil(rowCount / heightCells)));
@@ -1031,9 +1064,28 @@ function drawXmlSymbol(ctx, symbol, cx, cy, radius) {
   ctx.strokeStyle = "#000";
   ctx.fillStyle = "#000";
   for (const stroke of symbol.strokes || []) {
+    if (symbol.id === "13.6" && isMapIssueExtraLeftDash(stroke)) {
+      continue;
+    }
     drawXmlStroke(ctx, stroke);
   }
   ctx.restore();
+}
+
+function isMapIssueExtraLeftDash(stroke) {
+  const points = stroke?.points || [];
+  if (stroke?.kind !== "lines" || points.length !== 2) return false;
+  return (
+    points[0].x === -760
+    && points[0].y === 0
+    && points[1].x === -660
+    && points[1].y === 0
+  ) || (
+    points[0].x === -760
+    && points[0].y === -50
+    && points[1].x === -760
+    && points[1].y === 50
+  );
 }
 
 function drawXmlStroke(ctx, stroke) {

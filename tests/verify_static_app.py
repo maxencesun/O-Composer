@@ -111,6 +111,12 @@ def verify_app_files() -> None:
     assert "onPrintAreaPreview" in app_shell
     for token in ["DESCRIPTION_KINDS", "ISCD_COLUMNS", "ensureIscdSymbolDb", "getIscdSymbolOptions", "symbolOptionsForColumn", "createDescriptionSpecialOptions", "resizedDescriptionSpecial", "drawIscdSymbol", "symbolTooltip", "scheduleSymbolTooltip", "handleDescriptionPanelClick", "openIscdSymbolPicker", "onAddDescriptionSpecial", "onResizeSelection", "descriptionSpecialEditor"]:
         assert token in app_shell, f"missing standard control-description UI: {token}"
+    assert 'toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")' in app_shell
+    assert "descriptions:" in (ROOT / "src" / "ui" / "icons.js").read_text(encoding="utf-8")
+    for token in ['symbol.id === "13.6"', "isMapIssueExtraLeftDash", "points[1].x === -660", "points[0].y === -50", "points[1].y === 50"]:
+        assert token in control_descriptions, f"map issue left dashed line should have three segments: {token}"
+    for token in ["existingDescriptionSpecialForTarget", "This course already has a control description table.", "Line height (mm)", 'data-field="special.cellSize"', "5.2"]:
+        assert token in app_shell + control_descriptions, f"missing description-table course limit/line-height support: {token}"
     for token in ["data-course-finish-route", "finishRouteForCourse", "setFinishRouteFlagging", "finishLegPair"]:
         assert token in app_shell, f"missing Purple Pen finish-route description setting: {token}"
     assert '#selectionPanel").addEventListener("input"' not in app_shell, "selection panel fields should not re-render on every keystroke"
@@ -179,6 +185,8 @@ def verify_omap_support() -> None:
         assert token in map_view + print_area, f"missing print area/control preview support: {token}"
     for token in ["buildControlDescriptionRows", "drawControlDescriptionBlock", "drawIscdSymbol", "parsePurplePenSymbols", "drawXmlSymbol", "LEGACY_ID_ALIASES", "railway", "map-flip", "descriptionBounds", "resizedDescriptionSpecial", "DESCRIPTION_KINDS", "COLUMN_F_TEXT_PREFIX", "drawColumnFText", "storageForIscdSelection", "COLUMN_F_VISUAL_ALIASES", "10.1single", "10.2single", "courseHeaderRow", "allControlsHeaderRow", "directiveRow", "markedRouteRow", "localizedTextMap", "localizedSymbolText", "languageFallbacks", "zh-TW", "formatCourseClimb", "formatDirectiveDistance", "course_length_climb", "13.6", "14.1", "14.2", "14.3"]:
         assert token in control_descriptions, f"missing standard control-description support: {token}"
+    for token in ["specialVisibleForCourse", 'special.kind === "descriptions"', "descriptionTargetForNewSpecial"]:
+        assert token in control_descriptions + map_view, f"description tables must be course-scoped: {token}"
     for token in ['row.control.kind === "start"', 'descriptionValue(row.control, "D")', 'ASymbol: "start"', 'featureText: descriptionKind === "symbols" ? "" : text']:
         assert token in control_descriptions, f"start control descriptions must feed the map table: {token}"
     assert '"A", "B", "C", "D", "E", "F", "G", "H"' not in control_descriptions, "map descriptions must not render a nonstandard A-H column header row"
@@ -188,6 +196,9 @@ def verify_omap_support() -> None:
         assert token in course_symbols, f"missing standardized course symbol support: {token}"
     for token in ["rgba(166, 38, 255", "COURSE_PURPLE_ALPHA", "ALL_CONTROLS_PURPLE_ALPHA"]:
         assert token in course_symbols + map_view, f"course symbols should use transparent Purple Pen purple: {token}"
+    actions = (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8")
+    for token in ["positiveMapScale", "course.options.printScale = positiveMapScale(eventModel)"]:
+        assert token in actions, f"new courses must default to map scale: {token}"
     assert "drawControlCenterPoint" in map_view, "selected controls must show their center point"
     for token in ["emptySpacePan", "moveOffsetForHit", "moveTargetForDrag", "ctx.arc(point.x, point.y, 1.75"]:
         assert token in map_view, f"missing map drag/selection refinement: {token}"

@@ -1,0 +1,59 @@
+<course-scribe-event>
+  <event id="1">
+    <title>Standalone Sample</title>
+    <map kind="none" scale="15000" />
+    <standards map="2017" description="2024" />
+    <all-controls print-scale="15000" description-kind="symbols" />
+    <print-area automatic="true" restrict-to-page-size="true" left="-80" top="80" right="80" bottom="-40" page-width="850" page-height="1100" page-margins="0" page-landscape="false" />
+    <numbering start="31" disallow-invertible="true" />
+    <punch-card rows="3" columns="8" left-to-right="true" top-to-bottom="false" />
+    <course-appearance scale-sizes="None" scale-sizes-circle-gaps="true" auto-leg-gap-size="3.5" blend-purple="true" />
+    <descriptions lang="en" color="black" />
+    <ocad overprint-colors="false" />
+  </event>
+  <control id="1" kind="start">
+    <location x="-40" y="0" />
+    <description box="D" iof-2004-ref="1.1" />
+  </control>
+  <control id="2" kind="normal">
+    <code>31</code>
+    <location x="0" y="35" />
+    <description box="D" iof-2004-ref="2.1" />
+    <description box="G" iof-2004-ref="11.1N" />
+    <punch-pattern size="3">
+101
+010
+101
+</punch-pattern>
+  </control>
+  <control id="3" kind="finish">
+    <location x="42" y="-12" />
+    <description box="all" iof-2004-ref="14.3" />
+  </control>
+  <course id="1" kind="normal" order="1">
+    <name>Sample Course</name>
+    <labels label-kind="sequence" />
+    <first course-control="1" />
+    <options print-scale="15000" description-kind="symbols" />
+  </course>
+  <course-control id="1" control="1">
+    <next course-control="2" />
+  </course-control>
+  <course-control id="2" control="2">
+    <next course-control="3" />
+  </course-control>
+  <course-control id="3" control="3" />
+  <leg id="1" start-control="1" end-control="2">
+    <bends>
+      <location x="-20" y="18" />
+    </bends>
+  </leg>
+  <special-object id="1" kind="text">
+    <text>Sample text</text>
+    <font name="Arial" bold="false" italic="false" />
+    <appearance color="upper-purple" />
+    <location x="-30" y="-28" />
+    <location x="25" y="-38" />
+    <courses all="true" />
+  </special-object>
+</course-scribe-event>

@@ -57,3 +57,13 @@ python3 build.py
 ```
 
 To import an OMAP map in the app, choose **File > Import OMAP Map** and select a `.omap` or `.xmap` file. The bundled `samples/forest-sample.omap` and `samples/text-object.omap` files are local test maps.
+
+## GitHub Pages
+
+The repository includes a GitHub Pages workflow at `.github/workflows/pages.yml`. It publishes the static app directly from the repository root, using `index.html` as the site entry point.
+
+After pushing this repository to GitHub, the Pages URL should be:
+
+```text
+https://maxencesun.github.io/O-Composer/
+```

@@ -33,6 +33,7 @@ const DEFAULT_TEXT_FONT_HEIGHT = 3;
 const TEXT_MIN_WIDTH_PX = 48;
 const TEXT_MIN_HEIGHT_PX = 20;
 const ADDABLE_CONTROL_SNAP_PIXELS = 24;
+const MAX_ZOOM = 24;
 const SPECIAL_COLORS = Object.freeze({
   "upper-purple": PURPLE,
   "lower-purple": LOWER_PURPLE,
@@ -43,7 +44,8 @@ const SPECIAL_COLORS = Object.freeze({
   green: "#2f855a"
 });
 const GRID = "#d8d4c7";
-const OMAP_LAYER_PADDING = 0.35;
+const OMAP_LAYER_PADDING = 1;
+const OMAP_LAYER_CACHE_LIMIT = 3;
 const NORMALIZED_CONTROL_NUMBER_DISTANCE = 1.825;
 
 export class MapView {
@@ -58,6 +60,7 @@ export class MapView {
     this.backgroundUrl = "";
     this.omapMap = null;
     this.omapLayer = null;
+    this.omapLayerCache = [];
     this.omapFastUntil = 0;
     this.omapRefreshTimer = 0;
     this.omapWorker = null;
@@ -283,29 +286,28 @@ export class MapView {
     const width = this.canvas.clientWidth || 1;
     const height = this.canvas.clientHeight || 1;
     const ratio = window.devicePixelRatio || 1;
+    const matchingLayer = this.findOmapLayer(layer => this.omapLayerMatchesLayer(layer, ui, width, height, ratio));
 
-    if (this.shouldUseFastOmapLayer() && this.drawTransformedOmapLayer(ctx, ui, width, height, ratio)) {
+    if (matchingLayer) {
+      this.promoteOmapLayer(matchingLayer);
+      this.drawTransformedOmapLayer(ctx, ui, width, height, ratio, matchingLayer);
       return;
     }
 
-    if (!this.omapLayerMatches(ui, width, height, ratio) && this.queueOmapLayerRender(ui, width, height, ratio)) {
-      if (this.drawTransformedOmapLayer(ctx, ui, width, height, ratio)) {
-        return;
-      }
-      if (!this.omapLayer) {
-        return;
-      }
+    if (this.shouldUseFastOmapLayer() && this.drawBestTransformedOmapLayer(ctx, ui, width, height, ratio)) {
+      return;
     }
 
-    if (!this.omapLayerMatches(ui, width, height, ratio)) {
-      const previous = this.omapLayer;
-      this.omapLayer = this.renderOmapLayer(ui, width, height, ratio);
-      if (this.omapLayer !== previous) {
-        releaseOmapLayer(previous);
+    if (this.queueOmapLayerRender(ui, width, height, ratio)) {
+      if (this.drawBestTransformedOmapLayer(ctx, ui, width, height, ratio)) {
+        return;
       }
+      return;
     }
-    if (this.omapLayer) {
-      this.drawOmapLayer(ctx, this.omapLayer, ui.mapIntensity);
+
+    const layer = this.addOmapLayer(this.renderOmapLayer(ui, width, height, ratio));
+    if (layer) {
+      this.drawOmapLayer(ctx, layer, ui.mapIntensity);
     }
   }
 
@@ -348,6 +350,7 @@ export class MapView {
     });
 
     return {
+      key: omapRenderKey(this.omapMapVersion, view),
       source: layer,
       map: this.omapMap,
       mapVersion: this.omapMapVersion,
@@ -362,7 +365,8 @@ export class MapView {
       zoom: view.zoom,
       pan: view.pan,
       scale: view.scale,
-      highQuality: view.highQuality
+      highQuality: view.highQuality,
+      mapBounds: view.mapBounds
     };
   }
 
@@ -373,8 +377,14 @@ export class MapView {
     ctx.restore();
   }
 
-  drawTransformedOmapLayer(ctx, ui, width, height, ratio) {
-    const layer = this.omapLayer;
+  drawBestTransformedOmapLayer(ctx, ui, width, height, ratio) {
+    const layer = this.findOmapLayer(candidate => this.omapLayerCanTransform(candidate, ui, width, height, ratio));
+    if (!layer) return false;
+    this.promoteOmapLayer(layer);
+    return this.drawTransformedOmapLayer(ctx, ui, width, height, ratio, layer);
+  }
+
+  drawTransformedOmapLayer(ctx, ui, width, height, ratio, layer = this.omapLayer) {
     if (!layer || !this.omapLayerCanTransform(layer, ui, width, height, ratio)) {
       return false;
     }
@@ -396,12 +406,13 @@ export class MapView {
   }
 
   omapLayerMatches(ui, width, height, ratio) {
-    const layer = this.omapLayer;
-    return !!layer
-      && this.omapLayerCanTransform(layer, ui, width, height, ratio)
+    return !!this.findOmapLayer(layer => this.omapLayerMatchesLayer(layer, ui, width, height, ratio));
+  }
+
+  omapLayerMatchesLayer(layer, ui, width, height, ratio) {
+    return this.omapLayerCanTransform(layer, ui, width, height, ratio)
       && nearlyEqual(layer.zoom, ui.zoom)
-      && nearlyEqual(layer.pan.x, ui.pan.x)
-      && nearlyEqual(layer.pan.y, ui.pan.y);
+      && boundsContain(layer.mapBounds, viewportMapBounds(this.bounds, width, height, ui.pan, this.scale(ui)));
   }
 
   omapLayerCanTransform(layer, ui, width, height, ratio) {
@@ -417,6 +428,41 @@ export class MapView {
 
   shouldUseFastOmapLayer() {
     return !!this.omapLayer && nowMs() < this.omapFastUntil;
+  }
+
+  findOmapLayer(predicate) {
+    if (this.omapLayer && predicate(this.omapLayer)) {
+      return this.omapLayer;
+    }
+    return this.omapLayerCache.find(layer => layer !== this.omapLayer && predicate(layer)) || null;
+  }
+
+  promoteOmapLayer(layer) {
+    if (!layer) return null;
+    this.omapLayer = layer;
+    const others = this.omapLayerCache.filter(candidate => candidate !== layer);
+    this.omapLayerCache = [layer, ...others];
+    return layer;
+  }
+
+  addOmapLayer(layer) {
+    if (!layer) return null;
+    const replaced = [];
+    const keep = [];
+    for (const candidate of this.omapLayerCache) {
+      if (candidate === layer) continue;
+      if (candidate.key === layer.key) replaced.push(candidate);
+      else keep.push(candidate);
+    }
+    this.omapLayer = layer;
+    this.omapLayerCache = [layer, ...keep];
+    for (const candidate of replaced) {
+      releaseOmapLayer(candidate);
+    }
+    while (this.omapLayerCache.length > OMAP_LAYER_CACHE_LIMIT) {
+      releaseOmapLayer(this.omapLayerCache.pop());
+    }
+    return layer;
   }
 
   startFastOmapInteraction() {
@@ -438,8 +484,11 @@ export class MapView {
   }
 
   invalidateOmapLayer() {
-    releaseOmapLayer(this.omapLayer);
+    for (const layer of this.omapLayerCache) {
+      releaseOmapLayer(layer);
+    }
     this.omapLayer = null;
+    this.omapLayerCache = [];
   }
 
   queueOmapLayerRender(ui, width, height, ratio) {
@@ -553,8 +602,8 @@ export class MapView {
       return;
     }
     if (message.bitmap && message.mapVersion === this.omapMapVersion) {
-      const previous = this.omapLayer;
-      this.omapLayer = {
+      this.addOmapLayer({
+        key: omapRenderKey(message.mapVersion, message.view),
         source: message.bitmap,
         map: this.omapMap,
         mapVersion: message.mapVersion,
@@ -569,9 +618,9 @@ export class MapView {
         zoom: message.view.zoom,
         pan: message.view.pan,
         scale: message.view.scale,
-        highQuality: message.view.highQuality
-      };
-      releaseOmapLayer(previous);
+        highQuality: message.view.highQuality,
+        mapBounds: message.view.mapBounds
+      });
       this.requestDraw(this.store.snapshot());
     }
     else if (message.bitmap?.close) {
@@ -1294,7 +1343,7 @@ export class MapView {
     const cursor = { x: event.offsetX, y: event.offsetY };
     const before = this.toMap(cursor, this.store.snapshot().ui);
     this.store.updateUi(ui => {
-      ui.zoom = clamp(ui.zoom * delta, 0.2, 12);
+      ui.zoom = clamp(ui.zoom * delta, 0.2, MAX_ZOOM);
       const after = this.toScreen(before, ui);
       ui.pan = {
         x: ui.pan.x + cursor.x - after.x,
@@ -1322,7 +1371,7 @@ export class MapView {
     if (!gesture || !this.pinch) return;
     this.startFastOmapInteraction();
     this.store.updateUi(ui => {
-      ui.zoom = clamp(this.pinch.startZoom * gesture.distance / this.pinch.startDistance, 0.2, 12);
+      ui.zoom = clamp(this.pinch.startZoom * gesture.distance / this.pinch.startDistance, 0.2, MAX_ZOOM);
       const after = this.toScreen(this.pinch.mapCenter, ui);
       ui.pan = {
         x: ui.pan.x + gesture.center.x - after.x,
@@ -2487,18 +2536,31 @@ function pinchGesture(points) {
 }
 
 function layerMapBounds(view) {
-  const cx = (view.bounds.left + view.bounds.right) / 2;
-  const cy = (view.bounds.top + view.bounds.bottom) / 2;
-  const left = cx + (-view.padX - view.width / 2 - view.pan.x) / view.scale;
-  const right = cx + (view.width + view.padX - view.width / 2 - view.pan.x) / view.scale;
-  const top = cy - (-view.padY - view.height / 2 - view.pan.y) / view.scale;
-  const bottom = cy - (view.height + view.padY - view.height / 2 - view.pan.y) / view.scale;
+  return viewportMapBounds(view.bounds, view.width, view.height, view.pan, view.scale, view.padX, view.padY);
+}
+
+function viewportMapBounds(bounds, width, height, pan, scale, padX = 0, padY = 0) {
+  const cx = (bounds.left + bounds.right) / 2;
+  const cy = (bounds.top + bounds.bottom) / 2;
+  const left = cx + (-padX - width / 2 - pan.x) / scale;
+  const right = cx + (width + padX - width / 2 - pan.x) / scale;
+  const top = cy - (-padY - height / 2 - pan.y) / scale;
+  const bottom = cy - (height + padY - height / 2 - pan.y) / scale;
   return {
     left: Math.min(left, right),
     right: Math.max(left, right),
     top: Math.max(top, bottom),
     bottom: Math.min(top, bottom)
   };
+}
+
+function boundsContain(outer, inner) {
+  const epsilon = 0.001;
+  return !!outer && !!inner
+    && outer.left <= inner.left + epsilon
+    && outer.right >= inner.right - epsilon
+    && outer.top >= inner.top - epsilon
+    && outer.bottom <= inner.bottom + epsilon;
 }
 
 function omapRenderKey(mapVersion, view) {

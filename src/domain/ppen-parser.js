@@ -281,7 +281,7 @@ function parseCourse(node) {
     name: "",
     secondaryTitle: "",
     hideVariationsOnMap: false,
-    labelKind: kind === "score" ? "code" : "sequence",
+    labelKind: kind === "score" ? "code-and-score" : "sequence",
     firstCourseControl: null,
     firstControlOrdinal: 1,
     printArea: null,
@@ -292,7 +292,8 @@ function parseCourse(node) {
       load: -1,
       courseLength: null,
       descriptionKind: "symbols",
-      scoreColumn: kind === "score" ? 0 : -1,
+      scoreColumn: kind === "score" ? 7 : -1,
+      scoreFinishControl: null,
       hideFromReports: false
     },
     partOptions: [],
@@ -338,6 +339,7 @@ function parseCourse(node) {
           courseLength: attr(child, "course-length", "") === "" ? null : numAttr(child, "course-length", null),
           descriptionKind: attr(child, "description-kind", attr(child, "description", "symbols")),
           scoreColumn: scoreColumnFromNode(child, kind),
+          scoreFinishControl: kind === "score" ? nullableIntAttr(child, "score-finish-control") : null,
           hideFromReports: boolAttr(child, "hide-from-reports", false)
         };
         break;
@@ -547,7 +549,7 @@ function scoreColumnFromNode(node, kind) {
   }
   const raw = attr(node, "score-column", "");
   if (raw === "") {
-    return 0;
+    return 7;
   }
   const columns = { A: 0, B: 1, H: 7 };
   return raw in columns ? columns[raw] : normalizeNumber(raw, 0);
@@ -738,7 +740,8 @@ function writeCourse(lines, course, level) {
     load: options.load >= 0 ? options.load : undefined,
     "course-length": options.courseLength || undefined,
     "hide-from-reports": !!options.hideFromReports,
-    "score-column": course.kind === "score" ? options.scoreColumn ?? 0 : undefined,
+    "score-column": course.kind === "score" ? options.scoreColumn ?? 7 : undefined,
+    "score-finish-control": course.kind === "score" ? options.scoreFinishControl || undefined : undefined,
     "description-kind": options.descriptionKind || "symbols"
   });
   if ((course.relay?.teams || 0) > 0 || (course.relay?.legs || 1) > 1) {
@@ -919,6 +922,10 @@ function intAttr(node, name, fallback = 0) {
   }
   const number = Number.parseInt(value, 10);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function nullableIntAttr(node, name) {
+  return intAttr(node, name, null);
 }
 
 function boolAttr(node, name, fallback = false) {

@@ -9,6 +9,7 @@ const ICONS = {
   start: '<path d="M12 4 20 18H4Z"/>',
   control: '<circle cx="12" cy="12" r="7"/>',
   finish: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="5"/>',
+  "map-issue": '<path d="M9 5v14"/><path d="M9 12h7"/>',
   text: '<path d="M5 5h14"/><path d="M12 5v14"/><path d="M9 19h6"/>',
   line: '<path d="M5 18 19 6"/>',
   cut: '<path d="M5 18 19 6"/><path d="m8 6 8 12"/><circle cx="8" cy="6" r="1.5"/><circle cx="16" cy="18" r="1.5"/>',

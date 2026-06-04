@@ -146,14 +146,14 @@ export class MapView {
     ctx.restore();
   }
 
-  renderAreaToCanvas(eventModel, ui, area, size) {
+  renderAreaToCanvas(eventModel, ui, area, size, options = {}) {
     const width = Math.max(1, Math.round(size?.width || 1200));
     const height = Math.max(1, Math.round(size?.height || 1600));
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d");
-    this.renderAreaToContext(ctx, eventModel, ui, area, { width, height }, { includeBitmapBackground: true });
+    this.renderAreaToContext(ctx, eventModel, ui, area, { width, height }, { includeBitmapBackground: true, ...options });
     return canvas;
   }
 
@@ -184,8 +184,10 @@ export class MapView {
     };
     try {
       this.bounds = exportBounds;
-      ctx.fillStyle = "#f8f7f2";
-      ctx.fillRect(0, 0, width, height);
+      if (options.includePageBackground !== false) {
+        ctx.fillStyle = options.pageBackgroundColor || "#f8f7f2";
+        ctx.fillRect(0, 0, width, height);
+      }
       if (options.includeBitmapBackground) {
         this.drawBackground(ctx, width, height, exportUi);
       }
@@ -264,6 +266,10 @@ export class MapView {
     ctx.globalAlpha = ui.mapIntensity;
     ctx.drawImage(this.backgroundImage, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
     ctx.restore();
+  }
+
+  hasBitmapBackground() {
+    return !!this.backgroundImage;
   }
 
   drawOmap(ctx, ui) {

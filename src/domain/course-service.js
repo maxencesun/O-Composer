@@ -117,11 +117,14 @@ export function allControlsView(eventModel) {
 
 export function courseLegs(eventModel, courseId, options = {}) {
   const course = getCourse(eventModel, courseId);
-  if (!course || course.kind === "score") {
+  if (!course) {
     return [];
   }
 
   const view = courseView(eventModel, courseId, options);
+  if (course.kind === "score") {
+    return scoreCourseFinishLeg(eventModel, course, view);
+  }
   const legs = [];
   for (let i = 0; i < view.length - 1; i += 1) {
     const from = view[i];
@@ -139,6 +142,36 @@ export function courseLegs(eventModel, courseId, options = {}) {
       length: legLength(eventModel, from.control.id, to.control.id)
     });
   }
+  return legs;
+}
+
+function scoreCourseFinishLeg(eventModel, course, view) {
+  const legs = [];
+  const mapIssue = view.find(row => row.control?.kind === "map-issue");
+  const start = view.find(row => row.control?.kind === "start");
+  if (mapIssue && start) {
+    legs.push({
+      from: mapIssue,
+      to: start,
+      leg: findLeg(eventModel, mapIssue.control.id, start.control.id),
+      length: legLength(eventModel, mapIssue.control.id, start.control.id)
+    });
+  }
+  const startControlId = Number(course.options?.scoreFinishControl) || 0;
+  if (!startControlId) {
+    return legs;
+  }
+  const from = view.find(row => Number(row.control?.id) === startControlId && row.control?.kind === "normal");
+  const to = view.find(row => row.control?.kind === "finish");
+  if (!from || !to) {
+    return legs;
+  }
+  legs.push({
+    from,
+    to,
+    leg: findLeg(eventModel, from.control.id, to.control.id),
+    length: legLength(eventModel, from.control.id, to.control.id)
+  });
   return legs;
 }
 
@@ -160,12 +193,109 @@ export function legPath(eventModel, startControlId, endControlId) {
 }
 
 export function legLength(eventModel, startControlId, endControlId) {
+  const start = getControl(eventModel, startControlId);
+  const end = getControl(eventModel, endControlId);
+  if (!start || !end) {
+    return 0;
+  }
+
+  const leg = findLeg(eventModel, startControlId, endControlId);
+  const flagging = normalizeFlaggingKind(leg?.flagging?.kind);
+
+  // No mandatory route or entire leg mandatory — use path distance for "all",
+  // straight-line for "none"
+  if (flagging === "none") {
+    return distance(start.location, end.location);
+  }
+  if (flagging === "all") {
+    const path = legPath(eventModel, startControlId, endControlId);
+    return pathLength(path);
+  }
+
+  // Partial mandatory route:
+  // - Unmarked segments: straight-line distance between endpoints
+  // - Mandatory (flagged) segment: distance along the purple line (path)
   const path = legPath(eventModel, startControlId, endControlId);
+  const total = pathLength(path);
+  if (total <= 0) {
+    return distance(start.location, end.location);
+  }
+
+  // Determine flag start/end distances along the path
+  let flagStart = 0;
+  let flagEnd = total;
+
+  if (flagging === "begin") {
+    flagStart = 0;
+    flagEnd = clamp(Number(leg.flagging?.end) || total / 2, 0, total);
+  } else if (flagging === "end") {
+    flagStart = clamp(Number(leg.flagging?.start) || total / 2, 0, total);
+    flagEnd = total;
+  } else if (flagging === "middle") {
+    flagStart = clamp(Number(leg.flagging?.start) || total * 0.35, 0, total);
+    flagEnd = clamp(Number(leg.flagging?.end) || total * 0.65, flagStart, total);
+  }
+
+  const flagStartPoint = pointAtPathDistance(path, flagStart);
+  const flagEndPoint = pointAtPathDistance(path, flagEnd);
+
+  // Unmarked before flag: start → flag start (straight line)
+  // Mandatory segment: flag start → flag end (along purple line path)
+  // Unmarked after flag: flag end → end (straight line)
   let length = 0;
-  for (let i = 0; i < path.length - 1; i += 1) {
-    length += distance(path[i], path[i + 1]);
+  length += distance(start.location, flagStartPoint);
+  length += pathSegmentLength(path, flagStart, flagEnd);
+  length += distance(flagEndPoint, end.location);
+  return length;
+}
+
+function normalizeFlaggingKind(kind) {
+  return { "beginning-part": "begin", "end-part": "end", "middle-part": "middle" }[kind] || kind || "none";
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function pathLength(points) {
+  let length = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    length += distance(points[i], points[i + 1]);
   }
   return length;
+}
+
+function pathSegmentLength(points, startDist, endDist) {
+  let length = 0;
+  let offset = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const segLen = distance(points[i], points[i + 1]);
+    const segStart = offset;
+    const segEnd = offset + segLen;
+    // Overlap of [startDist, endDist] with [segStart, segEnd]
+    const overlapStart = Math.max(startDist, segStart);
+    const overlapEnd = Math.min(endDist, segEnd);
+    if (overlapStart < overlapEnd) {
+      length += overlapEnd - overlapStart;
+    }
+    offset = segEnd;
+  }
+  return length;
+}
+
+function pointAtPathDistance(points, target) {
+  let remaining = clamp(target, 0, pathLength(points));
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i];
+    const b = points[i + 1];
+    const length = distance(a, b);
+    if (remaining <= length && length > 0) {
+      const t = remaining / length;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+    remaining -= length;
+  }
+  return { ...points[points.length - 1] };
 }
 
 export function courseLength(eventModel, courseId) {
@@ -405,18 +535,23 @@ function labelForControl(course, courseControl, control, ordinal) {
     return controlKindLabel(control.kind);
   }
   const code = control.code || "";
-  const score = courseControl.points ? String(courseControl.points) : "";
+  const score = course.kind === "score"
+    ? String(Math.max(0, Number(courseControl?.points) || 0))
+    : (courseControl?.points ? String(courseControl.points) : "");
   switch (course.labelKind) {
     case "code": return code;
     case "sequence-and-code": return `${ordinal}-${code}`;
     case "sequence-and-score": return score ? `${ordinal}(${score})` : String(ordinal);
-    case "code-and-score": return score ? `${code}(${score})` : code;
+    case "code-and-score-brackets": return score ? `${code}[${score}]` : code;
+    case "code-and-score-dash": return score ? `${code}-${score}` : code;
+    case "code-and-score":
+    case "code-and-score-parens": return score ? `${code}(${score})` : code;
     case "score": return score;
     default: return String(ordinal);
   }
 }
 
-function naturalCode(a, b) {
+export function naturalCode(a, b) {
   const an = Number(a);
   const bn = Number(b);
   if (Number.isFinite(an) && Number.isFinite(bn) && an !== bn) {

@@ -153,7 +153,7 @@ export function createCourse(id, name = `Course ${id}`, kind = "normal", order =
     name,
     secondaryTitle: "",
     hideVariationsOnMap: false,
-    labelKind: kind === "score" ? "code" : "sequence",
+    labelKind: kind === "score" ? "code-and-score" : "sequence",
     firstCourseControl: null,
     firstControlOrdinal: 1,
     printArea: null,
@@ -164,7 +164,8 @@ export function createCourse(id, name = `Course ${id}`, kind = "normal", order =
       load: -1,
       courseLength: null,
       descriptionKind: "symbols",
-      scoreColumn: kind === "score" ? 0 : -1,
+      scoreColumn: kind === "score" ? 7 : -1,
+      scoreFinishControl: null,
       hideFromReports: false
     },
     partOptions: [],

@@ -1,4 +1,4 @@
-import { courseLength, courseView, findLeg, getCourse, legLength, legPath } from "./course-service.js";
+import { courseLength, courseView, findLeg, getCourse, legLength, legPath, naturalCode } from "./course-service.js";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -129,6 +129,10 @@ export function createDescriptionSpecialOptions(eventModel, point, selectedCours
   };
 }
 
+export function scoreCourseDescriptionRows(rows) {
+  return [...rows].sort(compareScoreDescriptionRows);
+}
+
 export function existingDescriptionSpecialForTarget(eventModel, selectedCourseId = "all", excludedSpecialId = null) {
   const targetCourseId = descriptionTargetForNewSpecial(eventModel, selectedCourseId);
   return (eventModel?.specials || []).find(special => {
@@ -141,7 +145,10 @@ export function existingDescriptionSpecialForTarget(eventModel, selectedCourseId
 
 export function buildControlDescriptionRows(eventModel, selectedCourseId = "all", descriptionKind = "symbols") {
   const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
-  const view = selectedCourseId === "all" ? courseView(eventModel, "all") : courseView(eventModel, selectedCourseId);
+  let view = selectedCourseId === "all" ? courseView(eventModel, "all") : courseView(eventModel, selectedCourseId);
+  if (course?.kind === "score") {
+    view = scoreCourseDescriptionRows(view);
+  }
   const normalControls = view.filter(row => row.control.kind === "normal");
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
@@ -161,6 +168,24 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
     }
   }
   return rows;
+}
+
+function compareScoreDescriptionRows(a, b) {
+  const order = {
+    "map-issue": 0,
+    start: 1,
+    normal: 2,
+    "crossing-point": 3,
+    "map-exchange": 4,
+    finish: 5
+  };
+  const aKind = a?.control?.kind || "";
+  const bKind = b?.control?.kind || "";
+  const kindDiff = (order[aKind] ?? 99) - (order[bKind] ?? 99);
+  if (kindDiff) return kindDiff;
+  const codeDiff = naturalCode(a?.control?.code || String(a?.control?.id || ""), b?.control?.code || String(b?.control?.id || ""));
+  if (codeDiff) return codeDiff;
+  return (Number(a?.courseControl?.id) || Number(a?.control?.id) || 0) - (Number(b?.courseControl?.id) || Number(b?.control?.id) || 0);
 }
 
 export function descriptionCellSize(special) {
@@ -358,7 +383,13 @@ function drawDescriptionRow(ctx, row, metrics, x, y) {
       drawIscdSymbol(ctx, "E", row.E, x + cs * 4.5, y + cs / 2, cs * 0.34);
       drawIscdSymbol(ctx, "F", row.F, x + cs * 5.5, y + cs / 2, cs * 0.34);
       drawIscdSymbol(ctx, "G", row.G, x + cs * 6.5, y + cs / 2, cs * 0.34);
-      drawIscdSymbol(ctx, "H", row.H, x + cs * 7.5, y + cs / 2, cs * 0.34);
+      if (row.HScore !== undefined) {
+        setDescriptionFont(ctx, cs, "columnB");
+        fitSingleLineText(ctx, row.HScore, x + cs * 7, y, cs, cs, "center");
+      }
+      else {
+        drawIscdSymbol(ctx, "H", row.H, x + cs * 7.5, y + cs / 2, cs * 0.34);
+      }
       if (metrics.kind === "symbols-and-text") {
         setDescriptionFont(ctx, cs, "text");
         fitWrappedText(ctx, row.text || "", x + cs * 8.15, y, cs * 4.7, cs, "left");
@@ -378,15 +409,18 @@ function drawNormalVerticals(ctx, x, y, cellSize) {
 }
 
 function setDescriptionFont(ctx, cellSize, kind) {
+  const sans = "\"黑体\", Arial, sans-serif";
+  const condensed = "\"Roboto Condensed\", \"黑体\", Arial Narrow, Arial, sans-serif";
+  const regular = `Roboto, ${sans}`;
   const specs = {
-    title: ["700", TITLE_FONT, "\"Roboto Condensed\", Arial Narrow, Arial, sans-serif"],
-    columnA: ["700", COLUMN_A_FONT, "Roboto, Arial, sans-serif"],
-    columnB: ["400", COLUMN_B_FONT, "\"Roboto Condensed\", Arial Narrow, Arial, sans-serif"],
-    columnF: ["400", COLUMN_F_FONT, "Roboto, Arial, sans-serif"],
-    columnFSmall: ["400", COLUMN_F_SMALL_FONT, "\"Roboto Condensed\", Arial Narrow, Arial, sans-serif"],
-    directive: ["700", DIRECTIVE_FONT, "\"Roboto Condensed\", Arial Narrow, Arial, sans-serif"],
-    text: ["400", TEXT_FONT, "\"Roboto Condensed\", Arial Narrow, Arial, sans-serif"],
-    textLine: ["700", TEXT_LINE_FONT, "\"Roboto Condensed\", Arial Narrow, Arial, sans-serif"]
+    title: ["700", TITLE_FONT, condensed],
+    columnA: ["700", COLUMN_A_FONT, regular],
+    columnB: ["400", COLUMN_B_FONT, condensed],
+    columnF: ["400", COLUMN_F_FONT, regular],
+    columnFSmall: ["400", COLUMN_F_SMALL_FONT, condensed],
+    directive: ["700", DIRECTIVE_FONT, condensed],
+    text: ["400", TEXT_FONT, condensed],
+    textLine: ["700", TEXT_LINE_FONT, condensed]
   };
   const [weight, ratio, family] = specs[kind] || specs.text;
   ctx.font = `${weight} ${Math.max(1, cellSize * ratio)}px ${family}`;
@@ -396,18 +430,33 @@ function fitSingleLineText(ctx, text, x, y, width, height, align = "center") {
   const label = String(text || "");
   if (!label) return;
   const originalFont = ctx.font;
-  const match = originalFont.match(/(^|\s)([0-9.]+)px\s+/);
+  let workingFont = originalFont;
+  if (hasCjkText(label)) {
+    workingFont = cjkBoldFont(originalFont);
+    ctx.font = workingFont;
+  }
+  const match = workingFont.match(/(^|\s)([0-9.]+)px\s+/);
   const baseSize = match ? Number(match[2]) : height * 0.6;
   let size = baseSize;
   while (size > 1 && ctx.measureText(label).width > width * 0.95) {
     size *= 0.95;
-    ctx.font = originalFont.replace(/[0-9.]+px/, `${Math.max(1, size)}px`);
+    ctx.font = workingFont.replace(/[0-9.]+px/, `${Math.max(1, size)}px`);
   }
   ctx.textAlign = align;
   ctx.textBaseline = "middle";
   const textX = align === "left" ? x + width * 0.03 : align === "right" ? x + width * 0.97 : x + width / 2;
   ctx.fillText(label, textX, y + height / 2, width * 0.98);
   ctx.font = originalFont;
+}
+
+function hasCjkText(value) {
+  return /[\u3400-\u9fff\uf900-\ufaff]/.test(String(value || ""));
+}
+
+function cjkBoldFont(font) {
+  const match = String(font || "").match(/([0-9.]+px)\s+(.+)$/);
+  const size = match?.[1] || "12px";
+  return `700 ${size} "黑体", ${match?.[2] || "Arial, sans-serif"}`;
 }
 
 function fitWrappedText(ctx, text, x, y, width, height, align = "left") {
@@ -424,12 +473,11 @@ function titleRows(kind, text) {
 
 function courseHeaderRow(eventModel, course, normalControlCount) {
   if (course.kind === "score") {
-    const totalScore = courseView(eventModel, course.id).reduce((sum, row) => sum + Math.max(0, Number(row.courseControl?.points) || 0), 0);
     return {
       kind: "header2",
       boxes: [
         course.name || "",
-        totalScore > 0 ? formatSymbolText("number_points", totalScore, `${totalScore} points`) : formatSymbolText("number_controls", normalControlCount, `${normalControlCount} controls`)
+        formatSymbolText("number_controls", normalControlCount, `${normalControlCount} controls`)
       ]
     };
   }
@@ -457,12 +505,21 @@ function directiveRow(eventModel, view, index, selectedCourseId) {
   const control = row.control;
   const previous = index > 0 ? view[index - 1] : null;
   const next = index < view.length - 1 ? view[index + 1] : null;
-  const distance = control.kind === "map-issue"
+  const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
+  const scoreFinishFrom = course?.kind === "score" && control.kind === "finish"
+    ? scoreFinishFromRow(course, view)
+    : null;
+  const distance = scoreFinishFrom
+    ? formatDirectiveDistance(legLength(eventModel, scoreFinishFrom.control.id, control.id))
+    : control.kind === "map-issue"
     ? (next ? formatDirectiveDistance(legLength(eventModel, control.id, next.control.id)) : "")
+    : course?.kind === "score" && control.kind === "finish"
+    ? ""
     : (previous ? formatDirectiveDistance(legLength(eventModel, previous.control.id, control.id)) : "");
   let symbol = directiveSymbol(control);
-  if (selectedCourseId !== "all" && control.kind === "finish" && previous) {
-    const flagging = normalizeLegFlaggingKind(findLeg(eventModel, previous.control.id, control.id)?.flagging?.kind);
+  if (selectedCourseId !== "all" && control.kind === "finish" && (scoreFinishFrom || previous)) {
+    const from = scoreFinishFrom || previous;
+    const flagging = normalizeLegFlaggingKind(findLeg(eventModel, from.control.id, control.id)?.flagging?.kind);
     if (flagging === "all") symbol = "14.1";
     else if (flagging === "end") symbol = "14.2";
   }
@@ -472,6 +529,12 @@ function directiveRow(eventModel, view, index, selectedCourseId) {
     distance: (control.kind === "finish" || control.kind === "map-issue") ? distance : "",
     text: directiveText(symbol, distance)
   };
+}
+
+function scoreFinishFromRow(course, view) {
+  const controlId = Number(course.options?.scoreFinishControl) || 0;
+  if (!controlId) return null;
+  return view.find(row => Number(row.control?.id) === controlId && row.control?.kind === "normal") || null;
 }
 
 function markedRouteRow(eventModel, from, to) {
@@ -486,9 +549,9 @@ function markedRouteRow(eventModel, from, to) {
 }
 
 function flaggedLegLength(eventModel, leg, flagging) {
-  const total = legLength(eventModel, leg.startControl, leg.endControl);
-  if (flagging === "all") return total;
   const path = legPath(eventModel, leg.startControl, leg.endControl);
+  const total = pathLength(path);
+  if (flagging === "all") return total;
   if (flagging === "begin") {
     return clamp(Number(leg.flagging?.end) || (leg.flagging?.point ? distanceAlongPathAtPoint(path, leg.flagging.point) : total / 2), 0, total);
   }
@@ -502,6 +565,14 @@ function flaggedLegLength(eventModel, leg, flagging) {
     return Math.max(0, end - start);
   }
   return total;
+}
+
+function pathLength(points) {
+  let length = 0;
+  for (let i = 0; i < points.length - 1; i += 1) {
+    length += Math.hypot((points[i + 1].x || 0) - (points[i].x || 0), (points[i + 1].y || 0) - (points[i].y || 0));
+  }
+  return length;
 }
 
 function distanceAlongPathAtPoint(path, point) {
@@ -545,6 +616,7 @@ function normalizeLegFlaggingKind(kind) {
 }
 
 function iscdRow(row, descriptionKind) {
+  const HScore = scoreDescriptionValue(row);
   if (row.control.kind === "start" || row.control.kind === "map-exchange") {
     const D = descriptionValue(row.control, "D") || (row.control.kind === "start" ? "" : defaultFeatureForControl(row.control.kind));
     const text = row.control.descriptionText || iscdSymbolLabel("D", D) || controlKindText(row.control.kind);
@@ -560,12 +632,20 @@ function iscdRow(row, descriptionKind) {
       F: descriptionValue(row.control, "F"),
       G: descriptionValue(row.control, "G"),
       H: descriptionValue(row.control, "H"),
+      ...(HScore !== undefined ? { HScore } : {}),
       featureText: descriptionKind === "symbols" ? "" : text
     };
   }
   const D = descriptionValue(row.control, "D") || defaultFeatureForControl(row.control.kind);
   const text = row.control.descriptionText || iscdSymbolLabel("D", D) || controlKindText(row.control.kind);
-  return { kind: "control", ordinal: String(row.ordinal || ""), code: row.control.code || "", text, C: descriptionValue(row.control, "C"), D, E: descriptionValue(row.control, "E"), F: descriptionValue(row.control, "F"), G: descriptionValue(row.control, "G"), H: descriptionValue(row.control, "H"), featureText: descriptionKind === "symbols" ? "" : text };
+  return { kind: "control", ordinal: row.course?.kind === "score" ? "" : String(row.ordinal || ""), code: row.control.code || "", text, C: descriptionValue(row.control, "C"), D, E: descriptionValue(row.control, "E"), F: descriptionValue(row.control, "F"), G: descriptionValue(row.control, "G"), H: descriptionValue(row.control, "H"), ...(HScore !== undefined ? { HScore } : {}), featureText: descriptionKind === "symbols" ? "" : text };
+}
+
+function scoreDescriptionValue(row) {
+  if (row.course?.kind !== "score" || row.control?.kind !== "normal") {
+    return undefined;
+  }
+  return String(Math.max(0, Number(row.courseControl?.points) || 0));
 }
 
 export function drawIscdSymbol(ctx, column, value, cx, cy, r) {

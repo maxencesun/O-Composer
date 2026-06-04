@@ -73,6 +73,10 @@ def verify_app_files() -> None:
         assert token in relay_variations + course_service, f"missing relay/variation path calculation support: {token}"
     for token in ["courseVariationControls", "data-course-variation-mode", "data-relay-team", "data-relay-branch", "addForkToLeg", "relayAssignmentTable"]:
         assert token in app_shell + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing relay design UI support: {token}"
+    for token in ["variationPanel", "data-panel=\"variation\"", "renderVariation", "variationSequenceHtml", "data-select-variation-branch", "addVariationAtCourseControl", "lastCourseControlInVariationBranch"]:
+        assert token in app_shell + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing Purple Pen-style variation ordering UI: {token}"
+    for token in ["backgroundCalibrationAnchorCenter", "resetBackgroundCalibrationBase(ui.background)", "applyBackgroundCalibration(ui.background, backgroundAspect(ui.background))", "background.centerX"]:
+        assert token in app_shell, f"missing anchored background calibration support: {token}"
     for token in ["mapCourseDisplayOptions", "variationForCode", "relayVariationForLeg"]:
         assert token in (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8"), f"map rendering should honor selected relay variation: {token}"
     for token in ["allCourseVariations", "CourseVariationId", "variationChoices"]:

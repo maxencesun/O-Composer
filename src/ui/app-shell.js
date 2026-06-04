@@ -17,7 +17,7 @@ import {
   addControlAt,
   addExistingControlToCourse,
   addCourse,
-  addForkToLeg,
+  addVariationAtCourseControl,
   addSpecialAt,
   autoNumberControls,
   deleteSelection,
@@ -85,6 +85,7 @@ import {
   courseHasVariations,
   relayAssignments,
   relayVariationForLeg,
+  variationBranchCodeMap,
   variationDisplayLabel,
   variationForCode
 } from "../domain/relay-variations.js";
@@ -389,6 +390,7 @@ export class PurplePenApp extends HTMLElement {
             ["tool-map-exchange", "Map Exchange"],
             ["tool-crossing", "Mandatory Crossing"],
             ["tool-map-issue", "Map Issue"],
+            ["add-variation", "Add Variation"],
             ["tool-line-cut", "Cut Line"],
             ["tool-description", "Descriptions"],
             ["tool-text", "Text"],
@@ -478,6 +480,7 @@ export class PurplePenApp extends HTMLElement {
               <label>${escapeHtml(this.t("Panel"))}
                 <select id="mobilePanelSelect" aria-label="${escapeAttr(this.t("Panel"))}">
                   <option value="description">${escapeHtml(this.t("Description"))}</option>
+                  <option value="variation">${escapeHtml(this.t("Variation"))}</option>
                   <option value="report">${escapeHtml(this.t("Report"))}</option>
                 </select>
               </label>
@@ -485,9 +488,11 @@ export class PurplePenApp extends HTMLElement {
             <section class="panel-block">
               <div class="panel-heading">
                 <button class="segmented active" data-panel="description">${escapeHtml(this.t("Description"))}</button>
+                <button class="segmented" data-panel="variation">${escapeHtml(this.t("Variation"))}</button>
                 <button class="segmented" data-panel="report">${escapeHtml(this.t("Report"))}</button>
               </div>
               <div id="descriptionPanel" class="description-panel"></div>
+              <div id="variationPanel" class="variation-panel" hidden></div>
               <div id="reportPanel" class="report-panel" hidden></div>
             </section>
             <section class="panel-block selection-panel">
@@ -660,6 +665,8 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#descriptionPanel").addEventListener("change", event => this.handleDescriptionPanelChange(event));
     this.querySelector("#descriptionPanel").addEventListener("pointerover", event => this.scheduleSymbolTooltip(event));
     this.querySelector("#descriptionPanel").addEventListener("pointerout", event => this.hideSymbolTooltip(event));
+    this.querySelector("#variationPanel").addEventListener("click", event => this.handleVariationPanelClick(event));
+    this.querySelector("#variationPanel").addEventListener("change", event => this.handleVariationPanelChange(event));
     this.querySelector("#printAreaForm").addEventListener("submit", event => {
       event.preventDefault();
       this.applyPrintAreaDialog();
@@ -787,6 +794,13 @@ export class PurplePenApp extends HTMLElement {
     const shouldRenderDescription = shouldRenderCourse
       || !this.renderKeys
       || this.renderKeys.selection !== keys.selection;
+    const shouldRenderVariation = shouldRenderCourse
+      || !this.renderKeys
+      || this.renderKeys.selection !== keys.selection
+      || this.renderKeys.variationBranch !== keys.variationBranch
+      || this.renderKeys.variationAnchorCourseControl !== keys.variationAnchorCourseControl
+      || this.renderKeys.variationAddKind !== keys.variationAddKind
+      || this.renderKeys.variationAddBranches !== keys.variationAddBranches;
 
     if (shouldRenderCourse) {
       this.renderTabs(state);
@@ -794,6 +808,9 @@ export class PurplePenApp extends HTMLElement {
     }
     if (shouldRenderDescription) {
       this.renderDescription(state);
+    }
+    if (shouldRenderVariation) {
+      this.renderVariation(state);
     }
     if (shouldRenderSelection) {
       this.renderSelection(state);
@@ -828,6 +845,8 @@ export class PurplePenApp extends HTMLElement {
       ui.showAllControls = courseId === "all";
       ui.variationMode = "default";
       ui.variationCode = "";
+      ui.variationBranch = null;
+      ui.variationAnchorCourseControl = null;
       ui.relayTeam = 1;
       ui.relayLeg = 1;
       ui.printAreaEdit = null;
@@ -989,6 +1008,205 @@ export class PurplePenApp extends HTMLElement {
         courseControl.points = points;
       }
     }, "Change points");
+  }
+
+  renderVariation({ eventModel, ui }) {
+    const panel = this.querySelector("#variationPanel");
+    panel.innerHTML = this.variationPanelHtml(eventModel, ui);
+  }
+
+  variationPanelHtml(eventModel, ui) {
+    const courseId = ui.selectedCourseId;
+    const course = courseId === "all" ? null : getCourse(eventModel, courseId);
+    if (!course) {
+      return `<p class="muted">${escapeHtml(this.t("Select a course first."))}</p>`;
+    }
+    if (course.kind === "score") {
+      return `<p class="muted">${escapeHtml(this.t("Variations cannot be added to score courses."))}</p>`;
+    }
+
+    const branchCodes = variationBranchCodeMap(eventModel, course.id);
+    const variations = allCourseVariations(eventModel, course.id);
+    const anchorCourseControl = variationAnchorCourseControl(eventModel, course.id, ui);
+    const canAddVariation = canAddVariationAtCourseControl(eventModel, course, anchorCourseControl);
+    const selectedBranch = normalizedVariationBranch(eventModel, course.id, ui.variationBranch);
+    const selectedBranchCode = selectedBranch ? branchCodes.get(Number(selectedBranch.branchCourseControl)) || "" : "";
+    const anchorControl = getControl(eventModel, anchorCourseControl?.control);
+    const treeHtml = this.variationSequenceHtml(eventModel, course.id, course.firstCourseControl, null, ui, {
+      branchCodes,
+      seen: new Set(),
+      depth: 0
+    });
+    return `
+      <div class="variation-actions">
+        <label>${escapeHtml(this.t("Type"))}
+          <select data-variation-add-kind>
+            <option value="fork" ${(ui.variationAddKind || "fork") === "fork" ? "selected" : ""}>${escapeHtml(this.t("Fork"))}</option>
+            <option value="loop" ${ui.variationAddKind === "loop" ? "selected" : ""}>${escapeHtml(this.t("Loop"))}</option>
+          </select>
+        </label>
+        <label>${escapeHtml(this.t("Branches"))}
+          <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
+        </label>
+        <button type="button" data-add-variation ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Variation"))}</button>
+      </div>
+      <p class="muted">${anchorCourseControl && anchorControl
+        ? escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))
+        : escapeHtml(this.t("Select a start or control in the ordering below, then add a variation."))}</p>
+      ${selectedBranch ? `<p class="variation-branch-hint">${escapeHtml(this.t("Selected branch"))}: <strong>${escapeHtml(selectedBranchCode || controlDisplayName(getControl(eventModel, getCourseControl(eventModel, selectedBranch.branchCourseControl)?.control)))}</strong>. ${escapeHtml(this.t("New controls will be inserted on this branch."))}</p>` : ""}
+      <div class="variation-tree">${treeHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
+      ${variations.length ? `
+        <h3>${escapeHtml(this.t("All variations"))}</h3>
+        <div class="variation-code-list">${variations.map(variation => `<button type="button" data-course-variation-code-select="${escapeAttr(variation.code)}">${escapeHtml(variation.code)}</button>`).join("")}</div>
+      ` : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`}
+    `;
+  }
+
+  variationSequenceHtml(eventModel, courseId, startId, joinId, ui, context) {
+    const branchCodes = context.branchCodes;
+    const depth = context.depth || 0;
+    const seen = context.seen || new Set();
+    let currentId = Number(startId) || 0;
+    let html = "";
+    let steps = 0;
+    const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 20);
+    while (currentId && currentId !== Number(joinId) && !seen.has(currentId) && steps++ < maxSteps) {
+      const courseControl = getCourseControl(eventModel, currentId);
+      if (!courseControl) break;
+      seen.add(currentId);
+      html += this.variationCourseControlRowHtml(eventModel, courseId, courseControl, ui, depth);
+      if (courseControl.variation && courseControl.variationCourseControls?.length) {
+        const joinControl = getControl(eventModel, getCourseControl(eventModel, courseControl.variationEnd)?.control);
+        html += `<div class="variation-split" style="--variation-depth:${depth}">
+          <div class="variation-split-title">${escapeHtml(this.t(courseControl.variation === "loop" ? "Loop" : "Fork"))}${joinControl ? ` -> ${escapeHtml(controlDisplayName(joinControl))}` : ""}</div>
+          ${courseControl.variationCourseControls.map(branchId => {
+            const branch = getCourseControl(eventModel, branchId);
+            const control = getControl(eventModel, branch?.control);
+            const code = branchCodes.get(Number(branchId)) || "";
+            const selected = Number(ui.variationBranch?.forkCourseControl) === Number(courseControl.id)
+              && Number(ui.variationBranch?.branchCourseControl) === Number(branchId);
+            const body = this.variationSequenceHtml(eventModel, courseId, branchId, courseControl.variationEnd, ui, {
+              branchCodes,
+              seen: new Set(seen),
+              depth: depth + 1
+            });
+            return `<div class="variation-branch ${selected ? "selected" : ""}">
+              <button type="button" class="variation-branch-button" data-select-variation-branch data-fork-course-control="${courseControl.id}" data-branch-course-control="${branchId}">
+                <strong>${escapeHtml(this.t("Branch"))} ${escapeHtml(code || "?")}</strong>
+                <span>${escapeHtml(control ? controlDisplayName(control) : this.t("Missing control"))}</span>
+              </button>
+              <div class="variation-branch-body">${body}</div>
+            </div>`;
+          }).join("")}
+        </div>`;
+        currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
+      }
+      else {
+        currentId = Number(courseControl.nextCourseControl) || 0;
+      }
+    }
+    return html;
+  }
+
+  variationCourseControlRowHtml(eventModel, courseId, courseControl, ui, depth) {
+    const control = getControl(eventModel, courseControl.control);
+    if (!control) return "";
+    const anchor = variationAnchorCourseControl(eventModel, courseId, ui);
+    const selected = Number(anchor?.id) === Number(courseControl.id);
+    return `
+      <button type="button" class="variation-node ${selected ? "selected" : ""}" style="--variation-depth:${depth}" data-select-variation-course-control="${courseControl.id}">
+        <span>${escapeHtml(controlDisplayName(control))}</span>
+        <small>${escapeHtml(this.t(controlKindLabel(control.kind)))}</small>
+      </button>
+    `;
+  }
+
+  handleVariationPanelClick(event) {
+    const addButton = event.target.closest("[data-add-variation]");
+    if (addButton) {
+      this.addVariationFromPanel();
+      return;
+    }
+    const variationCodeButton = event.target.closest("[data-course-variation-code-select]");
+    if (variationCodeButton) {
+      this.store.updateUi(ui => {
+        ui.variationMode = "variation";
+        ui.variationCode = variationCodeButton.dataset.courseVariationCodeSelect || "";
+      }, "Select variation");
+      return;
+    }
+    const branchButton = event.target.closest("[data-select-variation-branch]");
+    if (branchButton) {
+      const branchCourseControl = Number(branchButton.dataset.branchCourseControl) || null;
+      const forkCourseControl = Number(branchButton.dataset.forkCourseControl) || null;
+      this.store.updateUi(ui => {
+        ui.variationBranch = { forkCourseControl, branchCourseControl };
+        ui.variationAnchorCourseControl = forkCourseControl;
+        ui.variationMode = "all";
+        ui.status = this.t("Branch selected. Add controls to insert them on this branch.");
+      }, "Select variation branch");
+      return;
+    }
+    const courseControlButton = event.target.closest("[data-select-variation-course-control]");
+    if (courseControlButton) {
+      const courseControlId = Number(courseControlButton.dataset.selectVariationCourseControl) || null;
+      const courseControl = getCourseControl(this.store.snapshot().eventModel, courseControlId);
+      this.store.updateUi(ui => {
+        ui.variationAnchorCourseControl = courseControlId;
+        ui.variationBranch = null;
+        ui.selection = courseControl ? { type: "control", id: courseControl.control } : ui.selection;
+      }, "Select variation anchor");
+    }
+  }
+
+  handleVariationPanelChange(event) {
+    const kindSelect = event.target.closest("[data-variation-add-kind]");
+    const branchesInput = event.target.closest("[data-variation-add-branches]");
+    if (!kindSelect && !branchesInput) return;
+    this.store.updateUi(ui => {
+      if (kindSelect) {
+        ui.variationAddKind = kindSelect.value === "loop" ? "loop" : "fork";
+      }
+      if (branchesInput) {
+        ui.variationAddBranches = Math.max(2, Math.min(6, Math.round(Number(branchesInput.value) || 2)));
+      }
+    }, "Variation options");
+  }
+
+  addVariationFromPanel() {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    if (!courseId || courseId === "all") return;
+    const anchor = variationAnchorCourseControl(state.eventModel, courseId, state.ui);
+    if (!anchor) {
+      this.store.updateUi(ui => {
+        ui.status = this.t("Select a start or control in the ordering below, then add a variation.");
+      }, "Add variation");
+      return;
+    }
+    this.store.updateEvent(model => {
+      const pending = addVariationAtCourseControl(model, courseId, anchor.id, {
+        kind: state.ui.variationAddKind || "fork",
+        branches: state.ui.variationAddBranches || 2
+      });
+      model.metadata.pendingVariation = pending;
+    }, "Add variation");
+    const pending = this.store.snapshot().eventModel.metadata.pendingVariation;
+    this.store.updateUi(ui => {
+      if (pending?.branchCourseControl) {
+        ui.variationBranch = {
+          forkCourseControl: pending.forkCourseControl,
+          branchCourseControl: pending.branchCourseControl
+        };
+        ui.variationAnchorCourseControl = pending.forkCourseControl;
+        ui.variationMode = "all";
+        ui.selection = pending.control ? { type: "control", id: pending.control } : ui.selection;
+        ui.status = this.t("Variation added. Select a branch and add controls.");
+      }
+      else {
+        ui.status = this.t("Could not add variation here.");
+      }
+    }, "Add variation");
   }
 
   openIscdSymbolPicker(controlId, box, selectedValue = "") {
@@ -1317,7 +1535,6 @@ export class PurplePenApp extends HTMLElement {
         : `<p class="muted">${escapeHtml(this.t("No manual cuts. Use the Cut Line tool, then click this leg."))}</p>`}
       <h3>${escapeHtml(this.t("Bend Points"))}</h3>
       <div class="compact-list">
-        <button type="button" data-add-fork>${iconSvg("plus")} ${escapeHtml(this.t("Add Fork"))}</button>
         <button type="button" data-add-leg-bend>${iconSvg("plus")} ${escapeHtml(this.t("Add Bend Point"))}</button>
         ${selection.type === "leg-bend" ? `<button type="button" data-delete-leg-bend>${iconSvg("trash")} ${escapeHtml(this.t("Delete Bend Point"))}</button>` : ""}
       </div>
@@ -1590,6 +1807,10 @@ export class PurplePenApp extends HTMLElement {
       case "course-properties":
         if (state.ui.selectedCourseId !== "all") this.store.setSelection({ type: "course", id: state.ui.selectedCourseId });
         break;
+      case "add-variation":
+        this.switchPanel("variation");
+        this.addVariationFromPanel();
+        break;
       case "course-order":
         this.promptCourseOrder();
         break;
@@ -1684,8 +1905,10 @@ export class PurplePenApp extends HTMLElement {
         const imagePoint = backgroundImagePointForMap(ui.background, point);
         const imagePoints = [...(ui.background.calibration?.imagePoints || []), imagePoint].slice(-2);
         ui.background.calibration = { imagePoints };
+        resetBackgroundCalibrationBase(ui.background);
         ui.selection = null;
         if (imagePoints.length >= 2) {
+          applyBackgroundCalibration(ui.background, backgroundAspect(ui.background));
           ui.tool = "select";
           ui.status = this.t("Enter the real distance for the selected map line.");
         }
@@ -2367,15 +2590,16 @@ export class PurplePenApp extends HTMLElement {
   }
 
   switchPanel(panel) {
-    const showReport = panel === "report";
-    this.querySelector("#descriptionPanel").hidden = showReport;
-    this.querySelector("#reportPanel").hidden = !showReport;
+    const nextPanel = ["description", "variation", "report"].includes(panel) ? panel : "description";
+    this.querySelector("#descriptionPanel").hidden = nextPanel !== "description";
+    this.querySelector("#variationPanel").hidden = nextPanel !== "variation";
+    this.querySelector("#reportPanel").hidden = nextPanel !== "report";
     const mobilePanelSelect = this.querySelector("#mobilePanelSelect");
     if (mobilePanelSelect) {
-      mobilePanelSelect.value = showReport ? "report" : "description";
+      mobilePanelSelect.value = nextPanel;
     }
     for (const button of this.querySelectorAll("[data-panel]")) {
-      button.classList.toggle("active", button.dataset.panel === panel);
+      button.classList.toggle("active", button.dataset.panel === nextPanel);
     }
   }
 
@@ -2519,19 +2743,6 @@ export class PurplePenApp extends HTMLElement {
     }
     const button = event.target.closest("[data-select-leg-gap]");
     const selection = this.store.snapshot().ui.selection;
-    if (event.target.closest("[data-add-fork]") && ["leg", "leg-bend"].includes(selection?.type)) {
-      this.store.updateEvent(model => {
-        const pending = addForkToLeg(model, this.store.snapshot().ui.selectedCourseId, selection);
-        model.metadata.pendingSelection = pending;
-      }, "Add fork");
-      const pending = this.store.snapshot().eventModel.metadata.pendingSelection;
-      this.store.updateUi(ui => {
-        if (pending) ui.selection = pending;
-        ui.variationMode = "all";
-        ui.status = pending ? this.t("Fork added.") : this.t("Could not add fork here.");
-      }, "Add fork");
-      return;
-    }
     if (event.target.closest("[data-add-leg-bend]") && ["leg", "leg-bend"].includes(selection?.type)) {
       this.store.updateUi(ui => {
         ui.selection = {
@@ -3479,7 +3690,10 @@ function courseDisplayOptions(eventModel, ui = {}) {
 function insertionCourseControlId(state) {
   const selection = state.ui.selection;
   const courseId = state.ui.selectedCourseId;
-  if (!selection || !courseId || courseId === "all") return null;
+  if (!courseId || courseId === "all") return null;
+  const branchInsertion = lastCourseControlInVariationBranch(state.eventModel, courseId, state.ui.variationBranch);
+  if (branchInsertion) return branchInsertion.id;
+  if (!selection) return null;
   if (selection.type === "control-number" && selection.courseControl) {
     return selection.courseControl;
   }
@@ -3496,6 +3710,64 @@ function insertionCourseControlId(state) {
   return null;
 }
 
+function variationAnchorCourseControl(eventModel, courseId, ui = {}) {
+  if (!courseId || courseId === "all") return null;
+  const rows = courseView(eventModel, courseId, { allBranches: true });
+  const rowCourseControls = new Map(rows.map(row => [Number(row.courseControl?.id), row.courseControl]));
+  const anchored = rowCourseControls.get(Number(ui.variationAnchorCourseControl));
+  if (anchored) return anchored;
+  const selection = ui.selection;
+  if (selection?.type === "control-number" && selection.courseControl) {
+    return rowCourseControls.get(Number(selection.courseControl)) || null;
+  }
+  if (selection?.type === "control") {
+    return rows.find(row => Number(row.control?.id) === Number(selection.id))?.courseControl || null;
+  }
+  if (selection?.type === "leg" || selection?.type === "leg-bend") {
+    return rows.find(row => Number(row.control?.id) === Number(selection.startControl))?.courseControl || null;
+  }
+  return rows[0]?.courseControl || null;
+}
+
+function canAddVariationAtCourseControl(eventModel, course, courseControl) {
+  if (!course || course.kind === "score" || !courseControl || courseControl.variation) return false;
+  const control = getControl(eventModel, courseControl.control);
+  if (!control || control.kind === "finish") return false;
+  return !!getCourseControl(eventModel, courseControl.nextCourseControl);
+}
+
+function normalizedVariationBranch(eventModel, courseId, variationBranch) {
+  if (!variationBranch || !courseId || courseId === "all") return null;
+  const fork = getCourseControl(eventModel, variationBranch.forkCourseControl);
+  const branch = getCourseControl(eventModel, variationBranch.branchCourseControl);
+  if (!fork?.variation || !branch) return null;
+  if (!fork.variationCourseControls.map(Number).includes(Number(branch.id))) return null;
+  const courseControlIds = new Set(courseView(eventModel, courseId, { allBranches: true }).map(row => Number(row.courseControl?.id)));
+  if (!courseControlIds.has(Number(fork.id)) || !courseControlIds.has(Number(branch.id))) return null;
+  return {
+    forkCourseControl: Number(fork.id),
+    branchCourseControl: Number(branch.id)
+  };
+}
+
+function lastCourseControlInVariationBranch(eventModel, courseId, variationBranch) {
+  const branchSelection = normalizedVariationBranch(eventModel, courseId, variationBranch);
+  if (!branchSelection) return null;
+  const fork = getCourseControl(eventModel, branchSelection.forkCourseControl);
+  let current = getCourseControl(eventModel, branchSelection.branchCourseControl);
+  let last = current;
+  const joinId = Number(fork?.variationEnd) || 0;
+  const seen = new Set();
+  const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 20);
+  let steps = 0;
+  while (current && Number(current.nextCourseControl) && Number(current.nextCourseControl) !== joinId && !seen.has(Number(current.id)) && steps++ < maxSteps) {
+    seen.add(Number(current.id));
+    current = getCourseControl(eventModel, current.nextCourseControl);
+    if (current) last = current;
+  }
+  return last || null;
+}
+
 function safeCachedUi(ui = {}) {
   return {
     selectedCourseId: ui.selectedCourseId || 1,
@@ -3510,6 +3782,13 @@ function safeCachedUi(ui = {}) {
     showAllControls: !!ui.showAllControls,
     variationMode: ui.variationMode || "default",
     variationCode: ui.variationCode || "",
+    variationAddKind: ui.variationAddKind === "loop" ? "loop" : "fork",
+    variationAddBranches: Math.max(2, Math.min(6, Math.round(Number(ui.variationAddBranches) || 2))),
+    variationAnchorCourseControl: Number(ui.variationAnchorCourseControl) || null,
+    variationBranch: ui.variationBranch ? {
+      forkCourseControl: Number(ui.variationBranch.forkCourseControl) || null,
+      branchCourseControl: Number(ui.variationBranch.branchCourseControl) || null
+    } : null,
     relayTeam: Math.max(1, Number(ui.relayTeam) || 1),
     relayLeg: Math.max(1, Number(ui.relayLeg) || 1)
   };
@@ -3696,12 +3975,18 @@ function applyBackgroundCalibration(background, aspect) {
   if (!(background?.calibrationDistanceMeters > 0)) return;
   const currentDistance = backgroundCalibrationDistance(background);
   if (!(currentDistance > 0)) return;
+  const beforeCenter = backgroundCalibrationAnchorCenter(background);
   background.calibration ||= {};
   background.calibration.baseWidthMeters ||= positiveNumber(background.widthMeters, 200);
   background.calibration.baseDistanceMeters ||= currentDistance;
   const factor = background.calibrationDistanceMeters / background.calibration.baseDistanceMeters;
   background.widthMeters = background.calibration.baseWidthMeters * factor;
   background.heightMeters = background.widthMeters * aspect;
+  const afterCenter = backgroundCalibrationAnchorCenter(background);
+  if (beforeCenter && afterCenter) {
+    background.centerX = (Number(background.centerX) || 0) + beforeCenter.x - afterCenter.x;
+    background.centerY = (Number(background.centerY) || 0) + beforeCenter.y - afterCenter.y;
+  }
 }
 
 function resetBackgroundCalibrationBase(background) {
@@ -3748,6 +4033,15 @@ function backgroundCalibrationMapPoints(background) {
     return imagePoints.map(point => backgroundMapPointForImage(background, point));
   }
   return background?.calibration?.points || [];
+}
+
+function backgroundCalibrationAnchorCenter(background) {
+  const points = backgroundCalibrationMapPoints(background);
+  if (points.length < 2) return null;
+  return {
+    x: (points[0].x + points[1].x) / 2,
+    y: (points[0].y + points[1].y) / 2
+  };
 }
 
 function backgroundCalibrationDistance(background) {
@@ -4200,6 +4494,10 @@ function renderKeysFor({ eventModel, ui }) {
     showAllControls: ui.showAllControls,
     variationMode: ui.variationMode || "default",
     variationCode: ui.variationCode || "",
+    variationAddKind: ui.variationAddKind || "fork",
+    variationAddBranches: ui.variationAddBranches || 2,
+    variationAnchorCourseControl: ui.variationAnchorCourseControl || "",
+    variationBranch: ui.variationBranch ? `${ui.variationBranch.forkCourseControl || ""}:${ui.variationBranch.branchCourseControl || ""}` : "",
     relayTeam: ui.relayTeam || 1,
     relayLeg: ui.relayLeg || 1,
     selection: selectionKey(ui.selection),

@@ -426,20 +426,20 @@ export function setCourseOrder(eventModel, orderedIds) {
   });
 }
 
-export function addForkToLeg(eventModel, courseId, selection) {
+export function addVariationAtCourseControl(eventModel, courseId, courseControlId, options = {}) {
   const course = getCourse(eventModel, courseId);
-  if (!course || !selection || !["leg", "leg-bend"].includes(selection.type)) return null;
-  const rows = courseView(eventModel, courseId, { allBranches: false });
-  const fromRow = rows.find(row => Number(row.control?.id) === Number(selection.startControl));
-  const toRow = rows.find(row => Number(row.control?.id) === Number(selection.endControl));
-  const fromCourseControl = fromRow?.courseControl;
-  const toCourseControl = toRow?.courseControl;
-  if (!fromCourseControl || !toCourseControl || fromCourseControl.variation) return null;
+  const fromCourseControl = getCourseControl(eventModel, courseControlId);
+  const toCourseControl = getCourseControl(eventModel, fromCourseControl?.nextCourseControl);
+  if (!course || course.kind === "score" || !fromCourseControl || !toCourseControl || fromCourseControl.variation) return null;
 
-  const from = getControl(eventModel, selection.startControl);
-  const to = getControl(eventModel, selection.endControl);
-  if (!from || !to) return null;
+  const from = getControl(eventModel, fromCourseControl.control);
+  const to = getControl(eventModel, toCourseControl.control);
+  if (!from || !to || from.kind === "finish") return null;
 
+  const branchCount = Math.max(2, Math.min(6, Math.round(Number(options.branches) || 2)));
+  const variation = options.kind === "loop" ? "loop" : "fork";
+  const joinCourseControlId = variation === "loop" ? fromCourseControl.id : toCourseControl.id;
+  const branchNextCourseControlId = joinCourseControlId;
   const dx = to.location.x - from.location.x;
   const dy = to.location.y - from.location.y;
   const length = Math.hypot(dx, dy) || 1;
@@ -450,23 +450,42 @@ export function addForkToLeg(eventModel, courseId, selection) {
     y: (from.location.y + to.location.y) / 2
   };
   const spread = Math.max(20, Math.min(80, length * 0.28));
-  const controls = [
-    createControl(nextId(eventModel.controls), "normal", { x: mid.x + nx * spread, y: mid.y + ny * spread }, nextAvailableCode(eventModel)),
-    createControl(nextId([...eventModel.controls, { id: nextId(eventModel.controls) }]), "normal", { x: mid.x - nx * spread, y: mid.y - ny * spread }, "")
-  ];
-  controls[1].code = nextAvailableCode({ ...eventModel, controls: [...eventModel.controls, controls[0]] });
-  eventModel.controls.push(...controls);
+  const createdControls = [];
 
-  const branchControls = controls.map(control => {
-    const courseControl = createCourseControl(nextId(eventModel.courseControls), control.id, toCourseControl.id);
+  for (let index = 0; index < branchCount; index += 1) {
+    const offset = branchCount === 1 ? 0 : (index - (branchCount - 1) / 2) * spread;
+    const control = createControl(nextId([...eventModel.controls, ...createdControls]), "normal", {
+      x: mid.x + nx * offset,
+      y: mid.y + ny * offset
+    }, nextAvailableCode({ ...eventModel, controls: [...eventModel.controls, ...createdControls] }));
+    createdControls.push(control);
+  }
+  eventModel.controls.push(...createdControls);
+
+  const branchControls = createdControls.map(control => {
+    const courseControl = createCourseControl(nextId(eventModel.courseControls), control.id, branchNextCourseControlId);
     eventModel.courseControls.push(courseControl);
     return courseControl;
   });
 
-  fromCourseControl.variation = "fork";
-  fromCourseControl.variationEnd = toCourseControl.id;
+  fromCourseControl.variation = variation;
+  fromCourseControl.variationEnd = joinCourseControlId;
   fromCourseControl.variationCourseControls = branchControls.map(courseControl => courseControl.id);
-  return { type: "control", id: controls[0].id };
+  return {
+    type: "variation-branch",
+    forkCourseControl: fromCourseControl.id,
+    branchCourseControl: branchControls[0]?.id || null,
+    control: createdControls[0]?.id || null
+  };
+}
+
+export function addForkToLeg(eventModel, courseId, selection) {
+  const course = getCourse(eventModel, courseId);
+  if (!course || !selection || !["leg", "leg-bend"].includes(selection.type)) return null;
+  const rows = courseView(eventModel, courseId, { allBranches: false });
+  const fromRow = rows.find(row => Number(row.control?.id) === Number(selection.startControl));
+  const pending = addVariationAtCourseControl(eventModel, courseId, fromRow?.courseControl?.id, { kind: "fork", branches: 2 });
+  return pending?.control ? { type: "control", id: pending.control } : null;
 }
 
 function appendCourseControlRaw(eventModel, controlId) {

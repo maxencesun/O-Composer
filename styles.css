@@ -558,7 +558,7 @@ button:hover {
 .course-banner {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   min-height: 34px;
   padding: 6px 12px;
   min-width: 0;
@@ -572,9 +572,9 @@ button:hover {
 .course-banner-text {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 8px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   overflow: hidden;
 }
 
@@ -585,19 +585,19 @@ button:hover {
 }
 
 .course-banner strong {
-  flex: 1 1 40%;
+  flex: 0 1 auto;
   color: var(--purple-strong);
   font-size: 15px;
   white-space: nowrap;
 }
 
 .course-banner span {
-  flex: 1 1 25%;
+  flex: 0 1 auto;
   white-space: nowrap;
 }
 
 .course-banner span:last-child {
-  flex: 0 1 35%;
+  flex: 0 1 auto;
 }
 
 .course-variation-controls {

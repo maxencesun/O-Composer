@@ -409,6 +409,7 @@ export class PurplePenApp extends HTMLElement {
           ])}
           ${this.menu("Event", [
             ["change-title", "Change Event Title"],
+            ["map-info", "Map Info"],
             ["change-map-scale", "Change Map Scale"],
             ["change-description-language", "Description Language"],
             ["auto-number", "Auto Numbering"],
@@ -1292,10 +1293,13 @@ export class PurplePenApp extends HTMLElement {
     const panel = this.querySelector("#selectionPanel");
     const selection = ui.selection;
     if (!selection) {
-      panel.innerHTML = this.mapBackgroundEditor(eventModel, ui);
+      panel.innerHTML = `<p class="muted">${escapeHtml(this.t("No item selected."))}</p>`;
       return;
     }
-    if (selection.type === "control") {
+    if (selection.type === "background") {
+      panel.innerHTML = this.mapBackgroundEditor(eventModel, ui);
+    }
+    else if (selection.type === "control") {
       const control = getControl(eventModel, selection.id);
       panel.innerHTML = control ? this.controlEditor(control) : `<p class="muted">${escapeHtml(this.t("Selected control no longer exists."))}</p>`;
     }
@@ -1764,6 +1768,11 @@ export class PurplePenApp extends HTMLElement {
         break;
       case "change-title":
         this.promptEventTitle(eventModel);
+        break;
+      case "map-info":
+        this.store.updateUi(ui => {
+          ui.selection = { type: "background" };
+        }, "Map info");
         break;
       case "change-map-scale":
         this.promptMapScale(eventModel);

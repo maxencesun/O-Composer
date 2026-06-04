@@ -119,8 +119,14 @@ def verify_app_files() -> None:
         assert token in styles, f"top toolbar/menu should keep the default cursor instead of the map edit cursor: {token}"
     for token in ["100dvw", "48dvh", "-webkit-overflow-scrolling: touch", "overflow-x: hidden", "minmax(260px, 48dvh)"]:
         assert token in styles, f"mobile layout should fit narrow screens: {token}"
+    for token in ["orientation-overlay", "requestFullscreen", 'orientation.lock("landscape")', "Rotate your phone", "O-Composer works best in landscape on mobile."]:
+        assert token in styles + app_shell + i18n, f"mobile layout should prompt/attempt landscape fullscreen use: {token}"
+    for token in ["max-height: calc(100dvh - 42px)", "overflow-y: auto", "overscroll-behavior: contain", "#selectionPanel", "flex: 1 1 auto", "justify-content: flex-end"]:
+        assert token in styles, f"mobile panels and top menus should scroll and keep branding aligned: {token}"
     for token in ["activePointers", "beginPinch", "updatePinch", "pinchGesture", "pointerPosition", "Pinch zoom"]:
         assert token in map_view, f"mobile map should support two-finger pinch zoom: {token}"
+    for token in ["MAX_ZOOM = 24", "max=\"2400\""]:
+        assert token in map_view + app_shell, f"mobile users should be able to zoom in further: {token}"
     for token in ["createNewEvent", 'this.mapView.setBackground("")', "ui.background = null", "ui.omap = null"]:
         assert token in app_shell, f"new event should clear imported map backgrounds: {token}"
     for token in ['specialCategoryForHitTest(special.kind) === "point"', "const radius = 14 / Math.max(0.001, scale)"]:
@@ -249,6 +255,8 @@ def verify_omap_support() -> None:
     worker = (ROOT / "src" / "workers" / "omap-render-worker.js").read_text(encoding="utf-8")
     for token in ["setOmap", "drawOmap", "drawOmapMap", "requestDraw", "renderOmapLayer", "drawTransformedOmapLayer", "wheelZoomFactor", "ensureOmapWorker", "queueOmapLayerRender"]:
         assert token in map_view, f"missing map OMAP hook: {token}"
+    for token in ["OMAP_LAYER_PADDING = 1", "OMAP_LAYER_CACHE_LIMIT = 3", "omapLayerCache", "addOmapLayer", "promoteOmapLayer", "boundsContain", "viewportMapBounds"]:
+        assert token in map_view, f"OMAP rendering should reuse larger cached layers without lowering precision: {token}"
     control_descriptions = (ROOT / "src" / "domain" / "control-descriptions.js").read_text(encoding="utf-8")
     for token in ["drawToolPreview", "drawMovePreview", "drawResizePreview", "updateToolPreview", "drawPrintAreaRect", "currentViewBounds", "printAreaFrame", "PRINT_AREA_SCOPES", "printAreaFromPoints", "printAreaFromBounds", "printAreaFixedFrameAt", "effectivePrintArea", "setPrintArea", "drawControlDescriptionBlock", "descriptionBounds"]:
         assert token in map_view + print_area, f"missing print area/control preview support: {token}"

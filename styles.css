@@ -325,6 +325,18 @@ button:hover {
   padding: 8px;
 }
 
+.selection-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#selectionPanel {
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .selection-panel h2,
 .report-panel h2 {
   margin: 4px 0 10px;
@@ -890,6 +902,10 @@ button:hover {
   font-weight: 700;
 }
 
+.orientation-overlay {
+  display: none;
+}
+
 @media (max-width: 760px) {
   html,
   body {
@@ -908,6 +924,18 @@ button:hover {
   .menubar {
     flex-wrap: wrap;
     height: auto;
+    align-items: center;
+    max-height: 42dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-brand {
+    margin-left: auto;
+    margin-right: 0;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    text-align: right;
   }
 
   .toolbar {
@@ -920,10 +948,16 @@ button:hover {
 
   .menu-list {
     position: fixed;
-    top: auto;
+    top: 34px;
+    bottom: 8px;
     left: 8px;
     right: 8px;
     min-width: 0;
+    max-height: calc(100dvh - 42px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    z-index: 80;
   }
 
   .print-area-dialog,
@@ -937,6 +971,7 @@ button:hover {
     min-width: 0;
     grid-template-columns: 1fr;
     grid-template-rows: minmax(260px, 48dvh) minmax(280px, 1fr);
+    overflow: hidden;
   }
 
   .workspace-divider {
@@ -945,6 +980,7 @@ button:hover {
 
   .left-panel {
     min-width: 0;
+    min-height: 0;
     order: 2;
     grid-template-rows: minmax(180px, 1fr) minmax(180px, 1fr);
     border-right: 0;
@@ -972,6 +1008,14 @@ button:hover {
     grid-template-columns: 1fr;
   }
 
+  .selection-panel {
+    overflow: hidden;
+  }
+
+  #selectionPanel {
+    flex: 1 1 auto;
+  }
+
   #dirtyText {
     text-align: left;
   }
@@ -981,5 +1025,25 @@ button:hover {
     right: 8px;
     bottom: 8px;
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 760px) and (orientation: portrait) {
+  .orientation-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: #f6f7f8;
+    color: var(--ink);
+    text-align: center;
+  }
+
+  .orientation-overlay strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 20px;
   }
 }

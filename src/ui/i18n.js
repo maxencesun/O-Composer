@@ -33,6 +33,8 @@ const ZH = Object.freeze({
   "Create SVG Overlay": "创建 SVG 叠加层",
   "O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.": "O-Composer {version}\n一个用于创建、编辑、查看和导出定向赛事文件的纯浏览器应用。",
   "O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ppen files, render uncompressed .omap/.xmap XML maps, and export browser-generated files. Native OCAD/PDF map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.": "O-Composer {version}\n\n此版本完全在浏览器中运行。它可以读写 .ppen 文件、渲染未压缩的 .omap/.xmap XML 地图，并导出浏览器生成的文件。原生 OCAD/PDF 地图渲染、已安装字体检查和 Livelox API 发布需要浏览器无法提供的桌面/运行时能力。",
+  "Rotate your phone": "请横屏使用",
+  "O-Composer works best in landscape on mobile.": "手机端请横屏使用 O-Composer。",
   "Undo": "撤销",
   "Redo": "重做",
   "Delete": "删除",

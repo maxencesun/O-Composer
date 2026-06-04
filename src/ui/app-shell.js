@@ -331,6 +331,12 @@ export class PurplePenApp extends HTMLElement {
         <input id="ppenInput" type="file" accept=".ppen,.xml,text/xml" hidden>
         <input id="mapInput" type="file" accept="image/*,.pdf" hidden>
         <input id="omapInput" type="file" hidden>
+        <div class="orientation-overlay" aria-live="polite">
+          <div>
+            <strong>${escapeHtml(this.t("Rotate your phone"))}</strong>
+            <span>${escapeHtml(this.t("O-Composer works best in landscape on mobile."))}</span>
+          </div>
+        </div>
         <header class="menubar">
           ${this.menu("File", [
             ["new", "New Event"],
@@ -473,7 +479,7 @@ export class PurplePenApp extends HTMLElement {
             <div id="courseBanner" class="course-banner">
               <div id="courseBannerText" class="course-banner-text"></div>
               <div class="map-view-controls" aria-label="${escapeAttr(this.t("Map view controls"))}">
-                <label class="map-view-control"><span>${escapeHtml(this.t("Zoom"))}</span><input id="zoomSlider" type="range" min="20" max="400" value="100"></label>
+                <label class="map-view-control"><span>${escapeHtml(this.t("Zoom"))}</span><input id="zoomSlider" type="range" min="20" max="2400" value="100"></label>
                 <label class="map-view-control"><span>${escapeHtml(this.t("Intensity"))}</span><input id="intensitySlider" type="range" min="10" max="100" value="65"></label>
               </div>
             </div>
@@ -675,6 +681,24 @@ export class PurplePenApp extends HTMLElement {
     this.enablePanelDrag(this.querySelector("#printAreaDialog"));
     this.enablePanelDrag(this.querySelector("#commandDialog"));
     window.addEventListener("keydown", event => this.handleKey(event));
+    window.addEventListener("pointerdown", () => this.ensureMobileLandscapeMode(), { passive: true });
+    window.addEventListener("touchstart", () => this.ensureMobileLandscapeMode(), { passive: true });
+    window.addEventListener("orientationchange", () => this.mapView.requestDraw(this.store.snapshot()));
+  }
+
+  ensureMobileLandscapeMode() {
+    if (this.mobileLandscapeRequested || !isNarrowMobileViewport()) {
+      return;
+    }
+    this.mobileLandscapeRequested = true;
+    const root = document.documentElement;
+    if (!document.fullscreenElement && root.requestFullscreen) {
+      root.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+    }
+    const orientation = screen.orientation;
+    if (orientation?.lock) {
+      orientation.lock("landscape").catch(() => {});
+    }
   }
 
   closeTopMenus(except = null) {
@@ -3973,6 +3997,10 @@ function downloadBlob(fileName, blob) {
 
 function baseName(name = "event.ppen") {
   return String(name).replace(/\.[^.]+$/, "") || "event";
+}
+
+function isNarrowMobileViewport() {
+  return window.matchMedia?.("(max-width: 760px)")?.matches ?? window.innerWidth <= 760;
 }
 
 function escapeHtml(value) {

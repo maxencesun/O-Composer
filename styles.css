@@ -277,7 +277,7 @@ button:hover {
   background: #fff;
 }
 
-.mobile-course-picker {
+.mobile-side-controls {
   display: none;
 }
 
@@ -925,6 +925,10 @@ button:hover {
   font-weight: 700;
 }
 
+.orientation-overlay {
+  display: none;
+}
+
 @media (max-width: 760px) {
   html,
   body {
@@ -979,24 +983,6 @@ button:hover {
 
   .course-tabs {
     display: none;
-  }
-
-  .mobile-course-picker {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 8px;
-    min-height: 34px;
-    padding: 5px 6px;
-    border-bottom: 1px solid var(--line);
-    background: #edf1f4;
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  .mobile-course-picker select {
-    min-width: 0;
-    height: 28px;
   }
 
   .menu-list {
@@ -1172,6 +1158,35 @@ button:hover {
     display: none;
   }
 
+  .course-tabs {
+    display: none;
+  }
+
+  .mobile-side-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    min-height: 34px;
+    padding: 5px 6px;
+    border-bottom: 1px solid var(--line);
+    background: #edf1f4;
+  }
+
+  .mobile-side-controls label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .mobile-side-controls select {
+    min-width: 0;
+    height: 28px;
+  }
+
   .menu-list {
     position: fixed;
     top: 34px;
@@ -1244,7 +1259,7 @@ button:hover {
     min-width: 0;
     min-height: 0;
     order: 1;
-    grid-template-rows: auto minmax(140px, 0.72fr) minmax(220px, 1.28fr);
+    grid-template-rows: auto minmax(110px, 0.5fr) minmax(280px, 1.5fr);
     border-right: 1px solid var(--line);
     border-top: 0;
   }
@@ -1280,5 +1295,25 @@ button:hover {
 
   #selectionPanel {
     flex: 1 1 auto;
+  }
+}
+
+@media (pointer: coarse) and (orientation: portrait) {
+  .orientation-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: #f6f7f8;
+    color: var(--ink);
+    text-align: center;
+  }
+
+  .orientation-overlay strong {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 20px;
   }
 }

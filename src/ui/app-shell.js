@@ -2415,7 +2415,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#commandBody").innerHTML = config.body || "";
     this.querySelector("#commandApplyButton").textContent = this.t(config.applyLabel || "Apply");
     this.querySelector("#commandForm").querySelector(".dialog-actions").hidden = !!config.hideActions;
-    this.querySelector("#commandCloseButton").hidden = !!config.hideActions;
+    this.querySelector("#commandCloseButton").hidden = false;
     const message = this.querySelector("#commandMessage");
     message.hidden = !config.message;
     message.textContent = this.t(config.message || "");

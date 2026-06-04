@@ -138,6 +138,8 @@ def verify_app_files() -> None:
         assert token in styles, f"mobile landscape should keep the page fixed while internal panels scroll: {token}"
     for token in ["width: min(360px, calc(100dvw - 24px))", "grid-template-columns: repeat(5, 30px)", ".iscd-picker-option,\n  .iscd-picker-canvas", "minmax(18px, 1fr)", "height: 18px"]:
         assert token in styles, f"mobile pop-up palettes should be compact enough for phones: {token}"
+    for token in ["usesInlineMobilePalette", "inlineIscdPicker", "inline-iscd-picker", "iscdSymbolPickerHtml", "handleSelectionPanelClick"]:
+        assert token in app_shell + styles, f"mobile symbol palettes should render inside the selection panel: {token}"
     for token in ["activePointers", "beginPinch", "updatePinch", "pinchGesture", "pointerPosition", "Pinch zoom"]:
         assert token in map_view, f"mobile map should support two-finger pinch zoom: {token}"
     for token in ["MAX_ZOOM = 24", "max=\"2400\""]:

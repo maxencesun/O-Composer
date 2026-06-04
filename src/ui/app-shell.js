@@ -557,7 +557,7 @@ export class PurplePenApp extends HTMLElement {
             </header>
             <div id="commandBody" class="command-body"></div>
             <div id="commandMessage" class="command-message" hidden></div>
-            <footer id="commandActions" class="dialog-actions" hidden>
+            <footer id="commandActions" class="dialog-actions" style="display:none">
               <button type="button" data-command-cancel>${escapeHtml(this.t("Cancel"))}</button>
               <button id="commandApplyButton" type="submit" class="primary-button">${escapeHtml(this.t("Apply"))}</button>
             </footer>
@@ -2413,7 +2413,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#commandBody").innerHTML = config.body || "";
     const hasActions = !!config.applyLabel;
     const actions = this.querySelector("#commandActions");
-    actions.hidden = !hasActions;
+    actions.style.display = hasActions ? "" : "none";
     if (hasActions) {
       this.querySelector("#commandApplyButton").textContent = this.t(config.applyLabel || "Apply");
     }

@@ -553,7 +553,7 @@ export class PurplePenApp extends HTMLElement {
           <form id="commandForm" class="command-form">
             <header class="dialog-heading">
               <h2 id="commandTitle"></h2>
-              <button type="button" class="icon-button" data-command-cancel aria-label="${escapeAttr(this.t("Close"))}">x</button>
+              <button type="button" class="icon-button" id="commandCloseButton" data-command-cancel aria-label="${escapeAttr(this.t("Close"))}">x</button>
             </header>
             <div id="commandBody" class="command-body"></div>
             <div id="commandMessage" class="command-message" hidden></div>
@@ -996,6 +996,7 @@ export class PurplePenApp extends HTMLElement {
     this.openCommandDialog({
       title: `${box}: ${columnLabel}`,
       applyLabel: this.t("Close"),
+      hideActions: true,
       body: this.iscdSymbolPickerHtml(controlId, box, selectedValue),
       onOpen: dialog => this.paintIscdCanvases(dialog),
       apply: () => true
@@ -2413,6 +2414,8 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#commandTitle").textContent = this.t(config.title || "");
     this.querySelector("#commandBody").innerHTML = config.body || "";
     this.querySelector("#commandApplyButton").textContent = this.t(config.applyLabel || "Apply");
+    this.querySelector("#commandForm").querySelector(".dialog-actions").hidden = !!config.hideActions;
+    this.querySelector("#commandCloseButton").hidden = !!config.hideActions;
     const message = this.querySelector("#commandMessage");
     message.hidden = !config.message;
     message.textContent = this.t(config.message || "");

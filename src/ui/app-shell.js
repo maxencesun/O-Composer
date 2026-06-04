@@ -1328,6 +1328,9 @@ export class PurplePenApp extends HTMLElement {
   }
 
   bindSelectionColorInputs(panel) {
+    panel.querySelectorAll("[data-background-field]").forEach(input => {
+      input.addEventListener("input", event => this.handleSelectionPanelInput(event));
+    });
     panel.querySelector("[data-special-color-picker]")?.addEventListener("input", event => this.handleSelectionPanelInput(event));
     panel.querySelector("[data-special-color-hex]")?.addEventListener("input", event => this.handleSelectionPanelInput(event));
   }
@@ -1358,7 +1361,7 @@ export class PurplePenApp extends HTMLElement {
           <label class="span-2">${escapeHtml(this.t("Calibration printed length (cm)"))} <input data-background-field="calibrationPrintedCm" type="number" min="0.01" step="0.01" value="${formatInputNumber(background.calibrationPrintedCm || "")}"></label>
         </div>
         <button type="button" class="secondary" data-background-calibrate>${escapeHtml(this.t("Calibrate with two points"))}</button>
-        ${measured ? `<p class="muted">${escapeHtml(this.t("Selected line"))}: ${formatDecimal(measured)} m</p>` : `<p class="muted">${escapeHtml(this.t("Click two points on the map, then enter their real distance."))}</p>`}
+        <p class="muted" data-background-measured>${measured ? `${escapeHtml(this.t("Selected line"))}: ${formatDecimal(measured)} m` : escapeHtml(this.t("Click two points on the map, then enter their real distance."))}</p>
       </div>
     `;
   }
@@ -2144,6 +2147,7 @@ export class PurplePenApp extends HTMLElement {
     const state = this.store.snapshot();
     const selection = state.ui.selection;
     if (target.dataset.backgroundField !== undefined) {
+      this.renderKeys = null;
       this.updateBackgroundField(target.dataset.backgroundField, target.value);
       return;
     }
@@ -2772,6 +2776,11 @@ export class PurplePenApp extends HTMLElement {
 
   handleSelectionPanelInput(event) {
     const target = event.target;
+    if (target.dataset.backgroundField !== undefined) {
+      this.updateBackgroundField(target.dataset.backgroundField, target.value);
+      this.syncBackgroundMeasurement();
+      return;
+    }
     if (target.dataset.specialColorPicker !== undefined) {
       syncColorControls(target.closest(".color-field"), target.value, "special");
       this.applySelectedSpecialColor(target.value, { transient: true });
@@ -2783,6 +2792,16 @@ export class PurplePenApp extends HTMLElement {
       syncColorControls(target.closest(".color-field"), color, "special");
       this.applySelectedSpecialColor(color, { transient: true });
     }
+  }
+
+  syncBackgroundMeasurement() {
+    const output = this.querySelector("[data-background-measured]");
+    const background = this.store.snapshot().ui.background;
+    if (!output || !background) return;
+    const measured = backgroundCalibrationDistance(background);
+    output.textContent = measured
+      ? `${this.t("Selected line")}: ${formatDecimal(measured)} m`
+      : this.t("Click two points on the map, then enter their real distance.");
   }
 
   handleCommandDialogInput(event) {
@@ -3979,9 +3998,13 @@ function applyBackgroundCalibration(background, aspect) {
   background.calibration ||= {};
   background.calibration.baseWidthMeters ||= positiveNumber(background.widthMeters, 200);
   background.calibration.baseDistanceMeters ||= currentDistance;
+  background.calibration.basePrintedWidthCm ||= positiveNumber(background.printedWidthCm, 0);
   const factor = background.calibrationDistanceMeters / background.calibration.baseDistanceMeters;
   background.widthMeters = background.calibration.baseWidthMeters * factor;
   background.heightMeters = background.widthMeters * aspect;
+  if (background.calibration.basePrintedWidthCm > 0) {
+    background.printedWidthCm = background.calibration.basePrintedWidthCm * factor;
+  }
   const afterCenter = backgroundCalibrationAnchorCenter(background);
   if (beforeCenter && afterCenter) {
     background.centerX = (Number(background.centerX) || 0) + beforeCenter.x - afterCenter.x;
@@ -3993,6 +4016,7 @@ function resetBackgroundCalibrationBase(background) {
   if (!background?.calibration) return;
   delete background.calibration.baseWidthMeters;
   delete background.calibration.baseDistanceMeters;
+  delete background.calibration.basePrintedWidthCm;
 }
 
 function backgroundBoundsForMetadata(background) {

@@ -136,6 +136,8 @@ def verify_app_files() -> None:
         assert token in styles, f"mobile landscape should put description/selection panels left of the map with a readable description width: {token}"
     for token in ["mobile-side-controls", "mobileCourseSelect", "mobilePanelSelect", "selectCourse", ".course-tabs {\n    display: none;", "display: contents", ".left-panel > .panel-block:not(.selection-panel)"]:
         assert token in styles + app_shell, f"mobile landscape should use left-panel course/panel dropdowns above description/selection: {token}"
+    for token in ["revealMobileSelectionPanel", "isMobileLandscapeViewport", "workspace.scrollTo", "touch-action: pan-y"]:
+        assert token in styles + app_shell, f"mobile landscape description editing should reveal the right-side selection editor without stealing vertical scroll: {token}"
     assert ".left-panel .panel-heading {\n    display: none;" in styles, "mobile landscape should hide Description/Report segmented buttons when using the panel dropdown"
     for token in ["--mobile-landscape-height: 100dvh", "--mobile-landscape-height: 100svh", "height: var(--mobile-landscape-height)", "env(safe-area-inset-bottom", "overflow-y: hidden", "min-height: 0", "overflow: hidden", "max-height: 40px", "flex-wrap: nowrap"]:
         assert token in styles, f"mobile landscape should keep the page fixed while internal panels scroll: {token}"

@@ -914,6 +914,7 @@ export class PurplePenApp extends HTMLElement {
         ui.selection = { type: "control", id: Number(controlId) };
         ui.inlineIscdPicker = { controlId: Number(controlId), box, selectedValue };
       }, "Show description symbol picker");
+      this.revealMobileSelectionPanel();
       return;
     }
     this.openCommandDialog({
@@ -963,6 +964,20 @@ export class PurplePenApp extends HTMLElement {
       ctx.fillStyle = "#111827";
       drawIscdSymbol(ctx, column, symbol, width / 2, height / 2, Math.min(width, height) * 0.28);
     }
+  }
+
+  revealMobileSelectionPanel() {
+    if (!isMobileLandscapeViewport()) return;
+    window.requestAnimationFrame(() => {
+      const workspace = this.querySelector(".workspace");
+      const panel = this.querySelector(".selection-panel");
+      if (!workspace || !panel) return;
+      const left = panel.offsetLeft + panel.offsetWidth - workspace.clientWidth;
+      workspace.scrollTo({
+        left: Math.max(0, left),
+        behavior: "smooth"
+      });
+    });
   }
 
   scheduleSymbolTooltip(event) {
@@ -4098,6 +4113,10 @@ function isNarrowMobileViewport() {
 
 function usesInlineMobilePalette() {
   return isNarrowMobileViewport() || (window.matchMedia?.("(pointer: coarse)")?.matches ?? false);
+}
+
+function isMobileLandscapeViewport() {
+  return window.matchMedia?.("(pointer: coarse) and (orientation: landscape)")?.matches ?? false;
 }
 
 function canScrollElement(element, deltaY) {

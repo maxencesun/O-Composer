@@ -731,7 +731,8 @@ export class PurplePenApp extends HTMLElement {
       || this.renderKeys.showAllControls !== keys.showAllControls;
     const shouldRenderSelection = shouldRenderCourse
       || !this.renderKeys
-      || this.renderKeys.selection !== keys.selection;
+      || this.renderKeys.selection !== keys.selection
+      || this.renderKeys.inlineIscdPicker !== keys.inlineIscdPicker;
     const shouldRenderReport = !this.renderKeys
       || this.renderKeys.reportTitle !== keys.reportTitle
       || this.renderKeys.reportKind !== keys.reportKind
@@ -777,6 +778,7 @@ export class PurplePenApp extends HTMLElement {
     this.store.updateUi(ui => {
       ui.selectedCourseId = courseId === "all" ? "all" : Number(courseId);
       ui.selection = courseId === "all" ? null : { type: "course", id: Number(courseId) };
+      ui.inlineIscdPicker = null;
       ui.showAllControls = courseId === "all";
       ui.printAreaEdit = null;
       if (ui.tool === "print-area" || ui.tool === "print-area-frame") {
@@ -874,22 +876,33 @@ export class PurplePenApp extends HTMLElement {
 
   openIscdSymbolPicker(controlId, box, selectedValue = "") {
     const columnLabel = this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box);
-    const options = symbolOptionsForColumn(box);
+    if (usesInlineMobilePalette()) {
+      this.store.updateUi(ui => {
+        ui.selection = { type: "control", id: Number(controlId) };
+        ui.inlineIscdPicker = { controlId: Number(controlId), box, selectedValue };
+      }, "Show description symbol picker");
+      return;
+    }
     this.openCommandDialog({
       title: `${box}: ${columnLabel}`,
       applyLabel: this.t("Close"),
-      body: `
-        <div class="iscd-picker-grid">
-          ${options.map(([value, label]) => `
-            <button type="button" class="iscd-picker-option ${value === selectedValue ? "selected" : ""}" data-iscd-symbol="${escapeAttr(value)}" data-control-id="${controlId}" data-box="${box}" data-symbol-tooltip="${escapeAttr(this.t(label))}">
-              <canvas class="iscd-picker-canvas" width="36" height="36" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
-            </button>
-          `).join("")}
-        </div>
-      `,
+      body: this.iscdSymbolPickerHtml(controlId, box, selectedValue),
       onOpen: dialog => this.paintIscdCanvases(dialog),
       apply: () => true
     });
+  }
+
+  iscdSymbolPickerHtml(controlId, box, selectedValue = "") {
+    const options = symbolOptionsForColumn(box);
+    return `
+      <div class="iscd-picker-grid">
+        ${options.map(([value, label]) => `
+          <button type="button" class="iscd-picker-option ${value === selectedValue ? "selected" : ""}" data-iscd-symbol="${escapeAttr(value)}" data-control-id="${controlId}" data-box="${box}" data-symbol-tooltip="${escapeAttr(this.t(label))}">
+            <canvas class="iscd-picker-canvas" width="36" height="36" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
+          </button>
+        `).join("")}
+      </div>
+    `;
   }
 
   applyIscdSymbolSelection(controlId, box, value) {
@@ -900,6 +913,7 @@ export class PurplePenApp extends HTMLElement {
     }, "Change description symbol");
     this.store.updateUi(ui => {
       ui.selection = { type: "control", id: Number(controlId) };
+      ui.inlineIscdPicker = null;
     }, "Select control");
   }
 
@@ -957,7 +971,7 @@ export class PurplePenApp extends HTMLElement {
     }
     if (selection.type === "control") {
       const control = getControl(eventModel, selection.id);
-      panel.innerHTML = control ? this.controlEditor(control) : `<p class="muted">${escapeHtml(this.t("Selected control no longer exists."))}</p>`;
+      panel.innerHTML = control ? this.controlEditor(control, ui.inlineIscdPicker) : `<p class="muted">${escapeHtml(this.t("Selected control no longer exists."))}</p>`;
     }
     else if (selection.type === "course") {
       const course = getCourse(eventModel, selection.id);
@@ -984,6 +998,7 @@ export class PurplePenApp extends HTMLElement {
         : `<p class="muted">${escapeHtml(this.t("Selected control number no longer exists."))}</p>`;
     }
     this.bindSelectionColorInputs(panel);
+    this.paintIscdCanvases(panel);
   }
 
   bindSelectionColorInputs(panel) {
@@ -1022,9 +1037,17 @@ export class PurplePenApp extends HTMLElement {
     `;
   }
 
-  controlEditor(control) {
+  controlEditor(control, inlinePicker = null) {
     const descriptions = new Map((control.descriptions || []).map(item => [item.box, item]));
     const scoreFinishControl = this.scoreFinishControlEditor(control);
+    const inlinePickerHtml = inlinePicker && Number(inlinePicker.controlId) === Number(control.id)
+      ? `
+        <section class="inline-iscd-picker">
+          <h3>${escapeHtml(inlinePicker.box)}: ${escapeHtml(this.t(ISCD_COLUMNS.find(([id]) => id === inlinePicker.box)?.[1] || inlinePicker.box))}</h3>
+          ${this.iscdSymbolPickerHtml(control.id, inlinePicker.box, inlinePicker.selectedValue || "")}
+        </section>
+      `
+      : "";
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Kind"))} <select data-field="control.kind">${CONTROL_KINDS.map(kind => `<option value="${kind}" ${kind === control.kind ? "selected" : ""}>${escapeHtml(optionLabel(kind))}</option>`).join("")}</select></label>
@@ -1044,6 +1067,7 @@ export class PurplePenApp extends HTMLElement {
             </select>
           </label>`).join("")}
       </div>
+      ${inlinePickerHtml}
       <label class="stacked">${escapeHtml(this.t("Punch pattern"))}
         <textarea data-field="control.punchPatternText" rows="5">${escapeHtml(control.punchPattern?.rows?.join("\n") || "")}</textarea>
       </label>
@@ -2269,6 +2293,12 @@ export class PurplePenApp extends HTMLElement {
   }
 
   handleSelectionPanelClick(event) {
+    const symbolButton = event.target.closest("[data-iscd-symbol]");
+    if (symbolButton) {
+      event.preventDefault();
+      this.applyIscdSymbolSelection(Number(symbolButton.dataset.controlId), symbolButton.dataset.box, symbolButton.dataset.iscdSymbol || "");
+      return;
+    }
     if (event.target.closest("[data-background-calibrate]")) {
       this.store.updateUi(ui => {
         if (ui.background) {
@@ -3946,10 +3976,15 @@ function renderKeysFor({ eventModel, ui }) {
     selectedCourseId: ui.selectedCourseId,
     showAllControls: ui.showAllControls,
     selection: selectionKey(ui.selection),
+    inlineIscdPicker: inlineIscdPickerKey(ui.inlineIscdPicker),
     reportTitle: ui.report?.title || "",
     reportKind: ui.report?.kind || "",
     reportHtml: ui.report?.html || ""
   };
+}
+
+function inlineIscdPickerKey(picker) {
+  return picker ? `${picker.controlId}:${picker.box}:${picker.selectedValue || ""}` : "";
 }
 
 function selectionKey(selection) {
@@ -4022,6 +4057,10 @@ function baseName(name = "event.ppen") {
 
 function isNarrowMobileViewport() {
   return window.matchMedia?.("(max-width: 760px)")?.matches ?? window.innerWidth <= 760;
+}
+
+function usesInlineMobilePalette() {
+  return isNarrowMobileViewport() || (window.matchMedia?.("(pointer: coarse)")?.matches ?? false);
 }
 
 function canScrollElement(element, deltaY) {

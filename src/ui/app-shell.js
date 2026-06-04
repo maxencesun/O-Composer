@@ -572,6 +572,9 @@ export class PurplePenApp extends HTMLElement {
         }
       });
     }
+    for (const menuList of this.querySelectorAll(".menubar .menu-list")) {
+      this.bindMobileMenuScroll(menuList);
+    }
     window.addEventListener("pointermove", event => this.closeTopMenusWhenPointerLeaves(event));
 
     this.addEventListener("click", event => {
@@ -707,6 +710,34 @@ export class PurplePenApp extends HTMLElement {
         menu.open = false;
       }
     }
+  }
+
+  bindMobileMenuScroll(menuList) {
+    let lastTouchY = 0;
+    menuList.addEventListener("touchstart", event => {
+      lastTouchY = event.touches[0]?.clientY || 0;
+    }, { passive: true });
+    menuList.addEventListener("touchmove", event => {
+      if (!isNarrowMobileViewport()) return;
+      const touchY = event.touches[0]?.clientY || lastTouchY;
+      const deltaY = lastTouchY - touchY;
+      lastTouchY = touchY;
+      if (canScrollElement(menuList, deltaY)) {
+        event.stopPropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    }, { passive: false });
+    menuList.addEventListener("wheel", event => {
+      if (!isNarrowMobileViewport()) return;
+      if (canScrollElement(menuList, event.deltaY)) {
+        event.stopPropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    }, { passive: false });
   }
 
   closeTopMenusWhenPointerLeaves(event) {
@@ -4001,6 +4032,14 @@ function baseName(name = "event.ppen") {
 
 function isNarrowMobileViewport() {
   return window.matchMedia?.("(max-width: 760px)")?.matches ?? window.innerWidth <= 760;
+}
+
+function canScrollElement(element, deltaY) {
+  if (!element || !(Math.abs(deltaY) > 0)) return false;
+  const maxScrollTop = element.scrollHeight - element.clientHeight;
+  if (!(maxScrollTop > 0)) return false;
+  if (deltaY < 0) return element.scrollTop > 0;
+  return element.scrollTop < maxScrollTop - 1;
 }
 
 function escapeHtml(value) {

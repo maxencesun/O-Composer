@@ -123,6 +123,13 @@ def verify_app_files() -> None:
         assert token in styles + app_shell + i18n, f"mobile layout should prompt/attempt landscape fullscreen use: {token}"
     for token in ["max-height: calc(100dvh - 42px)", "overflow-y: auto", "overscroll-behavior: contain", "#selectionPanel", "flex: 1 1 auto", "justify-content: flex-end"]:
         assert token in styles, f"mobile panels and top menus should scroll and keep branding aligned: {token}"
+    for token in ["bindMobileMenuScroll", "canScrollElement", "touch-action: pan-y", "passive: false"]:
+        assert token in app_shell + styles, f"mobile menu dropdowns should consume vertical scroll gestures: {token}"
+    for token in [".toolbar .tool-button span", "display: none", "min-width: 38px"]:
+        assert token in styles, f"mobile quick toolbar should show icons without text labels: {token}"
+    for token in ["flex-wrap: wrap", "align-content: flex-start", "overflow-y: auto"]:
+        assert token in styles, f"mobile quick toolbar should wrap when icons do not fit one row: {token}"
+    assert ".map-view-controls {\n    display: none;" in styles, "mobile should hide top map view sliders and controls"
     for token in ["activePointers", "beginPinch", "updatePinch", "pinchGesture", "pointerPosition", "Pinch zoom"]:
         assert token in map_view, f"mobile map should support two-finger pinch zoom: {token}"
     for token in ["MAX_ZOOM = 24", "max=\"2400\""]:

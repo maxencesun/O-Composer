@@ -939,11 +939,23 @@ button:hover {
   }
 
   .toolbar {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
+    align-content: flex-start;
     height: auto;
     max-width: 100dvw;
-    overflow-x: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  .toolbar .tool-button {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+  }
+
+  .toolbar .tool-button span {
+    display: none;
   }
 
   .menu-list {
@@ -956,6 +968,7 @@ button:hover {
     max-height: calc(100dvh - 42px);
     overflow-y: auto;
     overscroll-behavior: contain;
+    touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
     z-index: 80;
   }
@@ -993,11 +1006,7 @@ button:hover {
   }
 
   .map-view-controls {
-    left: 8px;
-    right: 8px;
-    top: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-start;
+    display: none;
   }
 
   .form-grid,

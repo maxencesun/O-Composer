@@ -44,13 +44,6 @@ export function cloneEvent(event) {
 }
 
 export function createBlankEvent() {
-  const start = createControl(1, "start", { x: -40, y: 0 });
-  const finish = createControl(2, "finish", { x: 40, y: 0 });
-  const startCourseControl = createCourseControl(1, start.id, 2);
-  const finishCourseControl = createCourseControl(2, finish.id, null);
-  const course = createCourse(1, "Course 1", "normal", 1);
-  course.firstCourseControl = startCourseControl.id;
-
   return {
     sourceName: "Untitled.ppen",
     dirty: false,
@@ -113,9 +106,9 @@ export function createBlankEvent() {
       customSymbolText: [],
       liveloxImportableEventId: ""
     },
-    controls: [start, finish],
-    courses: [course],
-    courseControls: [startCourseControl, finishCourseControl],
+    controls: [],
+    courses: [],
+    courseControls: [],
     legs: [],
     specials: [],
     metadata: {

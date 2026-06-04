@@ -5,7 +5,7 @@ export class Store {
     this.state = {
       eventModel: createBlankEvent(),
       ui: {
-        selectedCourseId: 1,
+        selectedCourseId: "all",
         selection: null,
         tool: "select",
         zoom: 1,
@@ -13,7 +13,7 @@ export class Store {
         mapIntensity: 0.65,
         highQuality: true,
         showPrintArea: false,
-        showAllControls: false,
+        showAllControls: true,
         variationMode: "default",
         variationCode: "",
         variationAddKind: "fork",

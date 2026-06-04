@@ -65,6 +65,7 @@ def verify_app_files() -> None:
         assert token in app_shell, f"missing command palette UI: {token}"
     control_descriptions = (ROOT / "src" / "domain" / "control-descriptions.js").read_text(encoding="utf-8")
     course_service = (ROOT / "src" / "domain" / "course-service.js").read_text(encoding="utf-8")
+    print_area = (ROOT / "src" / "domain" / "print-area.js").read_text(encoding="utf-8")
     relay_variations = (ROOT / "src" / "domain" / "relay-variations.js").read_text(encoding="utf-8")
     exporters = (ROOT / "src" / "domain" / "exporters.js").read_text(encoding="utf-8")
     ppen_parser = (ROOT / "src" / "domain" / "ppen-parser.js").read_text(encoding="utf-8")
@@ -202,6 +203,9 @@ def verify_app_files() -> None:
     assert 'if (baseline === "middle") return -size * 0.35' in pdf_exporter, "PDF text middle baseline should align with canvas after y-axis conversion"
     for token in ["printAreaDialog", "printAreaPaper", "PAPER_SIZES", "Letter (8.5 x 11 in)", "A4 (210 x 297 mm)", "Custom drawn area", "Move paper-size frame", "Use current view", "applyPrintAreaDialog", "updatePrintAreaDialogPreview", "dialogPreview", "printAreaFixedFrameAt", "movePrintAreaFrame"]:
         assert token in app_shell, f"missing print area selection UI: {token}"
+    for token in ["printableWidthMm / 1000 * printScale", "printableHeightMm / 1000 * printScale"]:
+        assert token in print_area, f"print area frame should convert paper millimeters through print scale: {token}"
+    assert "scaleRatio = printScale / mapScale" not in print_area, "paper frame size must not shrink to the map-scale ratio"
     for old_prompt in ["Print area mode:", "Rectangle: left, top, right, bottom", "Options: restrict-to-page-size"]:
         assert old_prompt not in app_shell, f"print area should not use manual prompt: {old_prompt}"
     assert "onPrintAreaPreview" in app_shell

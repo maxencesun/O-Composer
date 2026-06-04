@@ -168,6 +168,8 @@ def verify_app_files() -> None:
         assert token in styles, f"mobile pop-up palettes should be compact enough for phones: {token}"
     for token in ["openCommandDialog", "iscdSymbolPickerHtml", "handleCommandDialogClick", "data-iscd-symbol"]:
         assert token in app_shell, f"mobile symbol palettes should use the compact command dialog instead of the selection panel: {token}"
+    for token in ["showActions: false", "showClose: false", 'config.showActions !== false && typeof config.apply === "function"', "config.showClose === false"]:
+        assert token in app_shell, f"ISCD symbol picker should hide its own cancel/close buttons without removing buttons from other dialogs: {token}"
     for token in ["inlineIscdPicker", "inline-iscd-picker", "revealMobileSelectionPanel", "usesInlineMobilePalette"]:
         assert token not in app_shell + styles, f"mobile symbol palettes should not render inside the selection panel anymore: {token}"
     for token in ["activePointers", "beginPinch", "updatePinch", "pinchGesture", "pointerPosition", "Pinch zoom"]:

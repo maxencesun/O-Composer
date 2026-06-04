@@ -1216,6 +1216,8 @@ export class PurplePenApp extends HTMLElement {
     this.openCommandDialog({
       title: `${box}: ${columnLabel}`,
       body: this.iscdSymbolPickerHtml(controlId, box, selectedValue),
+      showActions: false,
+      showClose: false,
       onOpen: dialog => this.paintIscdCanvases(dialog),
       apply: () => true
     });
@@ -2670,13 +2672,13 @@ export class PurplePenApp extends HTMLElement {
     this.activeCommandDialog = config;
     this.querySelector("#commandTitle").textContent = this.t(config.title || "");
     this.querySelector("#commandBody").innerHTML = config.body || "";
-    const hasActions = !!config.applyLabel;
+    const hasActions = config.showActions !== false && typeof config.apply === "function";
     const actions = this.querySelector("#commandActions");
     actions.style.display = hasActions ? "" : "none";
     if (hasActions) {
       this.querySelector("#commandApplyButton").textContent = this.t(config.applyLabel || "Apply");
     }
-    this.querySelector("#commandCloseButton").hidden = false;
+    this.querySelector("#commandCloseButton").hidden = config.showClose === false;
     const message = this.querySelector("#commandMessage");
     message.hidden = !config.message;
     message.textContent = this.t(config.message || "");

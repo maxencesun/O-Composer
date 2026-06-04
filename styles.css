@@ -1072,9 +1072,9 @@ button:hover {
   body {
     width: 100%;
     max-width: 100%;
-    height: auto;
+    height: 100dvh;
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: hidden;
     overscroll-behavior: none;
   }
 
@@ -1082,16 +1082,17 @@ button:hover {
     width: 100dvw;
     max-width: 100dvw;
     min-width: 0;
-    height: auto;
-    min-height: 100dvh;
+    height: 100dvh;
+    min-height: 0;
     grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    overflow: hidden;
   }
 
   .menubar {
     flex-wrap: wrap;
     height: auto;
     align-items: center;
-    max-height: 32dvh;
+    max-height: 20dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -1108,7 +1109,7 @@ button:hover {
     flex-wrap: wrap;
     align-content: flex-start;
     height: auto;
-    max-height: 24dvh;
+    max-height: 22dvh;
     max-width: 100dvw;
     overflow-x: hidden;
     overflow-y: auto;
@@ -1183,10 +1184,10 @@ button:hover {
   .workspace {
     width: 100%;
     min-width: 0;
-    min-height: min(520px, calc(100dvh - 96px));
+    min-height: 0;
     grid-template-columns: clamp(340px, 42dvw, 420px) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
-    overflow: visible;
+    overflow: hidden;
   }
 
   .workspace-divider {
@@ -1204,6 +1205,7 @@ button:hover {
 
   .map-panel {
     min-width: 0;
+    min-height: 0;
     order: 2;
   }
 

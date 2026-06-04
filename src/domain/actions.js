@@ -426,6 +426,49 @@ export function setCourseOrder(eventModel, orderedIds) {
   });
 }
 
+export function addForkToLeg(eventModel, courseId, selection) {
+  const course = getCourse(eventModel, courseId);
+  if (!course || !selection || !["leg", "leg-bend"].includes(selection.type)) return null;
+  const rows = courseView(eventModel, courseId, { allBranches: false });
+  const fromRow = rows.find(row => Number(row.control?.id) === Number(selection.startControl));
+  const toRow = rows.find(row => Number(row.control?.id) === Number(selection.endControl));
+  const fromCourseControl = fromRow?.courseControl;
+  const toCourseControl = toRow?.courseControl;
+  if (!fromCourseControl || !toCourseControl || fromCourseControl.variation) return null;
+
+  const from = getControl(eventModel, selection.startControl);
+  const to = getControl(eventModel, selection.endControl);
+  if (!from || !to) return null;
+
+  const dx = to.location.x - from.location.x;
+  const dy = to.location.y - from.location.y;
+  const length = Math.hypot(dx, dy) || 1;
+  const nx = -dy / length;
+  const ny = dx / length;
+  const mid = {
+    x: (from.location.x + to.location.x) / 2,
+    y: (from.location.y + to.location.y) / 2
+  };
+  const spread = Math.max(20, Math.min(80, length * 0.28));
+  const controls = [
+    createControl(nextId(eventModel.controls), "normal", { x: mid.x + nx * spread, y: mid.y + ny * spread }, nextAvailableCode(eventModel)),
+    createControl(nextId([...eventModel.controls, { id: nextId(eventModel.controls) }]), "normal", { x: mid.x - nx * spread, y: mid.y - ny * spread }, "")
+  ];
+  controls[1].code = nextAvailableCode({ ...eventModel, controls: [...eventModel.controls, controls[0]] });
+  eventModel.controls.push(...controls);
+
+  const branchControls = controls.map(control => {
+    const courseControl = createCourseControl(nextId(eventModel.courseControls), control.id, toCourseControl.id);
+    eventModel.courseControls.push(courseControl);
+    return courseControl;
+  });
+
+  fromCourseControl.variation = "fork";
+  fromCourseControl.variationEnd = toCourseControl.id;
+  fromCourseControl.variationCourseControls = branchControls.map(courseControl => courseControl.id);
+  return { type: "control", id: controls[0].id };
+}
+
 function appendCourseControlRaw(eventModel, controlId) {
   const courseControl = createCourseControl(nextId(eventModel.courseControls), controlId, null);
   eventModel.courseControls.push(courseControl);

@@ -17,6 +17,7 @@ import {
   addControlAt,
   addExistingControlToCourse,
   addCourse,
+  addForkToLeg,
   addSpecialAt,
   autoNumberControls,
   deleteSelection,
@@ -79,6 +80,14 @@ import {
   exportKml,
   exportRouteGadgetXml
 } from "../domain/exporters.js";
+import {
+  allCourseVariations,
+  courseHasVariations,
+  relayAssignments,
+  relayVariationForLeg,
+  variationDisplayLabel,
+  variationForCode
+} from "../domain/relay-variations.js";
 import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js";
 import { iconSvg } from "./icons.js";
 import { MapView } from "./map-view.js";
@@ -490,6 +499,7 @@ export class PurplePenApp extends HTMLElement {
           <section class="map-panel">
             <div id="courseBanner" class="course-banner">
               <div id="courseBannerText" class="course-banner-text"></div>
+              <div id="courseVariationControls" class="course-variation-controls"></div>
               <div class="map-view-controls" aria-label="${escapeAttr(this.t("Map view controls"))}">
                 <label class="map-view-control"><span>${escapeHtml(this.t("Zoom"))}</span><input id="zoomSlider" type="range" min="20" max="2400" value="100"></label>
                 <label class="map-view-control"><span>${escapeHtml(this.t("Intensity"))}</span><input id="intensitySlider" type="range" min="10" max="100" value="65"></label>
@@ -637,6 +647,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#intensitySlider").addEventListener("input", event => {
       this.store.updateUi(ui => { ui.mapIntensity = Number(event.target.value) / 100; }, "Map intensity");
     });
+    this.querySelector("#courseBanner").addEventListener("change", event => this.handleCourseBannerChange(event));
     this.querySelector("#appLanguage").addEventListener("change", event => {
       setLanguage(event.target.value);
       window.location.reload();
@@ -761,7 +772,11 @@ export class PurplePenApp extends HTMLElement {
     const shouldRenderCourse = !this.renderKeys
       || this.renderKeys.eventModel !== keys.eventModel
       || this.renderKeys.selectedCourseId !== keys.selectedCourseId
-      || this.renderKeys.showAllControls !== keys.showAllControls;
+      || this.renderKeys.showAllControls !== keys.showAllControls
+      || this.renderKeys.variationMode !== keys.variationMode
+      || this.renderKeys.variationCode !== keys.variationCode
+      || this.renderKeys.relayTeam !== keys.relayTeam
+      || this.renderKeys.relayLeg !== keys.relayLeg;
     const shouldRenderSelection = shouldRenderCourse
       || !this.renderKeys
       || this.renderKeys.selection !== keys.selection;
@@ -811,6 +826,10 @@ export class PurplePenApp extends HTMLElement {
       ui.selectedCourseId = courseId === "all" ? "all" : Number(courseId);
       ui.selection = courseId === "all" ? null : { type: "course", id: Number(courseId) };
       ui.showAllControls = courseId === "all";
+      ui.variationMode = "default";
+      ui.variationCode = "";
+      ui.relayTeam = 1;
+      ui.relayLeg = 1;
       ui.printAreaEdit = null;
       if (ui.tool === "print-area" || ui.tool === "print-area-frame") {
         ui.tool = "select";
@@ -820,11 +839,78 @@ export class PurplePenApp extends HTMLElement {
 
   renderBanner({ eventModel, ui }) {
     const course = ui.selectedCourseId === "all" ? null : getCourse(eventModel, ui.selectedCourseId);
+    const displayOptions = courseDisplayOptions(eventModel, ui);
     const title = course ? course.name : this.t("All Controls");
+    const view = course ? courseView(eventModel, course.id, displayOptions) : [];
+    const displayLabel = course ? variationDisplayLabel(eventModel, course.id, ui) : "";
     const details = course
-      ? `${optionLabel(course.kind)} | ${formatLength(courseLength(eventModel, course.id))} | ${courseView(eventModel, course.id).length} ${this.t("controls")}`
+      ? `${optionLabel(course.kind)}${displayLabel ? ` | ${this.t(displayLabel)}` : ""} | ${formatLength(courseLength(eventModel, course.id, displayOptions))} | ${view.length} ${this.t("controls")}`
       : `${eventModel.controls.length} ${this.t("controls")} | ${eventModel.specials.length} ${this.t("special objects")}`;
     this.querySelector("#courseBannerText").innerHTML = `<strong>${escapeHtml(eventModel.event.title || this.t("Untitled Event"))}</strong><span>${escapeHtml(title)}</span><span>${escapeHtml(details)}</span>`;
+    this.querySelector("#courseVariationControls").innerHTML = course ? this.courseVariationControls(eventModel, course, ui) : "";
+  }
+
+  courseVariationControls(eventModel, course, ui) {
+    if (!courseHasVariations(eventModel, course.id)) return "";
+    const variations = allCourseVariations(eventModel, course.id);
+    const relay = relayAssignments(eventModel, course.id);
+    const mode = ui.variationMode || "default";
+    const variationCode = ui.variationCode || variations[0]?.code || "";
+    const team = Number(ui.relayTeam) || course.relay?.firstTeam || 1;
+    const leg = Number(ui.relayLeg) || 1;
+    return `
+      <label>${escapeHtml(this.t("Variation"))}
+        <select data-course-variation-mode>
+          <option value="default" ${mode === "default" ? "selected" : ""}>${escapeHtml(this.t("Default"))}</option>
+          <option value="all" ${mode === "all" ? "selected" : ""}>${escapeHtml(this.t("All variations"))}</option>
+          <option value="variation" ${mode === "variation" ? "selected" : ""}>${escapeHtml(this.t("One variation"))}</option>
+          <option value="relay" ${mode === "relay" ? "selected" : ""}>${escapeHtml(this.t("Relay leg"))}</option>
+        </select>
+      </label>
+      ${mode === "variation" ? `
+        <label>${escapeHtml(this.t("Code"))}
+          <select data-course-variation-code>
+            ${variations.map(variation => `<option value="${escapeAttr(variation.code)}" ${variation.code === variationCode ? "selected" : ""}>${escapeHtml(variation.code)}</option>`).join("")}
+          </select>
+        </label>
+      ` : ""}
+      ${mode === "relay" ? `
+        <label>${escapeHtml(this.t("Team"))}<input data-relay-team type="number" min="${relay.firstTeam}" max="${Math.max(relay.firstTeam, relay.firstTeam + Math.max(0, relay.teams - 1))}" value="${team}"></label>
+        <label>${escapeHtml(this.t("Leg"))}<input data-relay-leg type="number" min="1" max="${Math.max(1, relay.legs)}" value="${leg}"></label>
+      ` : ""}
+    `;
+  }
+
+  handleCourseBannerChange(event) {
+    const target = event.target;
+    if (target.dataset.courseVariationMode === undefined
+      && target.dataset.courseVariationCode === undefined
+      && target.dataset.relayTeam === undefined
+      && target.dataset.relayLeg === undefined) {
+      return;
+    }
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    if (!courseId || courseId === "all") return;
+    const variations = allCourseVariations(state.eventModel, courseId);
+    const course = getCourse(state.eventModel, courseId);
+    this.store.updateUi(ui => {
+      if (target.dataset.courseVariationMode !== undefined) {
+        ui.variationMode = target.value || "default";
+      }
+      if (target.dataset.courseVariationCode !== undefined) {
+        ui.variationCode = target.value || "";
+      }
+      if (target.dataset.relayTeam !== undefined) {
+        ui.relayTeam = clamp(Number(target.value) || course?.relay?.firstTeam || 1, course?.relay?.firstTeam || 1, (course?.relay?.firstTeam || 1) + Math.max(0, (course?.relay?.teams || 1) - 1));
+      }
+      if (target.dataset.relayLeg !== undefined) {
+        ui.relayLeg = clamp(Number(target.value) || 1, 1, Math.max(1, course?.relay?.legs || 1));
+      }
+      if (!ui.variationCode && variations.length) {
+        ui.variationCode = variations[0].code;
+      }
+    }, "Select variation");
   }
 
   renderDescription({ eventModel, ui }) {
@@ -833,7 +919,7 @@ export class PurplePenApp extends HTMLElement {
     const isScoreCourse = showingCourseRows && getCourse(eventModel, courseId)?.kind === "score";
     let rows = !showingCourseRows
       ? allControlsView(eventModel)
-      : courseView(eventModel, courseId);
+      : courseView(eventModel, courseId, courseDisplayOptions(eventModel, ui));
     if (isScoreCourse) {
       rows = scoreCourseDescriptionRows(rows);
     }
@@ -1115,6 +1201,8 @@ export class PurplePenApp extends HTMLElement {
 
   courseEditor(course) {
     const finishRoute = finishRouteForCourse(this.store.snapshot().eventModel, course.id);
+    const relay = course.relay || { firstTeam: 1, teams: 0, legs: 1, branches: [] };
+    const assignments = relayAssignments(this.store.snapshot().eventModel, course.id);
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Name"))} <input data-field="course.name" value="${escapeAttr(course.name)}"></label>
@@ -1135,6 +1223,55 @@ export class PurplePenApp extends HTMLElement {
         </label>
         <label class="check"><input data-field="course.options.hideFromReports" type="checkbox" ${course.options.hideFromReports ? "checked" : ""}> ${escapeHtml(this.t("Hide from reports"))}</label>
       </div>
+      <h3>${escapeHtml(this.t("Relay"))}</h3>
+      <div class="form-grid">
+        <label>${escapeHtml(this.t("Teams"))} <input data-field="course.relay.teams" type="number" min="0" value="${relay.teams || 0}"></label>
+        <label>${escapeHtml(this.t("Legs"))} <input data-field="course.relay.legs" type="number" min="1" value="${relay.legs || 1}"></label>
+        <label>${escapeHtml(this.t("First team"))} <input data-field="course.relay.firstTeam" type="number" min="1" value="${relay.firstTeam || 1}"></label>
+        <label class="check"><input data-field="course.hideVariationsOnMap" type="checkbox" ${course.hideVariationsOnMap ? "checked" : ""}> ${escapeHtml(this.t("Hide variation codes on map"))}</label>
+      </div>
+      ${this.relayBranchEditor(course, assignments)}
+      ${this.relayAssignmentTable(assignments)}
+    `;
+  }
+
+  relayBranchEditor(course, assignments) {
+    const branchCodes = assignments.variations.length
+      ? uniqueStrings(assignments.variations.flatMap(variation => variation.code.split("")))
+      : [];
+    if (!branchCodes.length) {
+      return `<p class="muted">${escapeHtml(this.t("Add a fork or loop to this course to create relay variations."))}</p>`;
+    }
+    const rows = branchCodes.map(code => {
+      const fixed = course.relay?.branches?.find(branch => branch.branch === code);
+      return `
+        <label>${escapeHtml(this.t("Branch"))} ${escapeHtml(code)}
+          <select data-relay-branch="${escapeAttr(code)}">
+            <option value="">${escapeHtml(this.t("Any leg"))}</option>
+            ${Array.from({ length: Math.max(1, course.relay?.legs || 1) }, (_, index) => index + 1)
+              .map(leg => `<option value="${leg}" ${Number(fixed?.leg) === leg ? "selected" : ""}>${escapeHtml(this.t("Leg"))} ${leg}</option>`)
+              .join("")}
+          </select>
+        </label>
+      `;
+    }).join("");
+    return `<div class="form-grid">${rows}</div>`;
+  }
+
+  relayAssignmentTable(assignments) {
+    if (!assignments.rows.length) return "";
+    const headers = Array.from({ length: assignments.legs }, (_, index) => `<th>${escapeHtml(this.t("Leg"))} ${index + 1}</th>`).join("");
+    const rows = assignments.rows.map(row => `
+      <tr>
+        <td>${escapeHtml(row.team)}</td>
+        ${row.assignments.map(variation => `<td>${escapeHtml(variation?.code || "")}</td>`).join("")}
+      </tr>
+    `).join("");
+    return `
+      <table class="report-table relay-assignment-table">
+        <thead><tr><th>${escapeHtml(this.t("Team"))}</th>${headers}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
     `;
   }
 
@@ -1181,6 +1318,7 @@ export class PurplePenApp extends HTMLElement {
         : `<p class="muted">${escapeHtml(this.t("No manual cuts. Use the Cut Line tool, then click this leg."))}</p>`}
       <h3>${escapeHtml(this.t("Bend Points"))}</h3>
       <div class="compact-list">
+        <button type="button" data-add-fork>${iconSvg("plus")} ${escapeHtml(this.t("Add Fork"))}</button>
         <button type="button" data-add-leg-bend>${iconSvg("plus")} ${escapeHtml(this.t("Add Bend Point"))}</button>
         ${selection.type === "leg-bend" ? `<button type="button" data-delete-leg-bend>${iconSvg("trash")} ${escapeHtml(this.t("Delete Bend Point"))}</button>` : ""}
       </div>
@@ -1803,6 +1941,21 @@ export class PurplePenApp extends HTMLElement {
       return;
     }
 
+    if (target.dataset.relayBranch !== undefined && selection.type === "course") {
+      this.store.updateEvent(model => {
+        const course = getCourse(model, selection.id);
+        if (!course) return;
+        course.relay ||= { firstTeam: 1, teams: 0, legs: 1, branches: [] };
+        const branch = target.dataset.relayBranch;
+        course.relay.branches = (course.relay.branches || []).filter(item => item.branch !== branch);
+        const leg = Number(target.value) || 0;
+        if (leg > 0) {
+          course.relay.branches.push({ branch, leg });
+        }
+      }, "Change relay branch");
+      return;
+    }
+
     if (target.dataset.scoreFinishControl !== undefined && selection.type === "control") {
       this.store.updateEvent(model => {
         setScoreFinishControl(model, state.ui.selectedCourseId, selection.id, target.checked);
@@ -1881,7 +2034,7 @@ export class PurplePenApp extends HTMLElement {
       setPath(object, field.split(".").slice(1), valueFromInput(target));
     }, "Edit selection");
     // Re-render selection panel when kind or lineKind changes to show/hide relevant fields
-    if (field === "special.lineKind") {
+    if (field === "special.lineKind" || field.startsWith("course.relay.") || field === "course.hideVariationsOnMap") {
       this.renderKeys = null;
       this.render(this.store.snapshot());
     }
@@ -2179,21 +2332,36 @@ export class PurplePenApp extends HTMLElement {
       alert(this.t("Select a course first."));
       return;
     }
-    const rows = courseView(model, courseId, { allBranches: true }).map(row => ({
-      control: row.control.code || controlKindLabel(row.control.kind),
-      variation: row.courseControl.variation || "",
-      next: row.courseControl.nextCourseControl || ""
+    const course = getCourse(model, courseId);
+    const variations = allCourseVariations(model, courseId);
+    const variationRows = variations.map(variation => ({
+      code: variation.code,
+      controls: courseView(model, courseId, { variationChoices: variation.choices })
+        .map(row => row.control.code || controlKindLabel(row.control.kind))
+        .join(" - ")
     }));
+    const relay = relayAssignments(model, courseId);
+    const relayHtml = relay.rows.length
+      ? `
+        <h3>${escapeHtml(this.t("Relay assignments"))}</h3>
+        ${this.relayAssignmentTable(relay)}
+      `
+      : "";
+    const html = variations.length
+      ? `
+        ${tableHtml("Course Variation Report", [
+          { key: "code", label: "Variation" },
+          { key: "controls", label: "Controls" }
+        ], variationRows)}
+        ${relayHtml}
+      `
+      : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`;
     this.store.updateUi(ui => {
       ui.report = {
         title: "Course Variation Report",
-        rows,
+        rows: variationRows,
         kind: "variation",
-        html: tableHtml("Course Variation Report", [
-          { key: "control", label: "Control" },
-          { key: "variation", label: "Variation" },
-          { key: "next", label: "Next course-control" }
-        ], rows)
+        html
       };
     }, "Variation report");
     this.switchPanel("report");
@@ -2346,6 +2514,19 @@ export class PurplePenApp extends HTMLElement {
     }
     const button = event.target.closest("[data-select-leg-gap]");
     const selection = this.store.snapshot().ui.selection;
+    if (event.target.closest("[data-add-fork]") && ["leg", "leg-bend"].includes(selection?.type)) {
+      this.store.updateEvent(model => {
+        const pending = addForkToLeg(model, this.store.snapshot().ui.selectedCourseId, selection);
+        model.metadata.pendingSelection = pending;
+      }, "Add fork");
+      const pending = this.store.snapshot().eventModel.metadata.pendingSelection;
+      this.store.updateUi(ui => {
+        if (pending) ui.selection = pending;
+        ui.variationMode = "all";
+        ui.status = pending ? this.t("Fork added.") : this.t("Could not add fork here.");
+      }, "Add fork");
+      return;
+    }
     if (event.target.closest("[data-add-leg-bend]") && ["leg", "leg-bend"].includes(selection?.type)) {
       this.store.updateUi(ui => {
         ui.selection = {
@@ -3275,6 +3456,21 @@ function objectForSelection(model, selection) {
   return null;
 }
 
+function courseDisplayOptions(eventModel, ui = {}) {
+  const courseId = ui.selectedCourseId;
+  if (!courseId || courseId === "all" || ui.showAllControls) return {};
+  if (ui.variationMode === "all") return { allBranches: true };
+  if (ui.variationMode === "variation") {
+    const variation = variationForCode(eventModel, courseId, ui.variationCode);
+    return variation ? { variationChoices: variation.choices } : {};
+  }
+  if (ui.variationMode === "relay") {
+    const variation = relayVariationForLeg(eventModel, courseId, ui.relayTeam, ui.relayLeg);
+    return variation ? { variationChoices: variation.choices } : {};
+  }
+  return {};
+}
+
 function insertionCourseControlId(state) {
   const selection = state.ui.selection;
   const courseId = state.ui.selectedCourseId;
@@ -3306,7 +3502,11 @@ function safeCachedUi(ui = {}) {
     mapIntensity: Number.isFinite(Number(ui.mapIntensity)) ? Number(ui.mapIntensity) : 0.65,
     highQuality: ui.highQuality !== false,
     showPrintArea: !!ui.showPrintArea,
-    showAllControls: !!ui.showAllControls
+    showAllControls: !!ui.showAllControls,
+    variationMode: ui.variationMode || "default",
+    variationCode: ui.variationCode || "",
+    relayTeam: Math.max(1, Number(ui.relayTeam) || 1),
+    relayLeg: Math.max(1, Number(ui.relayLeg) || 1)
   };
 }
 
@@ -3993,6 +4193,10 @@ function renderKeysFor({ eventModel, ui }) {
     eventModel,
     selectedCourseId: ui.selectedCourseId,
     showAllControls: ui.showAllControls,
+    variationMode: ui.variationMode || "default",
+    variationCode: ui.variationCode || "",
+    relayTeam: ui.relayTeam || 1,
+    relayLeg: ui.relayLeg || 1,
     selection: selectionKey(ui.selection),
     reportTitle: ui.report?.title || "",
     reportKind: ui.report?.kind || "",

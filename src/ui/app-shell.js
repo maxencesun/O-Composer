@@ -37,6 +37,7 @@ import {
   existingDescriptionSpecialForTarget,
   getIscdSymbolOptions,
   iscdSymbolLabel,
+  scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
 } from "../domain/control-descriptions.js";
@@ -51,7 +52,7 @@ import {
   printAreaTargetLabel,
   setPrintArea
 } from "../domain/print-area.js";
-import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js";
+import { createRasterMapPdfBlob, createVectorMapPdfBlob } from "../domain/pdf-exporter.js";
 import {
   allControlsView,
   controlKindLabel,
@@ -101,6 +102,7 @@ const PAPER_MARGINS = Object.freeze([
 ]);
 
 const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
+const APP_VERSION = "0.0.0";
 const DESCRIPTION_LANGUAGES = Object.freeze([
   ["en", "English"],
   ["de", "Deutsch"],
@@ -248,6 +250,7 @@ export class PurplePenApp extends HTMLElement {
     this.restoreCachedSession();
     this.store.subscribe(state => this.render(state));
     this.store.subscribe(state => this.scheduleSessionCache(state));
+    this.refreshAfterFontLoad();
     ensureIscdSymbolDb()
       .then(() => {
         this.renderKeys = null;
@@ -256,6 +259,16 @@ export class PurplePenApp extends HTMLElement {
       .catch(error => {
         console.warn(error);
       });
+  }
+
+  refreshAfterFontLoad() {
+    if (!document.fonts?.ready) return;
+    document.fonts.ready
+      .then(() => {
+        this.renderKeys = null;
+        this.render(this.store.snapshot());
+      })
+      .catch(() => {});
   }
 
   t(key, replacements = {}) {
@@ -317,7 +330,7 @@ export class PurplePenApp extends HTMLElement {
       <div class="app-frame">
         <input id="ppenInput" type="file" accept=".ppen,.xml,text/xml" hidden>
         <input id="mapInput" type="file" accept="image/*,.pdf" hidden>
-        <input id="omapInput" type="file" accept=".omap,.xmap,text/xml,application/xml" hidden>
+        <input id="omapInput" type="file" hidden>
         <header class="menubar">
           ${this.menu("File", [
             ["new", "New Event"],
@@ -411,6 +424,10 @@ export class PurplePenApp extends HTMLElement {
             ["about", "About O-Composer"],
             ["help", "Frontend Limitations"]
           ])}
+          <div class="app-brand" aria-label="${escapeAttr(`O-Composer ${APP_VERSION}`)}">
+            <strong>O-Composer</strong>
+            <span>${escapeHtml(APP_VERSION)}</span>
+          </div>
         </header>
         <section class="toolbar" aria-label="${escapeAttr(this.t("Toolbar"))}">
           ${this.toolButton("open", "Open", "open")}
@@ -423,13 +440,13 @@ export class PurplePenApp extends HTMLElement {
           ${this.toolButton("tool-start", "Start", "start")}
           ${this.toolButton("tool-control", "Control", "control")}
           ${this.toolButton("tool-finish", "Finish", "finish")}
+          ${this.toolButton("tool-map-issue", "Map Issue", "map-issue")}
           ${this.toolButton("tool-line-cut", "Cut Line", "cut")}
           ${this.toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")}
           ${this.toolButton("tool-text", "Text", "text")}
           ${this.toolButton("tool-line", "Line", "line")}
           ${this.toolButton("tool-rectangle", "Rectangle", "rectangle")}
           <span class="separator"></span>
-          ${this.toolButton("fit-course", "Entire Course", "fit", "Fit")}
           ${this.toolButton("set-print-area", "Set Export Area", "print-area", "Export Area")}
           <label class="toolbar-control">${escapeHtml(this.t("Language"))}
             <select id="appLanguage">${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${code}" ${code === this.language ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>
@@ -614,6 +631,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#selectionPanel").addEventListener("click", event => this.handleSelectionPanelClick(event));
     this.bindWorkspaceResizer();
     this.querySelector("#descriptionPanel").addEventListener("click", event => this.handleDescriptionPanelClick(event));
+    this.querySelector("#descriptionPanel").addEventListener("change", event => this.handleDescriptionPanelChange(event));
     this.querySelector("#descriptionPanel").addEventListener("pointerover", event => this.scheduleSymbolTooltip(event));
     this.querySelector("#descriptionPanel").addEventListener("pointerout", event => this.hideSymbolTooltip(event));
     this.querySelector("#printAreaForm").addEventListener("submit", event => {
@@ -732,14 +750,20 @@ export class PurplePenApp extends HTMLElement {
   }
 
   renderDescription({ eventModel, ui }) {
-    const rows = ui.selectedCourseId === "all" || ui.showAllControls
+    const courseId = ui.selectedCourseId;
+    const showingCourseRows = courseId !== "all" && !ui.showAllControls;
+    const isScoreCourse = showingCourseRows && getCourse(eventModel, courseId)?.kind === "score";
+    let rows = !showingCourseRows
       ? allControlsView(eventModel)
-      : courseView(eventModel, ui.selectedCourseId);
+      : courseView(eventModel, courseId);
+    if (isScoreCourse) {
+      rows = scoreCourseDescriptionRows(rows);
+    }
     const html = `
       <table class="description-table">
         <thead><tr><th>#</th><th>${escapeHtml(this.t("Code"))}</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th></tr></thead>
         <tbody>
-          ${rows.map(row => this.descriptionRow(row)).join("")}
+          ${rows.map(row => this.descriptionRow(row, isScoreCourse)).join("")}
         </tbody>
       </table>
     `;
@@ -747,13 +771,16 @@ export class PurplePenApp extends HTMLElement {
     this.paintIscdCanvases(this.querySelector("#descriptionPanel"));
   }
 
-  descriptionRow(row, selection = this.store.snapshot().ui.selection) {
+  descriptionRow(row, isScoreCourse = false, selection = this.store.snapshot().ui.selection) {
     const descriptions = new Map((row.control.descriptions || []).map(item => [item.box, item]));
     const selected = selection?.type === "control" && Number(selection.id) === Number(row.control.id);
     return `<tr data-control-id="${row.control.id}" class="${selected ? "selected" : ""}">
-      <td>${escapeHtml(row.ordinal || "")}</td>
+      <td>${isScoreCourse ? "" : escapeHtml(row.ordinal || "")}</td>
       <td>${escapeHtml(row.control.code || this.t(controlKindLabel(row.control.kind)))}</td>
       ${["C", "D", "E", "F", "G", "H"].map(box => {
+        if (isScoreCourse && box === "H") {
+          return this.scoreDescriptionCell(row);
+        }
         const value = descriptions.get(box)?.ref || descriptions.get(box)?.text || "";
         return `<td>
           <button type="button" class="iscd-cell-button" data-iscd-cell data-control-id="${row.control.id}" data-box="${box}" data-value="${escapeAttr(value)}" data-symbol-tooltip="${escapeAttr(this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box))}: ${escapeAttr(this.t(iscdSymbolLabel(box, value) || "Not specified"))}">
@@ -764,7 +791,17 @@ export class PurplePenApp extends HTMLElement {
     </tr>`;
   }
 
+  scoreDescriptionCell(row) {
+    if (row.control.kind !== "normal" || !row.courseControl) {
+      return `<td class="score-cell"></td>`;
+    }
+    return `<td class="score-cell"><input type="number" class="points-input" data-course-control-id="${row.courseControl.id}" data-field="courseControl.points" value="${row.courseControl.points || 0}" min="0"></td>`;
+  }
+
   handleDescriptionPanelClick(event) {
+    if (event.target.closest("[data-field='courseControl.points']")) {
+      return;
+    }
     const cell = event.target.closest("[data-iscd-cell]");
     const row = event.target.closest("[data-control-id]");
     if (!row) return;
@@ -774,6 +811,20 @@ export class PurplePenApp extends HTMLElement {
       event.preventDefault();
       this.openIscdSymbolPicker(controlId, cell.dataset.box, cell.dataset.value || "");
     }
+  }
+
+  handleDescriptionPanelChange(event) {
+    const input = event.target.closest("[data-field='courseControl.points']");
+    if (!input) return;
+    const courseControlId = Number(input.dataset.courseControlId);
+    if (!courseControlId) return;
+    const points = Math.max(0, Number(input.value) || 0);
+    this.store.updateEvent(model => {
+      const courseControl = getCourseControl(model, courseControlId);
+      if (courseControl) {
+        courseControl.points = points;
+      }
+    }, "Change points");
   }
 
   openIscdSymbolPicker(controlId, box, selectedValue = "") {
@@ -897,6 +948,7 @@ export class PurplePenApp extends HTMLElement {
 
   controlEditor(control) {
     const descriptions = new Map((control.descriptions || []).map(item => [item.box, item]));
+    const scoreFinishControl = this.scoreFinishControlEditor(control);
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Kind"))} <select data-field="control.kind">${CONTROL_KINDS.map(kind => `<option value="${kind}" ${kind === control.kind ? "selected" : ""}>${escapeHtml(optionLabel(kind))}</option>`).join("")}</select></label>
@@ -906,6 +958,7 @@ export class PurplePenApp extends HTMLElement {
         <label>${escapeHtml(this.t("Before"))} <input data-field="control.descTextBefore" value="${escapeAttr(control.descTextBefore || "")}"></label>
         <label>${escapeHtml(this.t("After"))} <input data-field="control.descTextAfter" value="${escapeAttr(control.descTextAfter || "")}"></label>
       </div>
+      ${scoreFinishControl}
       <h3>${escapeHtml(this.t("Descriptions"))}</h3>
       <div class="description-edit">
         ${ISCD_COLUMNS.map(([box, label]) => `
@@ -921,13 +974,38 @@ export class PurplePenApp extends HTMLElement {
     `;
   }
 
+  scoreFinishControlEditor(control) {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    if (!courseId || courseId === "all" || state.ui.showAllControls || control.kind !== "normal") {
+      return "";
+    }
+    const course = getCourse(state.eventModel, courseId);
+    if (course?.kind !== "score") {
+      return "";
+    }
+    const view = courseView(state.eventModel, courseId, { allBranches: true });
+    const inCourse = view.some(row => Number(row.control?.id) === Number(control.id));
+    const hasFinish = view.some(row => row.control?.kind === "finish");
+    if (!inCourse || !hasFinish) {
+      return "";
+    }
+    const checked = Number(course.options?.scoreFinishControl) === Number(control.id);
+    return `
+      <label class="check span-2">
+        <input type="checkbox" data-score-finish-control ${checked ? "checked" : ""}>
+        ${escapeHtml(this.t("Flagged leg to finish"))}
+      </label>
+    `;
+  }
+
   courseEditor(course) {
     const finishRoute = finishRouteForCourse(this.store.snapshot().eventModel, course.id);
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Name"))} <input data-field="course.name" value="${escapeAttr(course.name)}"></label>
         <label>${escapeHtml(this.t("Kind"))} <select data-field="course.kind"><option value="normal" ${course.kind === "normal" ? "selected" : ""}>${escapeHtml(this.t("normal"))}</option><option value="score" ${course.kind === "score" ? "selected" : ""}>${escapeHtml(this.t("score"))}</option></select></label>
-        <label>${escapeHtml(this.t("Labels"))} <select data-field="course.labelKind">${["sequence", "code", "sequence-and-code", "sequence-and-score", "code-and-score", "score"].map(kind => `<option value="${kind}" ${kind === course.labelKind ? "selected" : ""}>${escapeHtml(this.t(kind))}</option>`).join("")}</select></label>
+        <label>${escapeHtml(this.t("Labels"))} <select data-field="course.labelKind">${["sequence", "code", "sequence-and-code", "sequence-and-score", "code-and-score-brackets", "code-and-score-dash", "code-and-score", "score"].map(kind => `<option value="${kind}" ${kind === course.labelKind ? "selected" : ""}>${escapeHtml(this.t(kind))}</option>`).join("")}</select></label>
         <label>${escapeHtml(this.t("Print scale"))} <input data-field="course.options.printScale" type="number" value="${course.options.printScale || 15000}"></label>
         <label>${escapeHtml(this.t("Climb"))} <input data-field="course.options.climb" type="number" value="${course.options.climb ?? -1}"></label>
         <label>${escapeHtml(this.t("Load"))} <input data-field="course.options.load" type="number" value="${course.options.load ?? -1}"></label>
@@ -1289,10 +1367,10 @@ export class PurplePenApp extends HTMLElement {
         this.exportPdf();
         break;
       case "about":
-        alert(this.t("O-Composer\nA browser-only app for creating, editing, viewing, and exporting orienteering event files."));
+        alert(this.t("O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.", { version: APP_VERSION }));
         break;
       case "help":
-        alert(this.t("This version runs entirely in the browser. It can read and write .ppen files, render uncompressed .omap/.xmap XML maps, and export browser-generated files. Native OCAD/PDF map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose."));
+        alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ppen files, render uncompressed .omap/.xmap XML maps, and export browser-generated files. Native OCAD/PDF map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));
         break;
       default:
         if (command.startsWith("tool-")) {
@@ -1577,6 +1655,13 @@ export class PurplePenApp extends HTMLElement {
       return;
     }
 
+    if (target.dataset.scoreFinishControl !== undefined && selection.type === "control") {
+      this.store.updateEvent(model => {
+        setScoreFinishControl(model, state.ui.selectedCourseId, selection.id, target.checked);
+      }, "Change score finish route");
+      return;
+    }
+
     if (target.dataset.legFlagging !== undefined && ["leg", "leg-bend"].includes(selection.type)) {
       this.store.updateEvent(model => {
         const leg = ensureLegBetween(model, selection.startControl, selection.endControl);
@@ -1706,8 +1791,10 @@ export class PurplePenApp extends HTMLElement {
     reader.onload = () => {
       const url = String(reader.result || "");
       this.mapView.setBackground(url);
+      this.mapView.setOmap(null);
       this.store.updateUi(ui => {
         ui.background = { name: file.name, url, type: file.type };
+        ui.omap = null;
       }, "Map image loaded");
     };
     reader.readAsDataURL(file);
@@ -1720,6 +1807,7 @@ export class PurplePenApp extends HTMLElement {
       try {
         const omap = parseOmap(String(reader.result), file.name);
         const omapScale = positiveScale(omap.scale);
+        this.mapView.setBackground("");
         this.mapView.setOmap(omap);
         if (omapScale) {
           this.store.updateEvent(model => applyImportedMapScale(model, omapScale), "OMAP map scale loaded");
@@ -1731,12 +1819,16 @@ export class PurplePenApp extends HTMLElement {
             symbolCount: omap.symbolCount,
             scale: omapScale || omap.scale
           };
+          ui.background = null;
           ui.pan = { x: 0, y: 0 };
           ui.zoom = 1;
         }, `OMAP map loaded: ${file.name}`);
       }
       catch (error) {
-        alert(error.message);
+        alert(this.t("Could not import OMAP file {name}: {message}", {
+          name: file.name || this.t("Unknown file"),
+          message: error.message || String(error)
+        }));
       }
       finally {
         this.querySelector("#omapInput").value = "";
@@ -1776,14 +1868,27 @@ export class PurplePenApp extends HTMLElement {
       const page = pageSizeMm(area);
       const marginMm = pageMarginMm(area);
       const size = pdfPixelSize(page, marginMm);
-      const blob = await createVectorMapPdfBlob({
-        pageWidthMm: page.width,
-        pageHeightMm: page.height,
-        marginMm,
-        canvasWidth: size.width,
-        canvasHeight: size.height,
-        draw: ctx => this.mapView.renderAreaToContext(ctx, state.eventModel, state.ui, area, size)
-      });
+      const hasRasterMap = this.mapView.hasBitmapBackground() && !this.mapView.omapMap;
+      const blob = hasRasterMap
+        ? await createRasterMapPdfBlob({
+            pageWidthMm: page.width,
+            pageHeightMm: page.height,
+            marginMm,
+            canvas: this.mapView.renderAreaToCanvas(state.eventModel, state.ui, area, size, {
+              includeBitmapBackground: true,
+              includePageBackground: false
+            })
+          })
+        : await createVectorMapPdfBlob({
+            pageWidthMm: page.width,
+            pageHeightMm: page.height,
+            marginMm,
+            canvasWidth: size.width,
+            canvasHeight: size.height,
+            draw: ctx => this.mapView.renderAreaToContext(ctx, state.eventModel, state.ui, area, size, {
+              includePageBackground: false
+            })
+          });
       downloadBlob(`${baseName(state.eventModel.sourceName)}.pdf`, blob);
     }
     catch (error) {
@@ -3154,6 +3259,35 @@ function setFinishRouteFlagging(model, courseId, kind) {
   if (!pair) return;
   const leg = ensureLegBetween(model, pair.previous.control.id, pair.finish.control.id);
   leg.flagging = { kind: ["all", "end"].includes(kind) ? kind : "none", point: null };
+}
+
+function setScoreFinishControl(model, courseId, controlId, enabled) {
+  const course = getCourse(model, courseId);
+  if (!course || course.kind !== "score") return;
+  course.options ||= {};
+  const view = courseView(model, courseId, { allBranches: true });
+  const finish = view.find(row => row.control?.kind === "finish");
+  const from = view.find(row => Number(row.control?.id) === Number(controlId) && row.control?.kind === "normal");
+  const previousControlId = Number(course.options.scoreFinishControl) || 0;
+  if (previousControlId && finish && previousControlId !== Number(controlId)) {
+    const previousLeg = findLeg(model, previousControlId, finish.control.id);
+    if (previousLeg) {
+      previousLeg.flagging = { kind: "none", point: null };
+    }
+  }
+  if (!enabled || !finish || !from) {
+    if (previousControlId === Number(controlId) || !enabled) {
+      if (previousControlId && finish) {
+        const previousLeg = findLeg(model, previousControlId, finish.control.id);
+        if (previousLeg) previousLeg.flagging = { kind: "none", point: null };
+      }
+      course.options.scoreFinishControl = null;
+    }
+    return;
+  }
+  course.options.scoreFinishControl = Number(controlId);
+  const leg = ensureLegBetween(model, from.control.id, finish.control.id);
+  leg.flagging = { kind: "all", point: null };
 }
 
 function finishLegPair(model, courseId) {

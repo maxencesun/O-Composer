@@ -63,6 +63,7 @@ def verify_app_files() -> None:
     for token in ["commandDialog", "openCommandDialog", "moveCourseOrderDraft", "enablePanelDrag", "startPanelDrag", "TEXT_PRESETS", "MAP_SCALES", "DESCRIPTION_LANGUAGES"]:
         assert token in app_shell, f"missing command palette UI: {token}"
     control_descriptions = (ROOT / "src" / "domain" / "control-descriptions.js").read_text(encoding="utf-8")
+    course_service = (ROOT / "src" / "domain" / "course-service.js").read_text(encoding="utf-8")
     ppen_parser = (ROOT / "src" / "domain" / "ppen-parser.js").read_text(encoding="utf-8")
     event_model = (ROOT / "src" / "domain" / "event-model.js").read_text(encoding="utf-8")
     for token in ['description: "2024"', 'const DESCRIPTION_STANDARD = "2024"', "symbolInDescriptionStandard", 'standard === "2024" && symbolInStandard(symbol, "2018")', "normalizeDescriptionStandard"]:
@@ -76,6 +77,10 @@ def verify_app_files() -> None:
         assert token in i18n, f"missing multilingual support: {token}"
     for token in ["appLanguage", "this.t(", "SUPPORTED_LANGUAGES", "setLanguage(event.target.value)", "window.location.reload()"]:
         assert token in app_shell, f"missing app i18n hook: {token}"
+    assert 'const APP_VERSION = "0.0.0"' in app_shell, "app version should be centrally maintained as x.x.x starting at 0.0.0"
+    assert re.search(r'const APP_VERSION = "\d+\.\d+\.\d+"', app_shell), "app version must be three numeric levels"
+    for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
+        assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
     assert "prompt(" not in app_shell, "browser prompt dialogs should not be used"
     assert (ROOT / "src" / "state" / "cookie-cache.js").exists()
     cookie_cache = (ROOT / "src" / "state" / "cookie-cache.js").read_text(encoding="utf-8")
@@ -97,13 +102,34 @@ def verify_app_files() -> None:
     assert "print-courses" not in app_shell
     assert "print-descriptions" not in app_shell
     assert "@media print" not in (ROOT / "styles.css").read_text(encoding="utf-8")
-    for token in ["export-pdf", "exportPdf", "createVectorMapPdfBlob", "renderAreaToContext", "3 mm"]:
+    for token in ["export-pdf", "exportPdf", "createVectorMapPdfBlob", "createRasterMapPdfBlob", "renderAreaToContext", "3 mm"]:
         assert token in app_shell + (ROOT / "src" / "domain" / "pdf-exporter.js").read_text(encoding="utf-8"), f"missing PDF export support: {token}"
     pdf_exporter = (ROOT / "src" / "domain" / "pdf-exporter.js").read_text(encoding="utf-8")
-    assert "DCTDecode" not in pdf_exporter, "PDF export should be vector, not a JPEG image wrapper"
+    for font in ["Roboto.ttf", "Roboto-Bold.ttf", "Roboto-Italic.ttf", "RobotoCondensed.ttf", "RobotoCondensed-Bold.ttf", "Heiti.ttf"]:
+        path = ROOT / "assets" / "fonts" / font
+        assert path.exists() and path.stat().st_size > 100_000, f"missing embedded PDF font asset: {font}"
+    assert (ROOT / "assets" / "fonts" / "LICENSE-Heiti.txt").exists(), "missing Heiti font license"
+    for token in ["PDF_FONT_SOURCES", "FontFile2", "/Subtype /TrueType", "parseTrueTypeFont", "Roboto-Bold.ttf", "RobotoCondensed-Bold.ttf", "roboto-condensed-bold", "Heiti.ttf", "heiti-bold", "Heiti-Bold", "/Subtype /Type0", "/Identity-H", "CIDToGIDMap", "parseCmapFormat12", "requiresUnicodeFont", "pdfTextHex"]:
+        assert token in pdf_exporter, f"PDF export should embed project font files: {token}"
+    styles = (ROOT / "styles.css").read_text(encoding="utf-8")
+    for token in ['font-family: "Roboto"', 'font-family: "Roboto Condensed"', 'font-family: "黑体"', 'Heiti.ttf']:
+        assert token in styles, f"page should load the same project fonts that PDF embeds: {token}"
+    assert "黑体" in control_descriptions, "canvas descriptions should use Heiti fallback for Chinese"
+    for token in ["hasCjkText", "cjkBoldFont", '700 ${size} "黑体"']:
+        assert token in control_descriptions, f"Chinese description text should render as bold Heiti-style text on canvas: {token}"
+    for token in ["syntheticBold", "2 Tr", "0 Tr"]:
+        assert token in pdf_exporter, f"Chinese PDF text should render bold with the embedded CJK font: {token}"
+    for token in ["refreshAfterFontLoad", "document.fonts.ready"]:
+        assert token in app_shell, f"canvas descriptions should redraw after project fonts load: {token}"
+    for token in ["hasRasterMap", "hasBitmapBackground", "includePageBackground: false", "/DCTDecode"]:
+        assert token in app_shell + (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8") + pdf_exporter, f"non-OMAP bitmap PDF export should rasterize without the default page background: {token}"
+    assert app_shell.count("includePageBackground: false") >= 2, "both raster and vector PDF export paths should omit the default beige page background"
     assert "PdfCanvasContext" in pdf_exporter
     for token in ["bezierCurveTo", "ellipse", "measureText", "clip", "fillText"]:
         assert token in pdf_exporter, f"missing vector PDF canvas support: {token}"
+    for token in ["transformScale", "lineWidth * scaleFactor", "lineDash.map(value => n(value * scaleFactor))", "fontSize(this.state.font) * scaleFactor"]:
+        assert token in pdf_exporter, f"PDF canvas transform should scale strokes, dashes, and text like HTML canvas: {token}"
+    assert 'if (baseline === "middle") return -size * 0.35' in pdf_exporter, "PDF text middle baseline should align with canvas after y-axis conversion"
     for token in ["printAreaDialog", "printAreaPaper", "PAPER_SIZES", "Letter (8.5 x 11 in)", "A4 (210 x 297 mm)", "Custom drawn area", "Move paper-size frame", "Use current view", "applyPrintAreaDialog", "updatePrintAreaDialogPreview", "dialogPreview", "printAreaFixedFrameAt", "movePrintAreaFrame"]:
         assert token in app_shell, f"missing print area selection UI: {token}"
     for old_prompt in ["Print area mode:", "Rectangle: left, top, right, bottom", "Options: restrict-to-page-size"]:
@@ -111,8 +137,26 @@ def verify_app_files() -> None:
     assert "onPrintAreaPreview" in app_shell
     for token in ["DESCRIPTION_KINDS", "ISCD_COLUMNS", "ensureIscdSymbolDb", "getIscdSymbolOptions", "symbolOptionsForColumn", "createDescriptionSpecialOptions", "resizedDescriptionSpecial", "drawIscdSymbol", "symbolTooltip", "scheduleSymbolTooltip", "handleDescriptionPanelClick", "openIscdSymbolPicker", "onAddDescriptionSpecial", "onResizeSelection", "descriptionSpecialEditor"]:
         assert token in app_shell, f"missing standard control-description UI: {token}"
+    for token in ["scoreCourseDescriptionRows", "compareScoreDescriptionRows", "normal: 2", "finish: 5"]:
+        assert token in app_shell + control_descriptions, f"score course descriptions should sort by control code: {token}"
+    assert "number_points" not in control_descriptions, "score course description header should show control count, not points total"
+    for token in ['box === "H"', 'scoreDescriptionCell(row)', 'data-field="courseControl.points"', 'class="points-input"', "row.HScore !== undefined", "fitSingleLineText(ctx, row.HScore", 'scoreColumn: kind === "score" ? 7 : -1', 'row.course?.kind === "score" ? ""']:
+        assert token in app_shell + control_descriptions + event_model, f"score course descriptions should use the H column for points: {token}"
+    assert 'event.target.closest("[data-field=\'courseControl.points\']")' in app_shell, "clicking score points input should not re-render and steal focus"
+    assert '<th>${escapeHtml(this.t("Points"))}</th>' not in app_shell, "score points should not add an extra description-table column"
+    for token in ["scoreFinishControl", "score-finish-control", "data-score-finish-control", "setScoreFinishControl", "scoreFinishControlEditor", "Flagged leg to finish", "scoreCourseFinishLeg", "scoreFinishFromRow"]:
+        assert token in app_shell + control_descriptions + course_service + event_model + ppen_parser + i18n, f"missing score course flagged finish leg support: {token}"
+    for token in ['"map-issue": 0', "mapIssue && start", "from: mapIssue", "to: start"]:
+        assert token in control_descriptions + course_service, f"score course map issue should precede and connect to start: {token}"
+    for token in ['course?.kind === "score" && control.kind === "finish"', '? ""', 'leg.flagging = { kind: "all", point: null }']:
+        assert token in app_shell + control_descriptions, f"score finish description distance should depend on selected flagged leg: {token}"
+    for token in ['"code-and-score-brackets"', '"code-and-score-dash"', '"code-and-score"', "`${code}[${score}]`", "`${code}-${score}`", "`${code}(${score})`", 'labelKind: kind === "score" ? "code-and-score" : "sequence"', '"code-and-score-brackets": "点号[分数]"', '"code-and-score-dash": "点号-分数"', '"code-and-score": "点号(分数)"']:
+        assert token in app_shell + course_service + event_model + ppen_parser + i18n, f"missing score course map label format option: {token}"
     assert 'toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")' in app_shell
-    assert "descriptions:" in (ROOT / "src" / "ui" / "icons.js").read_text(encoding="utf-8")
+    assert 'toolButton("tool-map-issue", "Map Issue", "map-issue")' in app_shell
+    icons = (ROOT / "src" / "ui" / "icons.js").read_text(encoding="utf-8")
+    assert "descriptions:" in icons
+    assert '"map-issue":' in icons
     for token in ['symbol.id === "13.6"', "isMapIssueExtraLeftDash", "points[1].x === -660", "points[0].y === -50", "points[1].y === 50"]:
         assert token in control_descriptions, f"map issue left dashed line should have three segments: {token}"
     for token in ["existingDescriptionSpecialForTarget", "This course already has a control description table.", "Line height (mm)", 'data-field="special.cellSize"', "5.2"]:
@@ -175,6 +219,10 @@ def verify_omap_support() -> None:
     i18n = (ROOT / "src" / "ui" / "i18n.js").read_text(encoding="utf-8")
     for token in ["omapInput", "Import OMAP Map", "openOmapFile", "parseOmap"]:
         assert token in app_shell, f"missing app OMAP hook: {token}"
+    assert '<input id="omapInput" type="file" hidden>' in app_shell, "OMAP import should allow all file types for iOS file picker compatibility"
+    assert 'id="omapInput" type="file" accept=' not in app_shell, "OMAP import should not filter unknown .omap files on iOS"
+    for token in ["Could not import OMAP file {name}: {message}", "Unknown file"]:
+        assert token in app_shell + i18n, f"missing OMAP import parse error message: {token}"
     for token in ["applyImportedMapScale", "applyMapScale", "positiveScale(omap.scale)", "model.event.allControls.printScale", "course.options.printScale"]:
         assert token in app_shell, f"missing OMAP map scale propagation: {token}"
     worker = (ROOT / "src" / "workers" / "omap-render-worker.js").read_text(encoding="utf-8")

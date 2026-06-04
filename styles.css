@@ -1,3 +1,45 @@
+@font-face {
+  font-family: "Roboto";
+  src: url("./assets/fonts/Roboto.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Roboto";
+  src: url("./assets/fonts/Roboto-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Roboto";
+  src: url("./assets/fonts/Roboto-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Roboto Condensed";
+  src: url("./assets/fonts/RobotoCondensed.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Roboto Condensed";
+  src: url("./assets/fonts/RobotoCondensed-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "黑体";
+  src: url("./assets/fonts/Heiti.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+}
+
 :root {
   color-scheme: light;
   --purple: #8f2aa8;
@@ -58,6 +100,27 @@ button:hover {
   background: #f6f7f8;
   border-bottom: 1px solid var(--line);
   z-index: 20;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 30px;
+  white-space: nowrap;
+}
+
+.app-brand strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.app-brand span {
+  font-variant-numeric: tabular-nums;
 }
 
 .menu {
@@ -312,6 +375,16 @@ button:hover {
 .iscd-symbol-canvas,
 .iscd-picker-canvas {
   display: block;
+}
+
+.score-cell {
+  text-align: center;
+}
+
+.points-input {
+  width: 4em;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .map-panel {

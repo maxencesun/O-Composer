@@ -344,6 +344,7 @@ button:hover {
 }
 
 .description-panel,
+.variation-panel,
 .report-panel,
 .selection-panel {
   padding: 8px;
@@ -362,9 +363,122 @@ button:hover {
 }
 
 .selection-panel h2,
+.variation-panel h2,
 .report-panel h2 {
   margin: 4px 0 10px;
   font-size: 16px;
+}
+
+.variation-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 74px;
+  gap: 6px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+
+.variation-actions label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.variation-actions button {
+  grid-column: 1 / -1;
+}
+
+.variation-tree {
+  display: grid;
+  gap: 4px;
+  min-width: 260px;
+}
+
+.variation-node {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - var(--variation-depth, 0) * 14px);
+  margin-left: calc(var(--variation-depth, 0) * 14px);
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  text-align: left;
+}
+
+.variation-node.selected,
+.variation-branch.selected > .variation-branch-button {
+  border-color: var(--accent);
+  background: #e6f1ef;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.variation-node small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.variation-split {
+  display: grid;
+  gap: 5px;
+  margin-left: calc(var(--variation-depth, 0) * 14px + 8px);
+  padding-left: 8px;
+  border-left: 2px solid var(--purple);
+}
+
+.variation-split-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.variation-branch {
+  display: grid;
+  gap: 4px;
+}
+
+.variation-branch-button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #f8fafb;
+  text-align: left;
+}
+
+.variation-branch-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.variation-branch-body {
+  display: grid;
+  gap: 4px;
+}
+
+.variation-branch-hint {
+  margin: 6px 0 8px;
+  padding: 6px 8px;
+  border: 1px solid #b5d0c8;
+  border-radius: 4px;
+  background: #eef8f5;
+  color: #245a50;
+  font-size: 12px;
+}
+
+.variation-code-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
 }
 
 .description-table,
@@ -1334,6 +1448,7 @@ button:hover {
   }
 
   .description-panel,
+  .variation-panel,
   .report-panel,
   .selection-panel {
     padding: 6px;

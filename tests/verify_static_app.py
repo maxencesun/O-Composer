@@ -132,6 +132,10 @@ def verify_app_files() -> None:
     assert ".map-view-controls {\n    display: none;" in styles, "mobile should hide top map view sliders and controls"
     for token in ["@media (pointer: coarse) and (orientation: landscape)", "grid-template-columns: clamp(340px, 42dvw, 420px) minmax(0, 1fr)", "grid-template-rows: minmax(170px, 1fr) minmax(150px, 0.7fr)", ".description-table {\n    min-width: 320px;", "order: 1", "order: 2"]:
         assert token in styles, f"mobile landscape should put description/selection panels left of the map with a readable description width: {token}"
+    for token in ["overflow-y: auto", "min-height: 100dvh", "overflow: visible"]:
+        assert token in styles, f"mobile landscape should allow whole-page vertical scrolling when top bars wrap: {token}"
+    for token in ["width: min(360px, calc(100dvw - 24px))", "grid-template-columns: repeat(5, 30px)", ".iscd-picker-option,\n  .iscd-picker-canvas", "minmax(18px, 1fr)", "height: 18px"]:
+        assert token in styles, f"mobile pop-up palettes should be compact enough for phones: {token}"
     for token in ["activePointers", "beginPinch", "updatePinch", "pinchGesture", "pointerPosition", "Pinch zoom"]:
         assert token in map_view, f"mobile map should support two-finger pinch zoom: {token}"
     for token in ["MAX_ZOOM = 24", "max=\"2400\""]:

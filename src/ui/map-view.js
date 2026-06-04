@@ -803,12 +803,7 @@ export class MapView {
       const leg = selectedLegForSelection(eventModel, ui);
       if (leg) {
         const points = legMapPoints(leg).map(point => this.toScreen(point, ui));
-        ctx.setLineDash([8, 5]);
-        ctx.strokeStyle = "#2477c9";
-        ctx.lineWidth = 3;
-        pathLines(ctx, points, false);
-        ctx.stroke();
-        ctx.setLineDash([]);
+        drawLegSelectionOutline(ctx, points);
         for (let index = 0; index < (leg.leg?.bends || []).length; index += 1) {
           const bendPoint = this.toScreen(leg.leg.bends[index], ui);
           drawBendDot(ctx, bendPoint, ui.selection.type === "leg-bend" && Number(ui.selection.bendIndex) === index);
@@ -2426,6 +2421,40 @@ function drawBendDot(ctx, point, selected = false) {
   ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawLegSelectionOutline(ctx, points) {
+  if (!points || points.length < 2) return;
+  const offset = 6;
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = "#2477c9";
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1];
+    const b = points[i];
+    const length = distance(a, b);
+    if (!(length > 0.01)) continue;
+    const nx = -(b.y - a.y) / length;
+    const ny = (b.x - a.x) / length;
+    const leftA = { x: a.x + nx * offset, y: a.y + ny * offset };
+    const leftB = { x: b.x + nx * offset, y: b.y + ny * offset };
+    const rightA = { x: a.x - nx * offset, y: a.y - ny * offset };
+    const rightB = { x: b.x - nx * offset, y: b.y - ny * offset };
+    ctx.beginPath();
+    ctx.moveTo(leftA.x, leftA.y);
+    ctx.lineTo(leftB.x, leftB.y);
+    ctx.moveTo(rightA.x, rightA.y);
+    ctx.lineTo(rightB.x, rightB.y);
+    ctx.moveTo(leftA.x, leftA.y);
+    ctx.lineTo(rightA.x, rightA.y);
+    ctx.moveTo(leftB.x, leftB.y);
+    ctx.lineTo(rightB.x, rightB.y);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 

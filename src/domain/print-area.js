@@ -134,9 +134,10 @@ function positiveNumber(value, fallback) {
 function pageSizeInMapUnits(area, eventModel, target) {
   const mapScale = positiveNumber(eventModel?.event?.map?.scale, 15000);
   const printScale = positiveNumber(printScaleForTarget(eventModel, target), mapScale);
-  const scaleRatio = printScale / mapScale;
-  const width = Math.max(0.1, (area.pageWidth - 2 * area.pageMargins) * 0.254 * scaleRatio);
-  const height = Math.max(0.1, (area.pageHeight - 2 * area.pageMargins) * 0.254 * scaleRatio);
+  const printableWidthMm = Math.max(0.1, (area.pageWidth - 2 * area.pageMargins) * 0.254);
+  const printableHeightMm = Math.max(0.1, (area.pageHeight - 2 * area.pageMargins) * 0.254);
+  const width = printableWidthMm / 1000 * printScale;
+  const height = printableHeightMm / 1000 * printScale;
   return area.pageLandscape
     ? { width: height, height: width }
     : { width, height };

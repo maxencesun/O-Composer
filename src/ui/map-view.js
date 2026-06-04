@@ -72,11 +72,13 @@ export class MapView {
     this.pendingState = null;
     this.lastDrawState = store.snapshot();
     this.toolPreview = null;
+    this.activePointers = new Map();
+    this.pinch = null;
 
     this.canvas.addEventListener("pointerdown", event => this.pointerDown(event));
     this.canvas.addEventListener("pointermove", event => this.pointerMove(event));
     this.canvas.addEventListener("pointerup", event => this.pointerUp(event));
-    this.canvas.addEventListener("pointercancel", () => this.cancelDrag());
+    this.canvas.addEventListener("pointercancel", event => this.pointerCancel(event));
     this.canvas.addEventListener("pointerleave", () => this.clearToolPreview());
     this.canvas.addEventListener("dblclick", event => this.doubleClick(event));
     this.canvas.addEventListener("wheel", event => this.wheel(event), { passive: false });
@@ -121,7 +123,7 @@ export class MapView {
     if (this.resizeForDpi()) {
       this.invalidateOmapLayer();
     }
-    this.bounds = this.visibleBounds(eventModel);
+    this.bounds = this.visibleBounds(eventModel, ui);
     const ctx = this.ctx;
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
@@ -139,6 +141,7 @@ export class MapView {
     this.drawCourse(ctx, eventModel, ui);
     this.drawAddableControls(ctx, eventModel, ui);
     this.drawSelection(ctx, eventModel, ui);
+    this.drawBackgroundCalibration(ctx, ui);
     this.drawSpecialHandles(ctx, eventModel, ui);
     this.drawMovePreview(ctx, eventModel, ui);
     this.drawResizePreview(ctx, eventModel, ui);
@@ -260,8 +263,9 @@ export class MapView {
     if (!this.backgroundImage) {
       return;
     }
-    const topLeft = this.toScreen({ x: this.bounds.left, y: this.bounds.top }, ui);
-    const bottomRight = this.toScreen({ x: this.bounds.right, y: this.bounds.bottom }, ui);
+    const bounds = backgroundMapBounds(ui.background, this.backgroundImage);
+    const topLeft = this.toScreen({ x: bounds.left, y: bounds.top }, ui);
+    const bottomRight = this.toScreen({ x: bounds.right, y: bounds.bottom }, ui);
     ctx.save();
     ctx.globalAlpha = ui.mapIntensity;
     ctx.drawImage(this.backgroundImage, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
@@ -805,6 +809,27 @@ export class MapView {
     ctx.restore();
   }
 
+  drawBackgroundCalibration(ctx, ui) {
+    const points = backgroundCalibrationMapPoints(ui.background, this.backgroundImage);
+    if (!points.length) return;
+    ctx.save();
+    ctx.strokeStyle = "#2477c9";
+    ctx.fillStyle = "#2477c9";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    const screen = points.map(point => this.toScreen(point, ui));
+    if (screen.length >= 2) {
+      line(ctx, screen[0].x, screen[0].y, screen[1].x, screen[1].y);
+    }
+    ctx.setLineDash([]);
+    for (const point of screen) {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   drawSpecialHandles(ctx, eventModel, ui) {
     if (ui.selection?.type !== "special") return;
     const special = eventModel.specials.find(item => Number(item.id) === Number(ui.selection.id));
@@ -947,14 +972,20 @@ export class MapView {
 
   pointerDown(event) {
     this.canvas.setPointerCapture(event.pointerId);
+    const screen = pointerPosition(event);
+    this.activePointers.set(event.pointerId, screen);
+    if (this.activePointers.size >= 2) {
+      this.beginPinch();
+      return;
+    }
     const state = this.store.snapshot();
-    const mapPoint = this.toMap({ x: event.offsetX, y: event.offsetY }, state.ui);
+    const mapPoint = this.toMap(screen, state.ui);
     if (state.ui.tool === "print-area-frame") {
       this.callbacks.onPrintAreaFrameMove?.(mapPoint);
       this.drag = {
         pointerId: event.pointerId,
-        startScreen: { x: event.offsetX, y: event.offsetY },
-        lastScreen: { x: event.offsetX, y: event.offsetY },
+        startScreen: screen,
+        lastScreen: screen,
         startMap: mapPoint,
         hit: null,
         moved: false,
@@ -966,8 +997,8 @@ export class MapView {
     if (state.ui.tool === "print-area") {
       this.drag = {
         pointerId: event.pointerId,
-        startScreen: { x: event.offsetX, y: event.offsetY },
-        lastScreen: { x: event.offsetX, y: event.offsetY },
+        startScreen: screen,
+        lastScreen: screen,
         startMap: mapPoint,
         hit: null,
         moved: false,
@@ -985,8 +1016,8 @@ export class MapView {
       };
       this.drag = {
         pointerId: event.pointerId,
-        startScreen: { x: event.offsetX, y: event.offsetY },
-        lastScreen: { x: event.offsetX, y: event.offsetY },
+        startScreen: screen,
+        lastScreen: screen,
         startMap: mapPoint,
         hit: null,
         moved: false,
@@ -1000,8 +1031,8 @@ export class MapView {
       this.specialShapePreview = specialShapeForDrag(state.ui.tool, mapPoint, mapPoint, state);
       this.drag = {
         pointerId: event.pointerId,
-        startScreen: { x: event.offsetX, y: event.offsetY },
-        lastScreen: { x: event.offsetX, y: event.offsetY },
+        startScreen: screen,
+        lastScreen: screen,
         startMap: mapPoint,
         hit: null,
         moved: false,
@@ -1016,8 +1047,8 @@ export class MapView {
     const emptySpacePan = state.ui.tool === "select" && !state.ui.selection && !hit;
     this.drag = {
       pointerId: event.pointerId,
-      startScreen: { x: event.offsetX, y: event.offsetY },
-      lastScreen: { x: event.offsetX, y: event.offsetY },
+      startScreen: screen,
+      lastScreen: screen,
       startMap: mapPoint,
       hit,
       moveOffset: moveOffsetForHit(state.eventModel, hit, mapPoint),
@@ -1028,18 +1059,26 @@ export class MapView {
   }
 
   pointerMove(event) {
+    const screen = pointerPosition(event);
+    if (this.activePointers.has(event.pointerId)) {
+      this.activePointers.set(event.pointerId, screen);
+    }
+    if (this.pinch && this.activePointers.size >= 2) {
+      this.updatePinch();
+      return;
+    }
     const state = this.store.snapshot();
-    const mapPoint = this.toMap({ x: event.offsetX, y: event.offsetY }, state.ui);
+    const mapPoint = this.toMap(screen, state.ui);
     this.callbacks.onHover?.(mapPoint);
     this.updateToolPreview(state.ui.tool, mapPoint);
     if (!this.drag || this.drag.pointerId !== event.pointerId) {
       return;
     }
-    const dx = event.offsetX - this.drag.lastScreen.x;
-    const dy = event.offsetY - this.drag.lastScreen.y;
-    const total = Math.hypot(event.offsetX - this.drag.startScreen.x, event.offsetY - this.drag.startScreen.y);
+    const dx = screen.x - this.drag.lastScreen.x;
+    const dy = screen.y - this.drag.lastScreen.y;
+    const total = Math.hypot(screen.x - this.drag.startScreen.x, screen.y - this.drag.startScreen.y);
     this.drag.moved = this.drag.moved || total > 3;
-    this.drag.lastScreen = { x: event.offsetX, y: event.offsetY };
+    this.drag.lastScreen = screen;
 
     if (this.drag.panning) {
       this.startFastOmapInteraction();
@@ -1097,11 +1136,23 @@ export class MapView {
   }
 
   pointerUp(event) {
+    const screen = pointerPosition(event);
+    this.activePointers.delete(event.pointerId);
+    if (this.pinch) {
+      if (this.activePointers.size >= 2) {
+        this.beginPinch();
+      }
+      else {
+        this.pinch = null;
+        this.cancelDrag();
+      }
+      return;
+    }
     if (!this.drag || this.drag.pointerId !== event.pointerId) {
       return;
     }
     const state = this.store.snapshot();
-    const mapPoint = this.toMap({ x: event.offsetX, y: event.offsetY }, state.ui);
+    const mapPoint = this.toMap(screen, state.ui);
     if (this.drag.panning) {
       this.cancelDrag();
       return;
@@ -1181,6 +1232,14 @@ export class MapView {
     this.cancelDrag();
   }
 
+  pointerCancel(event) {
+    this.activePointers.delete(event.pointerId);
+    if (this.activePointers.size < 2) {
+      this.pinch = null;
+    }
+    this.cancelDrag();
+  }
+
   doubleClick(event) {
     const state = this.store.snapshot();
     const mapPoint = this.toMap({ x: event.offsetX, y: event.offsetY }, state.ui);
@@ -1242,6 +1301,34 @@ export class MapView {
         y: ui.pan.y + cursor.y - after.y
       };
     }, "Zoom");
+  }
+
+  beginPinch() {
+    const state = this.store.snapshot();
+    const gesture = pinchGesture([...this.activePointers.values()]);
+    if (!gesture) return;
+    this.cancelDrag();
+    this.clearToolPreview();
+    this.startFastOmapInteraction();
+    this.pinch = {
+      startDistance: Math.max(1, gesture.distance),
+      startZoom: state.ui.zoom || 1,
+      mapCenter: this.toMap(gesture.center, state.ui)
+    };
+  }
+
+  updatePinch() {
+    const gesture = pinchGesture([...this.activePointers.values()]);
+    if (!gesture || !this.pinch) return;
+    this.startFastOmapInteraction();
+    this.store.updateUi(ui => {
+      ui.zoom = clamp(this.pinch.startZoom * gesture.distance / this.pinch.startDistance, 0.2, 12);
+      const after = this.toScreen(this.pinch.mapCenter, ui);
+      ui.pan = {
+        x: ui.pan.x + gesture.center.x - after.x,
+        y: ui.pan.y + gesture.center.y - after.y
+      };
+    }, "Pinch zoom");
   }
 
   hitTest(point, state) {
@@ -1538,15 +1625,20 @@ export class MapView {
     return power;
   }
 
-  visibleBounds(eventModel) {
+  visibleBounds(eventModel, ui = this.store.snapshot().ui) {
     const omapBounds = this.omapMap?.bounds;
+    const bgBounds = this.backgroundImage ? backgroundMapBounds(ui.background, this.backgroundImage) : null;
+    let bounds = eventBounds(eventModel);
+    if (bgBounds) {
+      bounds = hasEventGeometry(eventModel) ? mergeBounds(bounds, paddedBounds(bgBounds)) : paddedBounds(bgBounds);
+    }
     if (!omapBounds) {
-      return eventBounds(eventModel);
+      return bounds;
     }
     if (!hasEventGeometry(eventModel)) {
-      return paddedBounds(omapBounds);
+      return bgBounds ? mergeBounds(bounds, paddedBounds(omapBounds)) : paddedBounds(omapBounds);
     }
-    return mergeBounds(eventBounds(eventModel), paddedBounds(omapBounds));
+    return mergeBounds(bounds, paddedBounds(omapBounds));
   }
 
   currentViewBounds(ui = this.store.snapshot().ui) {
@@ -1574,6 +1666,41 @@ function hasEventGeometry(eventModel) {
     (course.printArea && !course.printArea.automatic)
     || (course.partPrintAreas || []).some(partArea => partArea.area && !partArea.area.automatic)
   );
+}
+
+function backgroundMapBounds(background, image = null) {
+  const naturalWidth = positiveNumber(background?.naturalWidth, image?.naturalWidth || image?.width || 1);
+  const naturalHeight = positiveNumber(background?.naturalHeight, image?.naturalHeight || image?.height || 1);
+  const aspect = Math.max(0.0001, naturalHeight / naturalWidth);
+  const width = positiveNumber(background?.widthMeters, 200);
+  const height = positiveNumber(background?.heightMeters, width * aspect);
+  const centerX = Number(background?.centerX) || 0;
+  const centerY = Number(background?.centerY) || 0;
+  return {
+    left: centerX - width / 2,
+    right: centerX + width / 2,
+    top: centerY + height / 2,
+    bottom: centerY - height / 2,
+    width,
+    height
+  };
+}
+
+function backgroundCalibrationMapPoints(background, image = null) {
+  const imagePoints = background?.calibration?.imagePoints || [];
+  if (imagePoints.length) {
+    const bounds = backgroundMapBounds(background, image);
+    return imagePoints.map(point => ({
+      x: bounds.left + point.x * bounds.width,
+      y: bounds.top - point.y * bounds.height
+    }));
+  }
+  return background?.calibration?.points || [];
+}
+
+function positiveNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
 }
 
 function currentCourseLegs(state) {
@@ -1659,6 +1786,16 @@ function specialSelectionPoints(special, ui, scale) {
       { x: rect.right, y: rect.bottom },
       { x: rect.left, y: rect.bottom }
     ] : [];
+  }
+  if (specialCategoryForHitTest(special.kind) === "point" && special.locations?.length) {
+    const point = special.locations[0];
+    const radius = 14 / Math.max(0.001, scale);
+    return [
+      { x: point.x - radius, y: point.y + radius },
+      { x: point.x + radius, y: point.y + radius },
+      { x: point.x + radius, y: point.y - radius },
+      { x: point.x - radius, y: point.y - radius }
+    ];
   }
   return special.locations || [];
 }
@@ -2331,6 +2468,22 @@ function wheelZoomFactor(event, fallbackHeight) {
   const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? fallbackHeight : 1;
   const deltaY = event.deltaY * unit;
   return clamp(Math.exp(-deltaY * 0.0015), 0.72, 1.38);
+}
+
+function pointerPosition(event) {
+  const rect = event.currentTarget?.getBoundingClientRect?.();
+  if (!rect) return { x: event.offsetX, y: event.offsetY };
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
+
+function pinchGesture(points) {
+  if (points.length < 2) return null;
+  const a = points[0];
+  const b = points[1];
+  return {
+    center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y))
+  };
 }
 
 function layerMapBounds(view) {

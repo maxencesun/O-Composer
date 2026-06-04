@@ -112,8 +112,29 @@ def verify_app_files() -> None:
     for token in ["PDF_FONT_SOURCES", "FontFile2", "/Subtype /TrueType", "parseTrueTypeFont", "Roboto-Bold.ttf", "RobotoCondensed-Bold.ttf", "roboto-condensed-bold", "Heiti.ttf", "heiti-bold", "Heiti-Bold", "/Subtype /Type0", "/Identity-H", "CIDToGIDMap", "parseCmapFormat12", "requiresUnicodeFont", "pdfTextHex"]:
         assert token in pdf_exporter, f"PDF export should embed project font files: {token}"
     styles = (ROOT / "styles.css").read_text(encoding="utf-8")
+    map_view = (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8")
     for token in ['font-family: "Roboto"', 'font-family: "Roboto Condensed"', 'font-family: "黑体"', 'Heiti.ttf']:
         assert token in styles, f"page should load the same project fonts that PDF embeds: {token}"
+    for token in [".menubar,", ".menubar *", ".toolbar,", ".toolbar *", "cursor: default", "user-select: none"]:
+        assert token in styles, f"top toolbar/menu should keep the default cursor instead of the map edit cursor: {token}"
+    for token in ["100dvw", "48dvh", "-webkit-overflow-scrolling: touch", "overflow-x: hidden", "minmax(260px, 48dvh)"]:
+        assert token in styles, f"mobile layout should fit narrow screens: {token}"
+    for token in ["activePointers", "beginPinch", "updatePinch", "pinchGesture", "pointerPosition", "Pinch zoom"]:
+        assert token in map_view, f"mobile map should support two-finger pinch zoom: {token}"
+    for token in ["createNewEvent", 'this.mapView.setBackground("")', "ui.background = null", "ui.omap = null"]:
+        assert token in app_shell, f"new event should clear imported map backgrounds: {token}"
+    for token in ['specialCategoryForHitTest(special.kind) === "point"', "const radius = 14 / Math.max(0.001, scale)"]:
+        assert token in map_view, f"point specials such as registration marks should have movable/deletable selection bounds: {token}"
+    for token in ["backgroundMapBounds", "ui.background", "widthMeters", "heightMeters", "naturalWidth", "naturalHeight", "drawImage(this.backgroundImage, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y)"]:
+        assert token in map_view + app_shell, f"bitmap/PDF map backgrounds should preserve their own dimensions and aspect ratio: {token}"
+    for token in ["backgroundCalibrationMapPoints", "imagePoints"]:
+        assert token in map_view, f"map view should render calibration points anchored to the image: {token}"
+    for token in ["mapBackgroundEditor", "data-background-field", "backgroundMetadataForImage", "background-calibration", "applyBackgroundCalibration", "calibrationPrintedCm", "calibrationDistanceMeters", "Calibrate with two points"]:
+        assert token in app_shell, f"selection panel should expose map background info and calibration controls: {token}"
+    for token in ["backgroundImagePointForMap", "backgroundCalibrationDistance", "baseDistanceMeters", "resetBackgroundCalibrationBase", "imagePoints"]:
+        assert token in app_shell, f"map background calibration should preserve image aspect while scaling: {token}"
+    for token in ["Map width (m)", "Map height (m)", "Printed width (cm)", "Calibration distance (m)", "Calibration printed length (cm)", "Click two points on the map to calibrate the background.", "Enter the real distance for the selected map line.", "Could not import map image {name}. Convert PDF maps to an image if your browser cannot preview them directly."]:
+        assert token in i18n, f"missing map background translation: {token}"
     assert "黑体" in control_descriptions, "canvas descriptions should use Heiti fallback for Chinese"
     for token in ["hasCjkText", "cjkBoldFont", '700 ${size} "黑体"']:
         assert token in control_descriptions, f"Chinese description text should render as bold Heiti-style text on canvas: {token}"

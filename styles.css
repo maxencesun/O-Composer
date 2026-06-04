@@ -175,6 +175,15 @@ button:hover {
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
+  cursor: default;
+}
+
+.menubar,
+.menubar *,
+.toolbar,
+.toolbar * {
+  cursor: default;
+  user-select: none;
 }
 
 .tool-button {
@@ -882,15 +891,31 @@ button:hover {
 }
 
 @media (max-width: 760px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   .app-frame {
+    width: 100dvw;
+    max-width: 100dvw;
     min-width: 0;
     grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   }
 
-  .menubar,
-  .toolbar {
+  .menubar {
     flex-wrap: wrap;
     height: auto;
+  }
+
+  .toolbar {
+    flex-wrap: nowrap;
+    height: auto;
+    max-width: 100dvw;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .menu-list {
@@ -908,8 +933,10 @@ button:hover {
   }
 
   .workspace {
+    width: 100%;
+    min-width: 0;
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(220px, 42vh) minmax(320px, 1fr);
+    grid-template-rows: minmax(260px, 48dvh) minmax(280px, 1fr);
   }
 
   .workspace-divider {
@@ -917,6 +944,7 @@ button:hover {
   }
 
   .left-panel {
+    min-width: 0;
     order: 2;
     grid-template-rows: minmax(180px, 1fr) minmax(180px, 1fr);
     border-right: 0;
@@ -924,7 +952,16 @@ button:hover {
   }
 
   .map-panel {
+    min-width: 0;
     order: 1;
+  }
+
+  .map-view-controls {
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .form-grid,

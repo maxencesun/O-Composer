@@ -1089,11 +1089,12 @@ button:hover {
   }
 
   .menubar {
-    flex-wrap: wrap;
-    height: auto;
+    flex-wrap: nowrap;
+    height: 30px;
     align-items: center;
-    max-height: 20dvh;
-    overflow-y: auto;
+    max-height: 30px;
+    overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -1106,13 +1107,13 @@ button:hover {
   }
 
   .toolbar {
-    flex-wrap: wrap;
-    align-content: flex-start;
-    height: auto;
-    max-height: 22dvh;
+    flex-wrap: nowrap;
+    align-content: center;
+    height: 40px;
+    max-height: 40px;
     max-width: 100dvw;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
   }
 

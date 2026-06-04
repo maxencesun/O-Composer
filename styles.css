@@ -1264,6 +1264,10 @@ button:hover {
     border-top: 0;
   }
 
+  .left-panel .panel-heading {
+    display: none;
+  }
+
   .map-panel {
     min-width: 0;
     min-height: 0;

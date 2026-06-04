@@ -1678,6 +1678,8 @@ export class PurplePenApp extends HTMLElement {
     this.mapView.setOmap(null);
     this.store.setEventModel(createBlankEvent(), "New event");
     this.store.updateUi(ui => {
+      ui.selectedCourseId = "all";
+      ui.showAllControls = true;
       ui.background = null;
       ui.omap = null;
       ui.selection = null;
@@ -3789,7 +3791,7 @@ function lastCourseControlInVariationBranch(eventModel, courseId, variationBranc
 
 function safeCachedUi(ui = {}) {
   return {
-    selectedCourseId: ui.selectedCourseId || 1,
+    selectedCourseId: ui.selectedCourseId || "all",
     zoom: Number.isFinite(Number(ui.zoom)) ? Number(ui.zoom) : 1,
     pan: {
       x: Number(ui.pan?.x) || 0,
@@ -3798,7 +3800,7 @@ function safeCachedUi(ui = {}) {
     mapIntensity: Number.isFinite(Number(ui.mapIntensity)) ? Number(ui.mapIntensity) : 0.65,
     highQuality: ui.highQuality !== false,
     showPrintArea: !!ui.showPrintArea,
-    showAllControls: !!ui.showAllControls,
+    showAllControls: ui.selectedCourseId === "all" || !!ui.showAllControls,
     variationMode: ui.variationMode || "default",
     variationCode: ui.variationCode || "",
     variationAddKind: ui.variationAddKind === "loop" ? "loop" : "fork",

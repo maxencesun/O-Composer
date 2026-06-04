@@ -907,7 +907,7 @@ export class PurplePenApp extends HTMLElement {
     const panel = this.querySelector("#selectionPanel");
     const selection = ui.selection;
     if (!selection) {
-      panel.innerHTML = `<p class="muted">${escapeHtml(this.t("No item selected."))}</p>`;
+      panel.innerHTML = this.mapBackgroundEditor(eventModel, ui);
       return;
     }
     if (selection.type === "control") {
@@ -944,6 +944,37 @@ export class PurplePenApp extends HTMLElement {
   bindSelectionColorInputs(panel) {
     panel.querySelector("[data-special-color-picker]")?.addEventListener("input", event => this.handleSelectionPanelInput(event));
     panel.querySelector("[data-special-color-hex]")?.addEventListener("input", event => this.handleSelectionPanelInput(event));
+  }
+
+  mapBackgroundEditor(eventModel, ui) {
+    const background = ui.background;
+    if (!background) {
+      return `<p class="muted">${escapeHtml(this.t("No item selected."))}</p>`;
+    }
+    const mapScale = positiveScale(eventModel.event?.map?.scale) || 15000;
+    const width = positiveNumber(background.widthMeters, 0);
+    const height = positiveNumber(background.heightMeters, 0);
+    const aspect = backgroundAspect(background);
+    const printedWidth = width ? width / mapScale * 100 : 0;
+    const measured = backgroundCalibrationDistance(background);
+    return `
+      <div class="map-info-panel">
+        <h2>${escapeHtml(this.t("Map"))}</h2>
+        <div class="readonly-field"><span>${escapeHtml(this.t("File"))}</span><strong>${escapeHtml(background.name || "")}</strong></div>
+        <div class="readonly-field"><span>${escapeHtml(this.t("Image size"))}</span><strong>${Math.round(background.naturalWidth || 0)} x ${Math.round(background.naturalHeight || 0)} px</strong></div>
+        <div class="readonly-field"><span>${escapeHtml(this.t("Map scale"))}</span><strong>1:${escapeHtml(String(mapScale))}</strong></div>
+        <div class="form-grid">
+          <label>${escapeHtml(this.t("Map width (m)"))} <input data-background-field="widthMeters" type="number" min="0.1" step="0.1" value="${formatInputNumber(width)}"></label>
+          <label>${escapeHtml(this.t("Map height (m)"))} <input data-background-field="heightMeters" type="number" min="0.1" step="0.1" value="${formatInputNumber(height || width * aspect)}"></label>
+          <label>${escapeHtml(this.t("Printed width (cm)"))} <input data-background-field="printedWidthCm" type="number" min="0.01" step="0.01" value="${formatInputNumber(background.printedWidthCm || printedWidth)}"></label>
+          <label>${escapeHtml(this.t("Scale"))} <input data-background-field="mapScale" type="number" min="1" step="1" value="${mapScale}"></label>
+          <label class="span-2">${escapeHtml(this.t("Calibration distance (m)"))} <input data-background-field="calibrationDistanceMeters" type="number" min="0.01" step="0.01" value="${formatInputNumber(background.calibrationDistanceMeters || "")}"></label>
+          <label class="span-2">${escapeHtml(this.t("Calibration printed length (cm)"))} <input data-background-field="calibrationPrintedCm" type="number" min="0.01" step="0.01" value="${formatInputNumber(background.calibrationPrintedCm || "")}"></label>
+        </div>
+        <button type="button" class="secondary" data-background-calibrate>${escapeHtml(this.t("Calibrate with two points"))}</button>
+        ${measured ? `<p class="muted">${escapeHtml(this.t("Selected line"))}: ${formatDecimal(measured)} m</p>` : `<p class="muted">${escapeHtml(this.t("Click two points on the map, then enter their real distance."))}</p>`}
+      </div>
+    `;
   }
 
   controlEditor(control) {
@@ -1202,12 +1233,25 @@ export class PurplePenApp extends HTMLElement {
     }
   }
 
+  createNewEvent() {
+    this.mapView.setBackground("");
+    this.mapView.setOmap(null);
+    this.store.setEventModel(createBlankEvent(), "New event");
+    this.store.updateUi(ui => {
+      ui.background = null;
+      ui.omap = null;
+      ui.selection = null;
+      ui.printAreaEdit = null;
+      ui.tool = "select";
+    }, "New event");
+  }
+
   runCommand(command) {
     const state = this.store.snapshot();
     const eventModel = state.eventModel;
     switch (command) {
       case "new":
-        if (this.confirmDirty()) this.store.setEventModel(createBlankEvent(), "New event");
+        if (this.confirmDirty()) this.createNewEvent();
         break;
       case "open":
         this.querySelector("#ppenInput").click();
@@ -1414,6 +1458,23 @@ export class PurplePenApp extends HTMLElement {
     const state = this.store.snapshot();
     const selectedCourseId = state.ui.selectedCourseId;
     const afterCourseControl = insertionCourseControlId(state);
+    if (tool === "background-calibration") {
+      this.store.updateUi(ui => {
+        if (!ui.background) return;
+        const imagePoint = backgroundImagePointForMap(ui.background, point);
+        const imagePoints = [...(ui.background.calibration?.imagePoints || []), imagePoint].slice(-2);
+        ui.background.calibration = { imagePoints };
+        ui.selection = null;
+        if (imagePoints.length >= 2) {
+          ui.tool = "select";
+          ui.status = this.t("Enter the real distance for the selected map line.");
+        }
+        else {
+          ui.status = this.t("Click the second point on the map.");
+        }
+      }, "Calibrate map background");
+      return;
+    }
     if (tool.startsWith("control:")) {
       const kind = tool.split(":")[1];
       const snapped = snappedControlForPlacement(state, kind, point, this.mapView);
@@ -1639,6 +1700,10 @@ export class PurplePenApp extends HTMLElement {
     const target = event.target;
     const state = this.store.snapshot();
     const selection = state.ui.selection;
+    if (target.dataset.backgroundField !== undefined) {
+      this.updateBackgroundField(target.dataset.backgroundField, target.value);
+      return;
+    }
     if (!selection) return;
 
     if (target.dataset.descriptionBox && selection.type === "control") {
@@ -1739,6 +1804,61 @@ export class PurplePenApp extends HTMLElement {
     }
   }
 
+  updateBackgroundField(field, value) {
+    const current = this.store.snapshot();
+    if (field === "mapScale") {
+      const previousScale = positiveScale(current.eventModel.event?.map?.scale) || 15000;
+      const nextScale = positiveScale(value) || previousScale;
+      this.store.updateEvent(model => applyMapScale(model, nextScale, previousScale), "Change map scale");
+      this.store.updateUi(ui => {
+        if (!ui.background) return;
+        const background = ui.background;
+        const aspect = backgroundAspect(background);
+        const printedWidthCm = positiveNumber(background.printedWidthCm, background.widthMeters / previousScale * 100);
+        background.printedWidthCm = printedWidthCm;
+        background.widthMeters = printedWidthCm / 100 * nextScale;
+        background.heightMeters = background.widthMeters * aspect;
+        resetBackgroundCalibrationBase(background);
+      }, "Edit map background");
+      return;
+    }
+    this.store.updateUi(ui => {
+      if (!ui.background) return;
+      const background = ui.background;
+      const aspect = backgroundAspect(background);
+      if (field === "widthMeters") {
+        const width = positiveNumber(value, background.widthMeters || 200);
+        background.widthMeters = width;
+        background.heightMeters = width * aspect;
+        resetBackgroundCalibrationBase(background);
+      }
+      else if (field === "heightMeters") {
+        const height = positiveNumber(value, background.heightMeters || 200 * aspect);
+        background.heightMeters = height;
+        background.widthMeters = height / aspect;
+        resetBackgroundCalibrationBase(background);
+      }
+      else if (field === "printedWidthCm") {
+        const printedWidthCm = positiveNumber(value, background.printedWidthCm || 0);
+        const mapScale = positiveScale(current.eventModel.event?.map?.scale) || 15000;
+        background.printedWidthCm = printedWidthCm;
+        background.widthMeters = printedWidthCm / 100 * mapScale;
+        background.heightMeters = background.widthMeters * aspect;
+        resetBackgroundCalibrationBase(background);
+      }
+      else if (field === "calibrationDistanceMeters") {
+        background.calibrationDistanceMeters = positiveNumber(value, 0);
+        applyBackgroundCalibration(background, aspect);
+      }
+      else if (field === "calibrationPrintedCm") {
+        const mapScale = positiveScale(this.store.snapshot().eventModel.event?.map?.scale) || 15000;
+        background.calibrationPrintedCm = positiveNumber(value, 0);
+        background.calibrationDistanceMeters = background.calibrationPrintedCm / 100 * mapScale;
+        applyBackgroundCalibration(background, aspect);
+      }
+    }, "Edit map background");
+  }
+
   openPpenFile(file) {
     if (!file || !this.confirmDirty()) return;
     const reader = new FileReader();
@@ -1790,12 +1910,24 @@ export class PurplePenApp extends HTMLElement {
     const reader = new FileReader();
     reader.onload = () => {
       const url = String(reader.result || "");
-      this.mapView.setBackground(url);
-      this.mapView.setOmap(null);
-      this.store.updateUi(ui => {
-        ui.background = { name: file.name, url, type: file.type };
-        ui.omap = null;
-      }, "Map image loaded");
+      const image = new Image();
+      image.onload = () => {
+        this.mapView.setBackground(url);
+        this.mapView.setOmap(null);
+        const metadata = backgroundMetadataForImage(file, url, image, this.store.snapshot().eventModel);
+        this.store.updateUi(ui => {
+          ui.background = metadata;
+          ui.omap = null;
+          ui.pan = { x: 0, y: 0 };
+          ui.zoom = 1;
+        }, "Map image loaded");
+      };
+      image.onerror = () => {
+        alert(this.t("Could not import map image {name}. Convert PDF maps to an image if your browser cannot preview them directly.", {
+          name: file.name || this.t("Unknown file")
+        }));
+      };
+      image.src = url;
     };
     reader.readAsDataURL(file);
   }
@@ -2092,6 +2224,17 @@ export class PurplePenApp extends HTMLElement {
   }
 
   handleSelectionPanelClick(event) {
+    if (event.target.closest("[data-background-calibrate]")) {
+      this.store.updateUi(ui => {
+        if (ui.background) {
+          ui.background.calibration = { imagePoints: [] };
+          ui.tool = "background-calibration";
+          ui.selection = null;
+          ui.status = this.t("Click two points on the map to calibrate the background.");
+        }
+      }, "Calibrate map background");
+      return;
+    }
     if (event.target.closest("[data-reset-control-number]")) {
       const selection = this.store.snapshot().ui.selection;
       if (selection?.type === "control-number") {
@@ -3216,6 +3359,131 @@ function resizedTextFontHeight(special, desiredWidth, desiredHeight) {
 function positiveScale(value) {
   const number = Number(value);
   return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function positiveNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function backgroundMetadataForImage(file, url, image, eventModel) {
+  const naturalWidth = image.naturalWidth || image.width || 1;
+  const naturalHeight = image.naturalHeight || image.height || 1;
+  const aspect = Math.max(0.0001, naturalHeight / naturalWidth);
+  const bounds = eventBoundsForBackground(eventModel);
+  const widthMeters = Math.max(50, bounds.width || 200);
+  const mapScale = positiveScale(eventModel.event?.map?.scale) || 15000;
+  return {
+    name: file.name,
+    url,
+    type: file.type,
+    naturalWidth,
+    naturalHeight,
+    centerX: 0,
+    centerY: 0,
+    widthMeters,
+    heightMeters: widthMeters * aspect,
+    printedWidthCm: widthMeters / mapScale * 100,
+    calibration: { imagePoints: [] }
+  };
+}
+
+function backgroundAspect(background) {
+  const width = positiveNumber(background?.naturalWidth, 1);
+  const height = positiveNumber(background?.naturalHeight, 1);
+  return Math.max(0.0001, height / width);
+}
+
+function applyBackgroundCalibration(background, aspect) {
+  if (!(background?.calibrationDistanceMeters > 0)) return;
+  const currentDistance = backgroundCalibrationDistance(background);
+  if (!(currentDistance > 0)) return;
+  background.calibration ||= {};
+  background.calibration.baseWidthMeters ||= positiveNumber(background.widthMeters, 200);
+  background.calibration.baseDistanceMeters ||= currentDistance;
+  const factor = background.calibrationDistanceMeters / background.calibration.baseDistanceMeters;
+  background.widthMeters = background.calibration.baseWidthMeters * factor;
+  background.heightMeters = background.widthMeters * aspect;
+}
+
+function resetBackgroundCalibrationBase(background) {
+  if (!background?.calibration) return;
+  delete background.calibration.baseWidthMeters;
+  delete background.calibration.baseDistanceMeters;
+}
+
+function backgroundBoundsForMetadata(background) {
+  const aspect = backgroundAspect(background);
+  const width = positiveNumber(background?.widthMeters, 200);
+  const height = positiveNumber(background?.heightMeters, width * aspect);
+  const centerX = Number(background?.centerX) || 0;
+  const centerY = Number(background?.centerY) || 0;
+  return {
+    left: centerX - width / 2,
+    right: centerX + width / 2,
+    top: centerY + height / 2,
+    bottom: centerY - height / 2,
+    width,
+    height
+  };
+}
+
+function backgroundImagePointForMap(background, point) {
+  const bounds = backgroundBoundsForMetadata(background);
+  return {
+    x: clamp((point.x - bounds.left) / bounds.width, 0, 1),
+    y: clamp((bounds.top - point.y) / bounds.height, 0, 1)
+  };
+}
+
+function backgroundMapPointForImage(background, point) {
+  const bounds = backgroundBoundsForMetadata(background);
+  return {
+    x: bounds.left + point.x * bounds.width,
+    y: bounds.top - point.y * bounds.height
+  };
+}
+
+function backgroundCalibrationMapPoints(background) {
+  const imagePoints = background?.calibration?.imagePoints || [];
+  if (imagePoints.length) {
+    return imagePoints.map(point => backgroundMapPointForImage(background, point));
+  }
+  return background?.calibration?.points || [];
+}
+
+function backgroundCalibrationDistance(background) {
+  const imagePoints = background?.calibration?.imagePoints || [];
+  if (imagePoints.length >= 2) {
+    const bounds = backgroundBoundsForMetadata(background);
+    const dx = (imagePoints[1].x - imagePoints[0].x) * bounds.width;
+    const dy = (imagePoints[1].y - imagePoints[0].y) * bounds.height;
+    return Math.hypot(dx, dy);
+  }
+  const points = background?.calibration?.points || [];
+  return points.length >= 2 ? distance(points[0], points[1]) : 0;
+}
+
+function eventBoundsForBackground(eventModel) {
+  const controls = eventModel.controls || [];
+  if (!controls.length) return { width: 200, height: 200 };
+  let left = Infinity;
+  let right = -Infinity;
+  let top = -Infinity;
+  let bottom = Infinity;
+  for (const control of controls) {
+    left = Math.min(left, control.location.x);
+    right = Math.max(right, control.location.x);
+    top = Math.max(top, control.location.y);
+    bottom = Math.min(bottom, control.location.y);
+  }
+  return { width: Math.max(200, right - left), height: Math.max(200, top - bottom) };
+}
+
+function formatInputNumber(value) {
+  if (value === "" || value === null || value === undefined) return "";
+  const number = Number(value);
+  return Number.isFinite(number) ? String(Number(number.toFixed(3))) : "";
 }
 
 function nearlySameScale(a, b) {

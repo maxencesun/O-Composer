@@ -331,6 +331,12 @@ export class PurplePenApp extends HTMLElement {
         <input id="ppenInput" type="file" accept=".ppen,.xml,text/xml" hidden>
         <input id="mapInput" type="file" accept="image/*,.pdf" hidden>
         <input id="omapInput" type="file" hidden>
+        <div class="orientation-overlay" aria-live="polite">
+          <div>
+            <strong>${escapeHtml(this.t("Rotate your phone"))}</strong>
+            <span>${escapeHtml(this.t("O-Composer works best in landscape on mobile."))}</span>
+          </div>
+        </div>
         <header class="menubar">
           ${this.menu("File", [
             ["new", "New Event"],
@@ -455,9 +461,17 @@ export class PurplePenApp extends HTMLElement {
         <nav id="courseTabs" class="course-tabs" aria-label="${escapeAttr(this.t("Courses"))}"></nav>
         <main class="workspace">
           <aside class="left-panel">
-            <label class="mobile-course-picker">${escapeHtml(this.t("Course"))}
-              <select id="mobileCourseSelect" aria-label="${escapeAttr(this.t("Courses"))}"></select>
-            </label>
+            <div class="mobile-side-controls">
+              <label>${escapeHtml(this.t("Course"))}
+                <select id="mobileCourseSelect" aria-label="${escapeAttr(this.t("Courses"))}"></select>
+              </label>
+              <label>${escapeHtml(this.t("Panel"))}
+                <select id="mobilePanelSelect" aria-label="${escapeAttr(this.t("Panel"))}">
+                  <option value="description">${escapeHtml(this.t("Description"))}</option>
+                  <option value="report">${escapeHtml(this.t("Report"))}</option>
+                </select>
+              </label>
+            </div>
             <section class="panel-block">
               <div class="panel-heading">
                 <button class="segmented active" data-panel="description">${escapeHtml(this.t("Description"))}</button>
@@ -615,6 +629,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#mapInput").addEventListener("change", event => this.openMapFile(event.target.files?.[0]));
     this.querySelector("#omapInput").addEventListener("change", event => this.openOmapFile(event.target.files?.[0]));
     this.querySelector("#mobileCourseSelect").addEventListener("change", event => this.selectCourse(event.target.value));
+    this.querySelector("#mobilePanelSelect").addEventListener("change", event => this.switchPanel(event.target.value));
     this.querySelector("#zoomSlider").addEventListener("input", event => {
       this.store.updateUi(ui => { ui.zoom = Number(event.target.value) / 100; }, "Zoom");
     });
@@ -674,7 +689,24 @@ export class PurplePenApp extends HTMLElement {
     this.enablePanelDrag(this.querySelector("#printAreaDialog"));
     this.enablePanelDrag(this.querySelector("#commandDialog"));
     window.addEventListener("keydown", event => this.handleKey(event));
+    window.addEventListener("pointerdown", () => this.ensureMobileLandscapeMode(), { passive: true });
+    window.addEventListener("touchstart", () => this.ensureMobileLandscapeMode(), { passive: true });
     window.addEventListener("orientationchange", () => this.mapView.requestDraw(this.store.snapshot()));
+  }
+
+  ensureMobileLandscapeMode() {
+    if (this.mobileLandscapeRequested || !isNarrowMobileViewport()) {
+      return;
+    }
+    this.mobileLandscapeRequested = true;
+    const root = document.documentElement;
+    if (!document.fullscreenElement && root.requestFullscreen) {
+      root.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+    }
+    const orientation = screen.orientation;
+    if (orientation?.lock) {
+      orientation.lock("landscape").catch(() => {});
+    }
   }
 
   closeTopMenus(except = null) {
@@ -2189,6 +2221,10 @@ export class PurplePenApp extends HTMLElement {
     const showReport = panel === "report";
     this.querySelector("#descriptionPanel").hidden = showReport;
     this.querySelector("#reportPanel").hidden = !showReport;
+    const mobilePanelSelect = this.querySelector("#mobilePanelSelect");
+    if (mobilePanelSelect) {
+      mobilePanelSelect.value = showReport ? "report" : "description";
+    }
     for (const button of this.querySelectorAll("[data-panel]")) {
       button.classList.toggle("active", button.dataset.panel === panel);
     }

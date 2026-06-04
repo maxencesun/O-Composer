@@ -136,15 +136,16 @@ def verify_app_files() -> None:
         assert token in styles, f"mobile landscape should put description/selection panels left of the map with a readable description width: {token}"
     for token in ["mobile-side-controls", "mobileCourseSelect", "mobilePanelSelect", "selectCourse", ".course-tabs {\n    display: none;", "display: contents", ".left-panel > .panel-block:not(.selection-panel)"]:
         assert token in styles + app_shell, f"mobile landscape should use left-panel course/panel dropdowns above description/selection: {token}"
-    for token in ["revealMobileSelectionPanel", "isMobileLandscapeViewport", "workspace.scrollTo", "touch-action: pan-y"]:
-        assert token in styles + app_shell, f"mobile landscape description editing should reveal the right-side selection editor without stealing vertical scroll: {token}"
+    assert "touch-action: pan-y" in styles, "mobile landscape description editing should keep vertical scrolling inside the left description panel"
     assert ".left-panel .panel-heading {\n    display: none;" in styles, "mobile landscape should hide Description/Report segmented buttons when using the panel dropdown"
     for token in ["--mobile-landscape-height: 100dvh", "--mobile-landscape-height: 100svh", "height: var(--mobile-landscape-height)", "env(safe-area-inset-bottom", "overflow-y: hidden", "min-height: 0", "overflow: hidden", "max-height: 40px", "flex-wrap: nowrap"]:
         assert token in styles, f"mobile landscape should keep the page fixed while internal panels scroll: {token}"
     for token in ["width: min(360px, calc(100dvw - 24px))", "grid-template-columns: repeat(5, 30px)", ".iscd-picker-option,\n  .iscd-picker-canvas", "minmax(18px, 1fr)", "height: 18px"]:
         assert token in styles, f"mobile pop-up palettes should be compact enough for phones: {token}"
-    for token in ["usesInlineMobilePalette", "inlineIscdPicker", "inline-iscd-picker", "iscdSymbolPickerHtml", "handleSelectionPanelClick"]:
-        assert token in app_shell + styles, f"mobile symbol palettes should render inside the selection panel: {token}"
+    for token in ["openCommandDialog", "iscdSymbolPickerHtml", "handleCommandDialogClick", "data-iscd-symbol"]:
+        assert token in app_shell, f"mobile symbol palettes should use the compact command dialog instead of the selection panel: {token}"
+    for token in ["inlineIscdPicker", "inline-iscd-picker", "revealMobileSelectionPanel", "usesInlineMobilePalette"]:
+        assert token not in app_shell + styles, f"mobile symbol palettes should not render inside the selection panel anymore: {token}"
     for token in ["activePointers", "beginPinch", "updatePinch", "pinchGesture", "pointerPosition", "Pinch zoom"]:
         assert token in map_view, f"mobile map should support two-finger pinch zoom: {token}"
     for token in ["MAX_ZOOM = 24", "max=\"2400\""]:

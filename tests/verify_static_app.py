@@ -323,6 +323,9 @@ def verify_omap_support() -> None:
         assert token in control_descriptions, f"missing Purple Pen description renderer constant: {token}"
     for token in ["controlOutsideDiameter2017", "finishInsideDiameter2017", "startRadius2017", "drawStartTriangle", "drawCrossing", "drawCourseLeg", "defaultControlLabelPoint", "drawPolylineWithGaps", "normalizeLineGaps", "circleGaps"]:
         assert token in course_symbols, f"missing standardized course symbol support: {token}"
+    assert "pixelsPerMapMm * mapScale / 1000 * courseObjRatio" in course_symbols, "course symbols must convert paper millimeters through print/map scale before drawing"
+    for token in ["descriptionCellSizeMap", "paperMmToMapUnits", "/ 1000 * Math.max"]:
+        assert token in control_descriptions, f"description tables must convert paper millimeters through print scale: {token}"
     for token in ["rgba(166, 38, 255", "COURSE_PURPLE_ALPHA", "ALL_CONTROLS_PURPLE_ALPHA"]:
         assert token in course_symbols + map_view, f"course symbols should use transparent Purple Pen purple: {token}"
     actions = (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8")

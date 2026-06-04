@@ -135,7 +135,7 @@ def verify_app_files() -> None:
     for token in ["mobile-side-controls", "mobileCourseSelect", "mobilePanelSelect", "selectCourse", ".course-tabs {\n    display: none;", "grid-template-rows: auto minmax(110px, 0.5fr) minmax(280px, 1.5fr)"]:
         assert token in styles + app_shell, f"mobile landscape should use left-panel course/panel dropdowns above description/selection: {token}"
     assert ".left-panel .panel-heading {\n    display: none;" in styles, "mobile landscape should hide Description/Report segmented buttons when using the panel dropdown"
-    for token in ["height: 100dvh", "overflow-y: hidden", "min-height: 0", "overflow: hidden", "max-height: 40px", "flex-wrap: nowrap"]:
+    for token in ["--mobile-landscape-height: 100dvh", "--mobile-landscape-height: 100svh", "height: var(--mobile-landscape-height)", "env(safe-area-inset-bottom", "overflow-y: hidden", "min-height: 0", "overflow: hidden", "max-height: 40px", "flex-wrap: nowrap"]:
         assert token in styles, f"mobile landscape should keep the page fixed while internal panels scroll: {token}"
     for token in ["width: min(360px, calc(100dvw - 24px))", "grid-template-columns: repeat(5, 30px)", ".iscd-picker-option,\n  .iscd-picker-canvas", "minmax(18px, 1fr)", "height: 18px"]:
         assert token in styles, f"mobile pop-up palettes should be compact enough for phones: {token}"

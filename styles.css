@@ -437,6 +437,7 @@ button:hover {
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: var(--canvas);
 }
 
@@ -446,6 +447,8 @@ button:hover {
   gap: 16px;
   min-height: 34px;
   padding: 6px 12px;
+  min-width: 0;
+  overflow: hidden;
   color: #273541;
   background: #fff;
   border-bottom: 1px solid var(--line);
@@ -457,17 +460,30 @@ button:hover {
   align-items: center;
   gap: 18px;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.course-banner-text > * {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .course-banner strong {
+  flex: 1 1 40%;
   color: var(--purple-strong);
   font-size: 15px;
   white-space: nowrap;
 }
 
 .course-banner span {
+  flex: 1 1 25%;
   white-space: nowrap;
+}
+
+.course-banner span:last-child {
+  flex: 0 1 35%;
 }
 
 .map-canvas {

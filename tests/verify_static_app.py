@@ -41,6 +41,7 @@ def verify_app_files() -> None:
     assert (ROOT / "src" / "domain" / "pdf-exporter.js").exists()
     assert (ROOT / "src" / "domain" / "control-descriptions.js").exists()
     assert (ROOT / "src" / "domain" / "omap-parser.js").exists()
+    assert (ROOT / "src" / "domain" / "relay-variations.js").exists()
     assert (ROOT / "src" / "ui" / "omap-renderer.js").exists()
     assert (ROOT / "src" / "ui" / "course-symbols.js").exists()
     assert (ROOT / "src" / "ui" / "icons.js").exists()
@@ -64,8 +65,18 @@ def verify_app_files() -> None:
         assert token in app_shell, f"missing command palette UI: {token}"
     control_descriptions = (ROOT / "src" / "domain" / "control-descriptions.js").read_text(encoding="utf-8")
     course_service = (ROOT / "src" / "domain" / "course-service.js").read_text(encoding="utf-8")
+    relay_variations = (ROOT / "src" / "domain" / "relay-variations.js").read_text(encoding="utf-8")
+    exporters = (ROOT / "src" / "domain" / "exporters.js").read_text(encoding="utf-8")
     ppen_parser = (ROOT / "src" / "domain" / "ppen-parser.js").read_text(encoding="utf-8")
     event_model = (ROOT / "src" / "domain" / "event-model.js").read_text(encoding="utf-8")
+    for token in ["allCourseVariations", "variationBranchCodeMap", "relayAssignments", "relayVariationForLeg", "variationChoices", "variationCourseControls", "permute(branches)"]:
+        assert token in relay_variations + course_service, f"missing relay/variation path calculation support: {token}"
+    for token in ["courseVariationControls", "data-course-variation-mode", "data-relay-team", "data-relay-branch", "addForkToLeg", "relayAssignmentTable"]:
+        assert token in app_shell + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing relay design UI support: {token}"
+    for token in ["mapCourseDisplayOptions", "variationForCode", "relayVariationForLeg"]:
+        assert token in (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8"), f"map rendering should honor selected relay variation: {token}"
+    for token in ["allCourseVariations", "CourseVariationId", "variationChoices"]:
+        assert token in exporters, f"IOF export should expand courses with variations: {token}"
     for token in ['description: "2024"', 'const DESCRIPTION_STANDARD = "2024"', "symbolInDescriptionStandard", 'standard === "2024" && symbolInStandard(symbol, "2018")', "normalizeDescriptionStandard"]:
         assert token in app_shell + control_descriptions + ppen_parser + event_model, f"missing ISCD 2024 standard support: {token}"
     assert "std-desc-2024" in app_shell

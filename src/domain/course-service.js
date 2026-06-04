@@ -27,6 +27,9 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
   const result = [];
   const seen = new Set();
   const allBranches = !!options.allBranches;
+  const variationChoices = Array.isArray(options.variationChoices)
+    ? options.variationChoices.map(Number).filter(Boolean)
+    : [];
   const maxSteps = Math.max(1000, eventModel.courseControls.length * 20);
   let steps = 0;
 
@@ -41,6 +44,10 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
 
       const split = !!courseControl.variation;
       if (split && !(first && ignoreFirstSplit) && courseControl.variationCourseControls.length) {
+        if (!seen.has(currentId) || allBranches) {
+          result.push(currentId);
+          seen.add(currentId);
+        }
         const branches = courseControl.variationCourseControls;
         if (allBranches) {
           for (const branchId of branches) {
@@ -49,6 +56,25 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
           currentId = courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd;
           first = false;
           continue;
+        }
+
+        if (variationChoices.length) {
+          if (courseControl.variation === "loop") {
+            const loopBranches = variationChoices.filter(choice => branches.includes(choice));
+            for (const branchId of loopBranches) {
+              visit(branchId, courseControl.variationEnd, true);
+            }
+            currentId = courseControl.nextCourseControl;
+            first = false;
+            continue;
+          }
+          const selectedBranch = variationChoices.find(choice => branches.includes(choice)) || branches[0];
+          if (selectedBranch) {
+            visit(selectedBranch, courseControl.variationEnd, true);
+            currentId = courseControl.variationEnd;
+            first = false;
+            continue;
+          }
         }
 
         const defaultBranch = branches[0] || currentId;
@@ -298,15 +324,15 @@ function pointAtPathDistance(points, target) {
   return { ...points[points.length - 1] };
 }
 
-export function courseLength(eventModel, courseId) {
+export function courseLength(eventModel, courseId, options = {}) {
   const course = getCourse(eventModel, courseId);
   if (!course) {
     return 0;
   }
-  if (course.options?.courseLength) {
+  if (!options.variationChoices?.length && !options.allBranches && course.options?.courseLength) {
     return course.options.courseLength;
   }
-  return courseLegs(eventModel, courseId).reduce((sum, leg) => sum + leg.length, 0);
+  return courseLegs(eventModel, courseId, options).reduce((sum, leg) => sum + leg.length, 0);
 }
 
 export function controlsUsedByCourse(eventModel, courseId) {

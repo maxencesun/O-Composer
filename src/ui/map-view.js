@@ -15,6 +15,7 @@ import {
   specialVisibleForCourse
 } from "../domain/control-descriptions.js";
 import { effectivePrintArea } from "../domain/print-area.js";
+import { relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import {
   createCourseSymbolMetrics,
   defaultControlLabelPoint,
@@ -721,10 +722,11 @@ export class MapView {
     const selectedCourseId = ui.selectedCourseId || "all";
     const allControls = selectedCourseId === "all" || ui.showAllControls;
     const selectedCourse = allControls ? null : getCourse(eventModel, selectedCourseId);
+    const displayOptions = mapCourseDisplayOptions(eventModel, ui);
     const rows = selectedCourseId === "all" || ui.showAllControls
       ? allControlsView(eventModel)
-      : courseView(eventModel, selectedCourseId);
-    const legs = selectedCourseId === "all" || ui.showAllControls ? [] : courseLegs(eventModel, selectedCourseId);
+      : courseView(eventModel, selectedCourseId, displayOptions);
+    const legs = selectedCourseId === "all" || ui.showAllControls ? [] : courseLegs(eventModel, selectedCourseId, displayOptions);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), allControls);
     const autoGaps = automaticLegGaps(legs, rows, metrics, this.scale(ui), eventModel.event.courseAppearance?.autoLegGapSize || 3.5);
     const autoCircleGaps = allControls ? new Map() : automaticControlCircleGaps(rows, metrics, this.scale(ui));
@@ -2026,10 +2028,11 @@ function currentCourseLabelRows(state, scale) {
   }
   const selectedCourse = getCourse(state.eventModel, selectedCourseId);
   if (!selectedCourse) return null;
-  const rows = courseView(state.eventModel, selectedCourseId);
+  const displayOptions = mapCourseDisplayOptions(state.eventModel, state.ui);
+  const rows = courseView(state.eventModel, selectedCourseId, displayOptions);
   return {
     rows,
-    legs: courseLegs(state.eventModel, selectedCourseId),
+    legs: courseLegs(state.eventModel, selectedCourseId, displayOptions),
     metrics: createCourseSymbolMetrics(state.eventModel, selectedCourse, state.eventModel.event.courseAppearance, scale, false)
   };
 }
@@ -2037,14 +2040,29 @@ function currentCourseLabelRows(state, scale) {
 function selectedLegForSelection(eventModel, ui) {
   const selected = ui.selection;
   if (!["leg", "leg-gap", "leg-bend"].includes(selected?.type)) return null;
-  return courseLegs(eventModel, ui.selectedCourseId)
+  return courseLegs(eventModel, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
     .find(leg => Number(leg.from.control.id) === Number(selected.startControl) && Number(leg.to.control.id) === Number(selected.endControl)) || null;
 }
 
 function selectedControlNumberRow(eventModel, ui) {
   if (ui.selection?.type !== "control-number" || !ui.selectedCourseId || ui.selectedCourseId === "all") return null;
-  return courseView(eventModel, ui.selectedCourseId)
+  return courseView(eventModel, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
     .find(row => Number(row.courseControl?.id) === Number(ui.selection.courseControl)) || null;
+}
+
+function mapCourseDisplayOptions(eventModel, ui = {}) {
+  const courseId = ui.selectedCourseId;
+  if (!courseId || courseId === "all" || ui.showAllControls) return {};
+  if (ui.variationMode === "all") return { allBranches: true };
+  if (ui.variationMode === "variation") {
+    const variation = variationForCode(eventModel, courseId, ui.variationCode);
+    return variation ? { variationChoices: variation.choices } : {};
+  }
+  if (ui.variationMode === "relay") {
+    const variation = relayVariationForLeg(eventModel, courseId, ui.relayTeam, ui.relayLeg);
+    return variation ? { variationChoices: variation.choices } : {};
+  }
+  return {};
 }
 
 function legSelection(leg) {

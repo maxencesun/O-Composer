@@ -14,6 +14,10 @@ export class Store {
         highQuality: true,
         showPrintArea: false,
         showAllControls: false,
+        variationMode: "default",
+        variationCode: "",
+        relayTeam: 1,
+        relayLeg: 1,
         report: { title: "Course Summary", rows: [], kind: "summary" },
         status: "Ready",
         background: null

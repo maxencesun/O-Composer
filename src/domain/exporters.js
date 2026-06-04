@@ -8,6 +8,7 @@ import {
   formatLength,
   sortedCourses
 } from "./course-service.js";
+import { allCourseVariations } from "./relay-variations.js";
 
 export function exportIofXml(eventModel, version = 3) {
   return version === 2 ? exportIofXml2(eventModel) : exportIofXml3(eventModel);
@@ -36,15 +37,19 @@ export function exportIofXml3(eventModel) {
   }
 
   for (const course of sortedCourses(eventModel, false)) {
-    const view = courseView(eventModel, course.id);
+    const variations = allCourseVariations(eventModel, course.id);
+    const courseVariants = variations.length ? variations : [{ code: "", choices: [] }];
+    for (const variation of courseVariants) {
+    const view = courseView(eventModel, course.id, variation.choices?.length ? { variationChoices: variation.choices } : {});
+    const courseName = variation.code ? `${course.name} ${variation.code}` : course.name;
     lines.push(`    <Course>`);
-    lines.push(`      <Name>${escapeText(course.name)}</Name>`);
+    lines.push(`      <Name>${escapeText(courseName)}</Name>`);
     if (course.secondaryTitle) {
       for (const className of splitClassNames(course.secondaryTitle)) {
-        lines.push(`      <ClassCourseAssignment><ClassName>${escapeText(className)}</ClassName><CourseName>${escapeText(course.name)}</CourseName></ClassCourseAssignment>`);
+        lines.push(`      <ClassCourseAssignment><ClassName>${escapeText(className)}</ClassName><CourseName>${escapeText(courseName)}</CourseName></ClassCourseAssignment>`);
       }
     }
-    lines.push(`      <Length>${Math.round(courseLength(eventModel, course.id))}</Length>`);
+    lines.push(`      <Length>${Math.round(courseLength(eventModel, course.id, variation.choices?.length ? { variationChoices: variation.choices } : {}))}</Length>`);
     if ((course.options?.climb ?? -1) >= 0) {
       lines.push(`      <Climb>${Math.round(course.options.climb)}</Climb>`);
     }
@@ -60,6 +65,7 @@ export function exportIofXml3(eventModel) {
       lines.push(`      </CourseControl>`);
     }
     lines.push(`    </Course>`);
+    }
   }
   lines.push(`  </RaceCourseData>`, `</CourseData>`);
   return `${lines.join("\n")}\n`;
@@ -87,11 +93,19 @@ export function exportIofXml2(eventModel) {
     lines.push(`  <Course>`);
     lines.push(`    <CourseName>${escapeText(course.name)}</CourseName>`);
     lines.push(`    <CourseId>${course.id}</CourseId>`);
+    const variations = allCourseVariations(eventModel, course.id);
+    const courseVariants = variations.length ? variations : [{ code: "", choices: [] }];
+    for (let variationIndex = 0; variationIndex < courseVariants.length; variationIndex += 1) {
+    const variation = courseVariants[variationIndex];
+    const options = variation.choices?.length ? { variationChoices: variation.choices } : {};
     lines.push(`    <CourseVariation>`);
-    lines.push(`      <CourseVariationId>0</CourseVariationId>`);
-    lines.push(`      <CourseLength>${Math.round(courseLength(eventModel, course.id))}</CourseLength>`);
+    lines.push(`      <CourseVariationId>${variationIndex}</CourseVariationId>`);
+    if (variation.code) {
+      lines.push(`      <Name>${escapeText(variation.code)}</Name>`);
+    }
+    lines.push(`      <CourseLength>${Math.round(courseLength(eventModel, course.id, options))}</CourseLength>`);
     let sequence = 1;
-    for (const row of courseView(eventModel, course.id)) {
+    for (const row of courseView(eventModel, course.id, options)) {
       if (row.control.kind === "start") {
         lines.push(`      <StartPointCode>${escapeText(row.control.code || syntheticControlCode(row.control))}</StartPointCode>`);
       }
@@ -109,6 +123,7 @@ export function exportIofXml2(eventModel) {
       }
     }
     lines.push(`    </CourseVariation>`);
+    }
     lines.push(`  </Course>`);
   }
   lines.push(`</CourseData>`);

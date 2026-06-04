@@ -14,6 +14,7 @@ const ZH = Object.freeze({
   "Course": "路线",
   "Reports": "报告",
   "Help": "帮助",
+  "Feedback": "反馈通道",
   "Language": "语言",
   "New Event": "新建赛事",
   "Open Sample": "打开示例",

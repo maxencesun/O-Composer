@@ -430,6 +430,7 @@ export class PurplePenApp extends HTMLElement {
             ["about", "About O-Composer"],
             ["help", "Frontend Limitations"]
           ])}
+          <a class="feedback-link" href="https://365.kdocs.cn/l/cmBYi18akxdM" target="_blank" rel="noopener noreferrer">${escapeHtml(this.t("Feedback"))}</a>
           <div class="app-brand" aria-label="${escapeAttr(`O-Composer ${APP_VERSION}`)}">
             <strong>O-Composer</strong>
             <span>${escapeHtml(APP_VERSION)}</span>

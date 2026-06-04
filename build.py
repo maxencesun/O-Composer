@@ -13,6 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
+ALLOWED_NAVIGATION_URLS = {
+    "https://365.kdocs.cn/l/cmBYi18akxdM",
+}
 
 
 def main() -> None:
@@ -45,6 +48,9 @@ def validate_no_network_runtime() -> None:
     offenders = []
     for path in [ROOT / "index.html", ROOT / "styles.css", *list((ROOT / "src").rglob("*.js"))]:
         text = path.read_text(encoding="utf-8")
+        for url in ALLOWED_NAVIGATION_URLS:
+            text = text.replace(f'href="{url}"', 'href=""')
+            text = text.replace(f"href='{url}'", "href=''")
         has_runtime_url = re.search(r"""(?:src|href|import)\s*=\s*["']https?://|from\s+["']https?://|import\(["']https?://""", text)
         if has_runtime_url:
             offenders.append(path.relative_to(ROOT))

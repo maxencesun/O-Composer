@@ -331,12 +331,6 @@ export class PurplePenApp extends HTMLElement {
         <input id="ppenInput" type="file" accept=".ppen,.xml,text/xml" hidden>
         <input id="mapInput" type="file" accept="image/*,.pdf" hidden>
         <input id="omapInput" type="file" hidden>
-        <div class="orientation-overlay" aria-live="polite">
-          <div>
-            <strong>${escapeHtml(this.t("Rotate your phone"))}</strong>
-            <span>${escapeHtml(this.t("O-Composer works best in landscape on mobile."))}</span>
-          </div>
-        </div>
         <header class="menubar">
           ${this.menu("File", [
             ["new", "New Event"],
@@ -684,24 +678,7 @@ export class PurplePenApp extends HTMLElement {
     this.enablePanelDrag(this.querySelector("#printAreaDialog"));
     this.enablePanelDrag(this.querySelector("#commandDialog"));
     window.addEventListener("keydown", event => this.handleKey(event));
-    window.addEventListener("pointerdown", () => this.ensureMobileLandscapeMode(), { passive: true });
-    window.addEventListener("touchstart", () => this.ensureMobileLandscapeMode(), { passive: true });
     window.addEventListener("orientationchange", () => this.mapView.requestDraw(this.store.snapshot()));
-  }
-
-  ensureMobileLandscapeMode() {
-    if (this.mobileLandscapeRequested || !isNarrowMobileViewport()) {
-      return;
-    }
-    this.mobileLandscapeRequested = true;
-    const root = document.documentElement;
-    if (!document.fullscreenElement && root.requestFullscreen) {
-      root.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
-    }
-    const orientation = screen.orientation;
-    if (orientation?.lock) {
-      orientation.lock("landscape").catch(() => {});
-    }
   }
 
   closeTopMenus(except = null) {

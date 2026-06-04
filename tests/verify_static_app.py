@@ -119,8 +119,8 @@ def verify_app_files() -> None:
         assert token in styles, f"top toolbar/menu should keep the default cursor instead of the map edit cursor: {token}"
     for token in ["100dvw", "48dvh", "-webkit-overflow-scrolling: touch", "overflow-x: hidden", "minmax(260px, 48dvh)"]:
         assert token in styles, f"mobile layout should fit narrow screens: {token}"
-    for token in ["orientation-overlay", "requestFullscreen", 'orientation.lock("landscape")', "Rotate your phone", "O-Composer works best in landscape on mobile."]:
-        assert token in styles + app_shell + i18n, f"mobile layout should prompt/attempt landscape fullscreen use: {token}"
+    for token in ["orientation-overlay", 'orientation.lock("landscape")', "Rotate your phone", "O-Composer works best in landscape on mobile."]:
+        assert token not in styles + app_shell + i18n, f"mobile layout should support portrait use without forcing landscape: {token}"
     for token in ["max-height: calc(100dvh - 42px)", "overflow-y: auto", "overscroll-behavior: contain", "#selectionPanel", "flex: 1 1 auto", "justify-content: flex-end"]:
         assert token in styles, f"mobile panels and top menus should scroll and keep branding aligned: {token}"
     for token in ["bindMobileMenuScroll", "canScrollElement", "touch-action: pan-y", "passive: false"]:

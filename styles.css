@@ -902,10 +902,6 @@ button:hover {
   font-weight: 700;
 }
 
-.orientation-overlay {
-  display: none;
-}
-
 @media (max-width: 760px) {
   html,
   body {
@@ -1034,25 +1030,5 @@ button:hover {
     right: 8px;
     bottom: 8px;
     flex-wrap: wrap;
-  }
-}
-
-@media (max-width: 760px) and (orientation: portrait) {
-  .orientation-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: grid;
-    place-items: center;
-    padding: 24px;
-    background: #f6f7f8;
-    color: var(--ink);
-    text-align: center;
-  }
-
-  .orientation-overlay strong {
-    display: block;
-    margin-bottom: 8px;
-    font-size: 20px;
   }
 }

@@ -150,6 +150,9 @@ def verify_app_files() -> None:
         assert token not in app_shell + styles, f"mobile symbol palettes should not render inside the selection panel anymore: {token}"
     for token in ["activePointers", "beginPinch", "updatePinch", "pinchGesture", "pointerPosition", "Pinch zoom"]:
         assert token in map_view, f"mobile map should support two-finger pinch zoom: {token}"
+    for token in ["drawLegSelectionOutline", "const offset = 6", "ctx.lineCap = \"round\"", "drawBendDot"]:
+        assert token in map_view, f"selected legs should be outlined on both sides instead of covered by a dashed line: {token}"
+    assert "ctx.setLineDash([8, 5]);\n        ctx.strokeStyle = \"#2477c9\";\n        ctx.lineWidth = 3;\n        pathLines(ctx, points, false);" not in map_view, "selected legs should not draw a blue dashed line over the leg"
     for token in ["MAX_ZOOM = 24", "max=\"2400\""]:
         assert token in map_view + app_shell, f"mobile users should be able to zoom in further: {token}"
     for token in ["createNewEvent", 'this.mapView.setBackground("")', "ui.background = null", "ui.omap = null"]:

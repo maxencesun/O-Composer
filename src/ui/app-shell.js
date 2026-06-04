@@ -455,6 +455,9 @@ export class PurplePenApp extends HTMLElement {
         <nav id="courseTabs" class="course-tabs" aria-label="${escapeAttr(this.t("Courses"))}"></nav>
         <main class="workspace">
           <aside class="left-panel">
+            <label class="mobile-course-picker">${escapeHtml(this.t("Course"))}
+              <select id="mobileCourseSelect" aria-label="${escapeAttr(this.t("Courses"))}"></select>
+            </label>
             <section class="panel-block">
               <div class="panel-heading">
                 <button class="segmented active" data-panel="description">${escapeHtml(this.t("Description"))}</button>
@@ -598,15 +601,7 @@ export class PurplePenApp extends HTMLElement {
       }
       const tab = event.target.closest("[data-course-id]");
       if (tab) {
-        this.store.updateUi(ui => {
-          ui.selectedCourseId = tab.dataset.courseId === "all" ? "all" : Number(tab.dataset.courseId);
-          ui.selection = tab.dataset.courseId === "all" ? null : { type: "course", id: Number(tab.dataset.courseId) };
-          ui.showAllControls = tab.dataset.courseId === "all";
-          ui.printAreaEdit = null;
-          if (ui.tool === "print-area" || ui.tool === "print-area-frame") {
-            ui.tool = "select";
-          }
-        }, "Select course");
+        this.selectCourse(tab.dataset.courseId);
         return;
       }
       const command = event.target.closest("[data-command]")?.dataset.command;
@@ -619,6 +614,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#ppenInput").addEventListener("change", event => this.openPpenFile(event.target.files?.[0]));
     this.querySelector("#mapInput").addEventListener("change", event => this.openMapFile(event.target.files?.[0]));
     this.querySelector("#omapInput").addEventListener("change", event => this.openOmapFile(event.target.files?.[0]));
+    this.querySelector("#mobileCourseSelect").addEventListener("change", event => this.selectCourse(event.target.value));
     this.querySelector("#zoomSlider").addEventListener("input", event => {
       this.store.updateUi(ui => { ui.zoom = Number(event.target.value) / 100; }, "Zoom");
     });
@@ -765,11 +761,28 @@ export class PurplePenApp extends HTMLElement {
   }
 
   renderTabs({ eventModel, ui }) {
+    const courses = sortedCourses(eventModel);
     const tabs = [
       `<button class="${ui.selectedCourseId === "all" ? "active" : ""}" data-course-id="all">${escapeHtml(this.t("All Controls"))}</button>`,
-      ...sortedCourses(eventModel).map(course => `<button class="${Number(ui.selectedCourseId) === course.id ? "active" : ""}" data-course-id="${course.id}">${escapeHtml(course.name)}</button>`)
+      ...courses.map(course => `<button class="${Number(ui.selectedCourseId) === course.id ? "active" : ""}" data-course-id="${course.id}">${escapeHtml(course.name)}</button>`)
     ];
     this.querySelector("#courseTabs").innerHTML = tabs.join("");
+    this.querySelector("#mobileCourseSelect").innerHTML = [
+      `<option value="all" ${ui.selectedCourseId === "all" ? "selected" : ""}>${escapeHtml(this.t("All Controls"))}</option>`,
+      ...courses.map(course => `<option value="${course.id}" ${Number(ui.selectedCourseId) === course.id ? "selected" : ""}>${escapeHtml(course.name)}</option>`)
+    ].join("");
+  }
+
+  selectCourse(courseId) {
+    this.store.updateUi(ui => {
+      ui.selectedCourseId = courseId === "all" ? "all" : Number(courseId);
+      ui.selection = courseId === "all" ? null : { type: "course", id: Number(courseId) };
+      ui.showAllControls = courseId === "all";
+      ui.printAreaEdit = null;
+      if (ui.tool === "print-area" || ui.tool === "print-area-frame") {
+        ui.tool = "select";
+      }
+    }, "Select course");
   }
 
   renderBanner({ eventModel, ui }) {

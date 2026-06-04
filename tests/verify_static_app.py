@@ -138,6 +138,7 @@ def verify_app_files() -> None:
     map_view = (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8")
     for token in [".course-banner-text > *", "text-overflow: ellipsis", ".map-panel {\n  display: grid;\n  grid-template-rows: auto minmax(0, 1fr);\n  min-width: 0;\n  min-height: 0;\n  overflow: hidden;"]:
         assert token in styles, f"long event/course names must not stretch the map panel over the selection panel: {token}"
+    assert "flex: 1 1 40%" not in styles and "flex: 1 1 25%" not in styles, "course banner text should not spread into oversized columns"
     for token in ['font-family: "Roboto"', 'font-family: "Roboto Condensed"', 'font-family: "黑体"', 'Heiti.ttf']:
         assert token in styles, f"page should load the same project fonts that PDF embeds: {token}"
     for token in [".menubar,", ".menubar *", ".toolbar,", ".toolbar *", "cursor: default", "user-select: none"]:
@@ -186,6 +187,8 @@ def verify_app_files() -> None:
         assert token in map_view, f"map view should render calibration points anchored to the image: {token}"
     for token in ["mapBackgroundEditor", "data-background-field", "backgroundMetadataForImage", "background-calibration", "applyBackgroundCalibration", "calibrationPrintedCm", "calibrationDistanceMeters", "Calibrate with two points"]:
         assert token in app_shell, f"selection panel should expose map background info and calibration controls: {token}"
+    for token in ['["map-info", "Map Info"]', 'ui.selection = { type: "background" }', 'selection.type === "background"']:
+        assert token in app_shell, f"map background info should be activated from the Event menu: {token}"
     for token in ["backgroundImagePointForMap", "backgroundCalibrationDistance", "baseDistanceMeters", "resetBackgroundCalibrationBase", "imagePoints"]:
         assert token in app_shell, f"map background calibration should preserve image aspect while scaling: {token}"
     for token in ["Map width (m)", "Map height (m)", "Printed width (cm)", "Calibration distance (m)", "Calibration printed length (cm)", "Click two points on the map to calibrate the background.", "Enter the real distance for the selected map line.", "Could not import map image {name}. Convert PDF maps to an image if your browser cannot preview them directly."]:

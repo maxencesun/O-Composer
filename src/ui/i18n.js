@@ -75,6 +75,7 @@ const ZH = Object.freeze({
   "Registration Mark": "套印标记",
   "White Out": "遮白",
   "Change Event Title": "修改赛事名称",
+  "Map Info": "底图信息",
   "Change Map Scale": "修改地图比例尺",
   "Description Language": "检查点说明语言",
   "Auto Numbering": "自动编号",

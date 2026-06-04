@@ -856,6 +856,7 @@ export class MapView {
   }
 
   drawBackgroundCalibration(ctx, ui) {
+    if (ui.selection?.type !== "background") return;
     const points = backgroundCalibrationMapPoints(ui.background, this.backgroundImage);
     if (!points.length) return;
     ctx.save();
@@ -1177,6 +1178,11 @@ export class MapView {
       return;
     }
 
+    if (this.drag.hit?.type === "background-calibration-point" && this.drag.moved && state.ui.tool === "select") {
+      this.callbacks.onBackgroundCalibrationPointMove?.(this.drag.hit, mapPoint, { transient: true });
+      return;
+    }
+
     if (this.drag.hit && this.drag.moved && state.ui.tool === "select") {
       this.callbacks.onMoveSelectionPreview?.(this.drag.hit, moveTargetForDrag(this.drag, mapPoint));
     }
@@ -1242,6 +1248,10 @@ export class MapView {
     }
     else if (this.drag.hit?.type === "leg-bend" && this.drag.moved && state.ui.tool === "select") {
       this.callbacks.onLegBendMove?.(this.drag.hit, mapPoint);
+      this.drag.hit = null;
+    }
+    else if (this.drag.hit?.type === "background-calibration-point" && this.drag.moved && state.ui.tool === "select") {
+      this.callbacks.onBackgroundCalibrationPointMove?.(this.drag.hit, mapPoint, { transient: false });
       this.drag.hit = null;
     }
     else if (this.drag.hit && this.drag.moved && state.ui.tool === "select") {
@@ -1386,6 +1396,10 @@ export class MapView {
     let best = null;
     let bestDistance = Infinity;
     const currentSelection = state.ui.selection;
+    const calibrationPoint = this.hitTestBackgroundCalibrationPoint(point, state, baseThreshold);
+    if (calibrationPoint) {
+      return calibrationPoint;
+    }
     const bendHandle = this.hitTestSelectedLegBend(point, state, baseThreshold);
     if (bendHandle) {
       return bendHandle;
@@ -1578,6 +1592,21 @@ export class MapView {
       }
     }
     return null;
+  }
+
+  hitTestBackgroundCalibrationPoint(point, state, threshold) {
+    if (state.ui.selection?.type !== "background") return null;
+    const points = backgroundCalibrationMapPoints(state.ui.background, this.backgroundImage);
+    let best = null;
+    let bestDistance = Infinity;
+    for (let index = points.length - 1; index >= 0; index -= 1) {
+      const candidateDistance = distance(point, points[index]);
+      if (candidateDistance <= threshold * 1.35 && candidateDistance < bestDistance) {
+        best = { type: "background-calibration-point", pointIndex: index };
+        bestDistance = candidateDistance;
+      }
+    }
+    return best;
   }
 
   hitTestSelectedLegBend(point, state, threshold) {

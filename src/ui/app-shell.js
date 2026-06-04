@@ -254,6 +254,7 @@ export class PurplePenApp extends HTMLElement {
       onAddLegBend: (selection, point) => this.addLegBend(selection, point),
       onLegBendMove: (selection, point) => this.moveLegBend(selection, point),
       onDeleteLegBend: selection => this.deleteLegBend(selection),
+      onBackgroundCalibrationPointMove: (selection, point, options) => this.moveBackgroundCalibrationPoint(selection, point, options),
       onHover: point => this.updateMouseStatus(point)
     });
     this.bindEvents();
@@ -1920,7 +1921,7 @@ export class PurplePenApp extends HTMLElement {
         const imagePoints = [...(ui.background.calibration?.imagePoints || []), imagePoint].slice(-2);
         ui.background.calibration = { imagePoints };
         resetBackgroundCalibrationBase(ui.background);
-        ui.selection = null;
+        ui.selection = { type: "background" };
         if (imagePoints.length >= 2) {
           applyBackgroundCalibration(ui.background, backgroundAspect(ui.background));
           ui.tool = "select";
@@ -2133,6 +2134,25 @@ export class PurplePenApp extends HTMLElement {
         bendIndex: selection.bendIndex
       };
     }, "Select bend");
+  }
+
+  moveBackgroundCalibrationPoint(selection, point, options = {}) {
+    if (selection?.type !== "background-calibration-point") return;
+    this.store.updateUi(ui => {
+      const background = ui.background;
+      const pointIndex = Number(selection.pointIndex);
+      if (!background || !Number.isInteger(pointIndex)) return;
+      const imagePoints = [...(background.calibration?.imagePoints || [])];
+      if (!imagePoints[pointIndex]) return;
+      imagePoints[pointIndex] = backgroundImagePointForMap(background, point);
+      background.calibration = { ...(background.calibration || {}), imagePoints };
+      ui.selection = { type: "background" };
+      if (!options.transient) {
+        resetBackgroundCalibrationBase(background);
+        applyBackgroundCalibration(background, backgroundAspect(background));
+      }
+    }, "Move calibration point");
+    this.syncBackgroundMeasurement();
   }
 
   deleteLegBend(selection) {
@@ -2734,7 +2754,7 @@ export class PurplePenApp extends HTMLElement {
         if (ui.background) {
           ui.background.calibration = { imagePoints: [] };
           ui.tool = "background-calibration";
-          ui.selection = null;
+          ui.selection = { type: "background" };
           ui.status = this.t("Click two points on the map to calibrate the background.");
         }
       }, "Calibrate map background");

@@ -185,6 +185,8 @@ def verify_app_files() -> None:
         assert token in map_view + app_shell, f"bitmap/PDF map backgrounds should preserve their own dimensions and aspect ratio: {token}"
     for token in ["backgroundCalibrationMapPoints", "imagePoints"]:
         assert token in map_view, f"map view should render calibration points anchored to the image: {token}"
+    for token in ['if (ui.selection?.type !== "background") return;', "hitTestBackgroundCalibrationPoint", "background-calibration-point", "onBackgroundCalibrationPointMove"]:
+        assert token in map_view + app_shell, f"background calibration points should only show in map adjustment and be draggable: {token}"
     for token in ["mapBackgroundEditor", "data-background-field", "backgroundMetadataForImage", "background-calibration", "applyBackgroundCalibration", "calibrationPrintedCm", "calibrationDistanceMeters", "Calibrate with two points"]:
         assert token in app_shell, f"selection panel should expose map background info and calibration controls: {token}"
     for token in ['["map-info", "Map Info"]', 'ui.selection = { type: "background" }', 'selection.type === "background"']:

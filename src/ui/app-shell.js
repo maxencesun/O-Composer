@@ -1037,7 +1037,8 @@ export class PurplePenApp extends HTMLElement {
     const treeHtml = this.variationSequenceHtml(eventModel, course.id, course.firstCourseControl, null, ui, {
       branchCodes,
       seen: new Set(),
-      depth: 0
+      depth: 0,
+      skipFirstControlId: null
     });
     return `
       <div class="variation-actions">
@@ -1068,6 +1069,7 @@ export class PurplePenApp extends HTMLElement {
     const branchCodes = context.branchCodes;
     const depth = context.depth || 0;
     const seen = context.seen || new Set();
+    const skipFirstControlId = Number(context.skipFirstControlId) || null;
     let currentId = Number(startId) || 0;
     let html = "";
     let steps = 0;
@@ -1076,11 +1078,19 @@ export class PurplePenApp extends HTMLElement {
       const courseControl = getCourseControl(eventModel, currentId);
       if (!courseControl) break;
       seen.add(currentId);
-      html += this.variationCourseControlRowHtml(eventModel, courseId, courseControl, ui, depth);
+      const skipSharedBranchStart = !html && skipFirstControlId && Number(courseControl.control) === skipFirstControlId;
+      if (skipSharedBranchStart) {
+        currentId = Number(courseControl.nextCourseControl) || 0;
+        continue;
+      }
+      if (!skipSharedBranchStart) {
+        html += this.variationCourseControlRowHtml(eventModel, courseId, courseControl, ui, depth);
+      }
       if (courseControl.variation && courseControl.variationCourseControls?.length) {
         const joinControl = getControl(eventModel, getCourseControl(eventModel, courseControl.variationEnd)?.control);
         html += `<div class="variation-split" style="--variation-depth:${depth}">
-          <div class="variation-split-title">${escapeHtml(this.t(courseControl.variation === "loop" ? "Loop" : "Fork"))}${joinControl ? ` -> ${escapeHtml(controlDisplayName(joinControl))}` : ""}</div>
+          <div class="variation-split-title">${escapeHtml(this.t(courseControl.variation === "loop" ? "Loop" : "Fork"))}${joinControl ? ` -> ${escapeHtml(this.t("Join"))}: ${escapeHtml(controlDisplayName(joinControl))}` : ""}</div>
+          <div class="variation-branch-list">
           ${courseControl.variationCourseControls.map(branchId => {
             const branch = getCourseControl(eventModel, branchId);
             const control = getControl(eventModel, branch?.control);
@@ -1090,16 +1100,18 @@ export class PurplePenApp extends HTMLElement {
             const body = this.variationSequenceHtml(eventModel, courseId, branchId, courseControl.variationEnd, ui, {
               branchCodes,
               seen: new Set(seen),
-              depth: depth + 1
+              depth: depth + 1,
+              skipFirstControlId: courseControl.control
             });
             return `<div class="variation-branch ${selected ? "selected" : ""}">
               <button type="button" class="variation-branch-button" data-select-variation-branch data-fork-course-control="${courseControl.id}" data-branch-course-control="${branchId}">
                 <strong>${escapeHtml(this.t("Branch"))} ${escapeHtml(code || "?")}</strong>
                 <span>${escapeHtml(control ? controlDisplayName(control) : this.t("Missing control"))}</span>
               </button>
-              <div class="variation-branch-body">${body}</div>
+              <div class="variation-branch-body">${body || `<div class="variation-empty-branch">${escapeHtml(this.t("Empty branch"))}</div>`}</div>
             </div>`;
           }).join("")}
+          </div>
         </div>`;
         currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
       }
@@ -3777,7 +3789,7 @@ function variationAnchorCourseControl(eventModel, courseId, ui = {}) {
   if (selection?.type === "leg" || selection?.type === "leg-bend") {
     return rows.find(row => Number(row.control?.id) === Number(selection.startControl))?.courseControl || null;
   }
-  return rows[0]?.courseControl || null;
+  return null;
 }
 
 function canAddVariationAtCourseControl(eventModel, course, courseControl) {
@@ -3793,12 +3805,40 @@ function normalizedVariationBranch(eventModel, courseId, variationBranch) {
   const branch = getCourseControl(eventModel, variationBranch.branchCourseControl);
   if (!fork?.variation || !branch) return null;
   if (!fork.variationCourseControls.map(Number).includes(Number(branch.id))) return null;
-  const courseControlIds = new Set(courseView(eventModel, courseId, { allBranches: true }).map(row => Number(row.courseControl?.id)));
+  const courseControlIds = courseControlTopologyIds(eventModel, courseId);
   if (!courseControlIds.has(Number(fork.id)) || !courseControlIds.has(Number(branch.id))) return null;
   return {
     forkCourseControl: Number(fork.id),
     branchCourseControl: Number(branch.id)
   };
+}
+
+function courseControlTopologyIds(eventModel, courseId) {
+  const course = getCourse(eventModel, courseId);
+  const ids = new Set();
+  const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 20);
+  let steps = 0;
+
+  function visit(startId, joinId = null) {
+    let currentId = Number(startId) || 0;
+    while (currentId && currentId !== Number(joinId) && steps++ < maxSteps) {
+      const courseControl = getCourseControl(eventModel, currentId);
+      if (!courseControl || ids.has(currentId)) break;
+      ids.add(currentId);
+      if (courseControl.variation) {
+        for (const branchId of courseControl.variationCourseControls || []) {
+          visit(branchId, courseControl.variationEnd);
+        }
+        currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
+      }
+      else {
+        currentId = Number(courseControl.nextCourseControl) || 0;
+      }
+    }
+  }
+
+  visit(course?.firstCourseControl);
+  return ids;
 }
 
 function lastCourseControlInVariationBranch(eventModel, courseId, variationBranch) {

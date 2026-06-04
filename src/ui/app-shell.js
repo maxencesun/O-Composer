@@ -1217,7 +1217,6 @@ export class PurplePenApp extends HTMLElement {
       title: `${box}: ${columnLabel}`,
       body: this.iscdSymbolPickerHtml(controlId, box, selectedValue),
       showActions: false,
-      showClose: false,
       onOpen: dialog => this.paintIscdCanvases(dialog),
       apply: () => true
     });

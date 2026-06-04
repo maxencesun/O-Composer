@@ -497,7 +497,7 @@ export class PurplePenApp extends HTMLElement {
               <div id="reportPanel" class="report-panel" hidden></div>
             </section>
             <section class="panel-block selection-panel">
-              <h2>${escapeHtml(this.t("Selection"))}</h2>
+              <h2>${escapeHtml(this.t("Adjustment"))}</h2>
               <div id="selectionPanel"></div>
             </section>
           </aside>

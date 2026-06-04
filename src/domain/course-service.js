@@ -33,7 +33,7 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
   const maxSteps = Math.max(1000, eventModel.courseControls.length * 20);
   let steps = 0;
 
-  function visit(id, joinId = null, ignoreFirstSplit = false) {
+  function visit(id, joinId = null, ignoreFirstSplit = false, sharedSplitControlId = null) {
     let currentId = id;
     let first = true;
     while (currentId && currentId !== joinId && steps++ < maxSteps) {
@@ -41,6 +41,10 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
       if (!courseControl) {
         break;
       }
+      const skipSharedSplitStart = first
+        && ignoreFirstSplit
+        && sharedSplitControlId
+        && Number(courseControl.control) === Number(sharedSplitControlId);
 
       const split = !!courseControl.variation;
       if (split && !(first && ignoreFirstSplit) && courseControl.variationCourseControls.length) {
@@ -51,7 +55,7 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
         const branches = courseControl.variationCourseControls;
         if (allBranches) {
           for (const branchId of branches) {
-            visit(branchId, courseControl.variationEnd, true);
+            visit(branchId, courseControl.variationEnd, true, courseControl.control);
           }
           currentId = courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd;
           first = false;
@@ -62,7 +66,7 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
           if (courseControl.variation === "loop") {
             const loopBranches = variationChoices.filter(choice => branches.includes(choice));
             for (const branchId of loopBranches) {
-              visit(branchId, courseControl.variationEnd, true);
+              visit(branchId, courseControl.variationEnd, true, courseControl.control);
             }
             currentId = courseControl.nextCourseControl;
             first = false;
@@ -70,7 +74,7 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
           }
           const selectedBranch = variationChoices.find(choice => branches.includes(choice)) || branches[0];
           if (selectedBranch) {
-            visit(selectedBranch, courseControl.variationEnd, true);
+            visit(selectedBranch, courseControl.variationEnd, true, courseControl.control);
             currentId = courseControl.variationEnd;
             first = false;
             continue;
@@ -79,14 +83,14 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
 
         const defaultBranch = branches[0] || currentId;
         if (defaultBranch !== currentId) {
-          visit(defaultBranch, courseControl.variationEnd, true);
+          visit(defaultBranch, courseControl.variationEnd, true, courseControl.control);
           currentId = courseControl.variationEnd;
           first = false;
           continue;
         }
       }
 
-      if (!seen.has(currentId) || allBranches) {
+      if (!skipSharedSplitStart && (!seen.has(currentId) || allBranches)) {
         result.push(currentId);
         seen.add(currentId);
       }

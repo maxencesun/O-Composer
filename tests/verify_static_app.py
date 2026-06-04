@@ -52,6 +52,7 @@ def verify_app_files() -> None:
 
     imported = re.findall(r"from\s+[\"']([^\"']+)[\"']", (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8"))
     app_shell = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
+    styles = (ROOT / "styles.css").read_text(encoding="utf-8")
     assert "../domain/ppen-parser.js" in imported
     assert "../domain/omap-parser.js" in imported
     assert "../domain/print-area.js" in imported
@@ -66,6 +67,7 @@ def verify_app_files() -> None:
     control_descriptions = (ROOT / "src" / "domain" / "control-descriptions.js").read_text(encoding="utf-8")
     course_service = (ROOT / "src" / "domain" / "course-service.js").read_text(encoding="utf-8")
     print_area = (ROOT / "src" / "domain" / "print-area.js").read_text(encoding="utf-8")
+    actions = (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8")
     relay_variations = (ROOT / "src" / "domain" / "relay-variations.js").read_text(encoding="utf-8")
     exporters = (ROOT / "src" / "domain" / "exporters.js").read_text(encoding="utf-8")
     ppen_parser = (ROOT / "src" / "domain" / "ppen-parser.js").read_text(encoding="utf-8")
@@ -80,7 +82,11 @@ def verify_app_files() -> None:
     for token in ["courseVariationControls", "data-course-variation-mode", "data-relay-team", "data-relay-branch", "addForkToLeg", "relayAssignmentTable"]:
         assert token in app_shell + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing relay design UI support: {token}"
     for token in ["variationPanel", "data-panel=\"variation\"", "renderVariation", "variationSequenceHtml", "data-select-variation-branch", "addVariationAtCourseControl", "lastCourseControlInVariationBranch"]:
-        assert token in app_shell + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing Purple Pen-style variation ordering UI: {token}"
+        assert token in app_shell + actions, f"missing Purple Pen-style variation ordering UI: {token}"
+    for token in ["variation-branch-list", "variation-empty-branch", "skipFirstControlId", "sharedSplitControlId"]:
+        assert token in app_shell + styles + course_service, f"variation UI should show an equal branch tree without duplicated split controls: {token}"
+    add_variation_body = actions.split("export function addVariationAtCourseControl", 1)[1].split("export function addForkToLeg", 1)[0]
+    assert "createControl(" not in add_variation_body, "adding a fork must not create fake map controls"
     for token in ["backgroundCalibrationAnchorCenter", "resetBackgroundCalibrationBase(ui.background)", "applyBackgroundCalibration(ui.background, backgroundAspect(ui.background))", "background.centerX"]:
         assert token in app_shell, f"missing anchored background calibration support: {token}"
     for token in ["mapCourseDisplayOptions", "variationForCode", "relayVariationForLeg"]:

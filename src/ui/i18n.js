@@ -126,6 +126,8 @@ const ZH = Object.freeze({
   "Branches": "分支数",
   "Fork": "分叉",
   "Loop": "循环",
+  "Join": "汇合",
+  "Empty branch": "空分支",
   "Any leg": "任意棒次",
   "Code": "代码",
   "Controls": "检查点",

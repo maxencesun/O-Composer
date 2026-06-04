@@ -115,6 +115,8 @@ def verify_app_files() -> None:
         assert token in pdf_exporter, f"PDF export should embed project font files: {token}"
     styles = (ROOT / "styles.css").read_text(encoding="utf-8")
     map_view = (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8")
+    for token in [".course-banner-text > *", "text-overflow: ellipsis", ".map-panel {\n  display: grid;\n  grid-template-rows: auto minmax(0, 1fr);\n  min-width: 0;\n  min-height: 0;\n  overflow: hidden;"]:
+        assert token in styles, f"long event/course names must not stretch the map panel over the selection panel: {token}"
     for token in ['font-family: "Roboto"', 'font-family: "Roboto Condensed"', 'font-family: "黑体"', 'Heiti.ttf']:
         assert token in styles, f"page should load the same project fonts that PDF embeds: {token}"
     for token in [".menubar,", ".menubar *", ".toolbar,", ".toolbar *", "cursor: default", "user-select: none"]:

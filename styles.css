@@ -277,6 +277,10 @@ button:hover {
   background: #fff;
 }
 
+.mobile-course-picker {
+  display: none;
+}
+
 .workspace-divider {
   min-width: 7px;
   background: linear-gradient(90deg, #c9d2da 0, #c9d2da 1px, #eef2f4 1px, #eef2f4 6px, #c9d2da 6px);
@@ -954,6 +958,28 @@ button:hover {
     display: none;
   }
 
+  .course-tabs {
+    display: none;
+  }
+
+  .mobile-course-picker {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 5px 6px;
+    border-bottom: 1px solid var(--line);
+    background: #edf1f4;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .mobile-course-picker select {
+    min-width: 0;
+    height: 28px;
+  }
+
   .menu-list {
     position: fixed;
     top: 34px;
@@ -1199,7 +1225,7 @@ button:hover {
     min-width: 0;
     min-height: 0;
     order: 1;
-    grid-template-rows: minmax(170px, 1fr) minmax(150px, 0.7fr);
+    grid-template-rows: auto minmax(140px, 0.72fr) minmax(220px, 1.28fr);
     border-right: 1px solid var(--line);
     border-top: 0;
   }

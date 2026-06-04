@@ -130,8 +130,10 @@ def verify_app_files() -> None:
     for token in ["flex-wrap: wrap", "align-content: flex-start", "overflow-y: auto"]:
         assert token in styles, f"mobile quick toolbar should wrap when icons do not fit one row: {token}"
     assert ".map-view-controls {\n    display: none;" in styles, "mobile should hide top map view sliders and controls"
-    for token in ["@media (pointer: coarse) and (orientation: landscape)", "grid-template-columns: clamp(340px, 42dvw, 420px) minmax(0, 1fr)", "grid-template-rows: minmax(170px, 1fr) minmax(150px, 0.7fr)", ".description-table {\n    min-width: 320px;", "order: 1", "order: 2"]:
+    for token in ["@media (pointer: coarse) and (orientation: landscape)", "grid-template-columns: clamp(340px, 42dvw, 420px) minmax(0, 1fr)", "grid-template-rows: auto minmax(140px, 0.72fr) minmax(220px, 1.28fr)", ".description-table {\n    min-width: 320px;", "order: 1", "order: 2"]:
         assert token in styles, f"mobile landscape should put description/selection panels left of the map with a readable description width: {token}"
+    for token in ["mobile-course-picker", "mobileCourseSelect", "selectCourse", ".course-tabs {\n    display: none;", "grid-template-rows: auto minmax(140px, 0.72fr) minmax(220px, 1.28fr)"]:
+        assert token in styles + app_shell, f"mobile landscape should use a left-panel course dropdown above description/selection: {token}"
     for token in ["height: 100dvh", "overflow-y: hidden", "min-height: 0", "overflow: hidden", "max-height: 40px", "flex-wrap: nowrap"]:
         assert token in styles, f"mobile landscape should keep the page fixed while internal panels scroll: {token}"
     for token in ["width: min(360px, calc(100dvw - 24px))", "grid-template-columns: repeat(5, 30px)", ".iscd-picker-option,\n  .iscd-picker-canvas", "minmax(18px, 1fr)", "height: 18px"]:

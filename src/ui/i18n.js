@@ -169,6 +169,7 @@ const ZH = Object.freeze({
   "Courses": "路线",
   "Description": "说明",
   "Report": "报告",
+  "Adjustment": "调整",
   "Selection": "选择",
   "Resize panels": "调整面板宽度",
   "Close": "关闭",

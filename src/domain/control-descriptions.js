@@ -118,8 +118,9 @@ export function createDescriptionSpecialOptions(eventModel, point, selectedCours
   const targetCourseId = descriptionTargetForNewSpecial(eventModel, selectedCourseId);
   const rows = buildControlDescriptionRows(eventModel, targetCourseId, "symbols");
   const cellSize = DEFAULT_CELL_SIZE;
+  const cellSizeMap = descriptionCellSizeMap(eventModel, targetCourseId, { cellSize });
   return {
-    locations: [{ x: point.x, y: point.y }, { x: point.x + cellSize, y: point.y }],
+    locations: [{ x: point.x, y: point.y }, { x: point.x + cellSizeMap, y: point.y }],
     numColumns: bestDescriptionColumns(rows.length, 8),
     cellSize,
     descriptionKind: "symbols",
@@ -195,6 +196,22 @@ export function descriptionCellSize(special) {
   return DEFAULT_CELL_SIZE;
 }
 
+function descriptionCellSizeMap(eventModel, targetCourseId, special) {
+  return paperMmToMapUnits(descriptionCellSize(special), printScaleForDescription(eventModel, targetCourseId));
+}
+
+function paperMmToMapUnits(mm, printScale) {
+  return Math.max(0.001, Number(mm) || DEFAULT_CELL_SIZE) / 1000 * Math.max(1, Number(printScale) || 15000);
+}
+
+function printScaleForDescription(eventModel, targetCourseId) {
+  const mapScale = Math.max(1, Number(eventModel?.event?.map?.scale) || 15000);
+  if (targetCourseId !== "all") {
+    return Math.max(1, Number(getCourse(eventModel, targetCourseId)?.options?.printScale) || mapScale);
+  }
+  return Math.max(1, Number(eventModel?.event?.allControls?.printScale) || mapScale);
+}
+
 export function descriptionKindForSpecial(special, eventModel, selectedCourseId = "all") {
   return DESCRIPTION_KINDS.includes(special?.descriptionKind) ? special.descriptionKind : descriptionKindFromCourse(eventModel, selectedCourseId);
 }
@@ -225,7 +242,7 @@ export function descriptionMetrics(eventModel, special, selectedCourseId = "all"
   const kind = descriptionKindForSpecial(special, eventModel, targetCourseId);
   const rows = buildControlDescriptionRows(eventModel, targetCourseId, kind);
   const columns = Math.max(1, Number(special?.numColumns) || 1);
-  const cellSize = descriptionCellSize(special);
+  const cellSize = descriptionCellSizeMap(eventModel, targetCourseId, special);
   const widthCells = kind === "symbols-and-text" ? 13 : 8;
   const rowsPerColumn = Math.max(1, Math.ceil(rows.length / columns));
   const columnWidth = widthCells * cellSize;
@@ -242,14 +259,17 @@ export function descriptionBounds(eventModel, special, selectedCourseId = "all")
 
 export function resizedDescriptionSpecial(eventModel, special, anchor, target, selectedCourseId = "all") {
   const metrics = descriptionMetrics(eventModel, special, selectedCourseId);
+  const targetCourseId = descriptionCoursesTarget(special, selectedCourseId);
+  const printScale = printScaleForDescription(eventModel, targetCourseId);
+  const minCellSizeMap = paperMmToMapUnits(MIN_CELL_SIZE, printScale);
   const rowCount = Math.max(1, metrics.rows.length);
-  const desiredWidth = Math.max(Math.abs(target.x - anchor.x), MIN_CELL_SIZE * metrics.widthCells);
-  const desiredHeight = Math.max(Math.abs(anchor.y - target.y), MIN_CELL_SIZE * 2);
+  const desiredWidth = Math.max(Math.abs(target.x - anchor.x), minCellSizeMap * metrics.widthCells);
+  const desiredHeight = Math.max(Math.abs(anchor.y - target.y), minCellSizeMap * 2);
   const maxColumns = Math.max(1, Math.ceil(rowCount / 4));
   let best = { columns: 1, score: Infinity };
   for (let columns = 1; columns <= maxColumns; columns += 1) {
     const rowsPerColumn = Math.ceil(rowCount / columns);
-    const cell = Math.max(MIN_CELL_SIZE, Math.min(
+    const cell = Math.max(minCellSizeMap, Math.min(
       desiredWidth / (metrics.widthCells * columns + COLUMN_GAP_CELLS * Math.max(0, columns - 1) + MARGIN_CELLS * 2),
       desiredHeight / (rowsPerColumn + MARGIN_CELLS * 2)
     ));
@@ -257,12 +277,13 @@ export function resizedDescriptionSpecial(eventModel, special, anchor, target, s
     if (score < best.score) best = { columns, score };
   }
   const rowsPerColumn = Math.ceil(rowCount / best.columns);
-  const cellSize = Math.max(MIN_CELL_SIZE, Math.min(
+  const cellSizeMap = Math.max(minCellSizeMap, Math.min(
     desiredWidth / (metrics.widthCells * best.columns + COLUMN_GAP_CELLS * Math.max(0, best.columns - 1) + MARGIN_CELLS * 2),
     desiredHeight / (rowsPerColumn + MARGIN_CELLS * 2)
   ));
+  const cellSize = cellSizeMap / printScale * 1000;
   const topLeft = { x: Math.min(anchor.x, target.x), y: Math.max(anchor.y, target.y) };
-  return { ...special, numColumns: best.columns, cellSize, locations: [topLeft, { x: topLeft.x + cellSize, y: topLeft.y }] };
+  return { ...special, numColumns: best.columns, cellSize, locations: [topLeft, { x: topLeft.x + cellSizeMap, y: topLeft.y }] };
 }
 
 export function drawControlDescriptionBlock(ctx, eventModel, special, selectedCourseId, toScreen) {

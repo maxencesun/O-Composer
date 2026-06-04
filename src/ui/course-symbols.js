@@ -52,7 +52,7 @@ export function createCourseSymbolMetrics(eventModel, course, appearance, pixels
     ? positiveNumber(eventModel?.event?.allControls?.printScale, mapScale)
     : positiveNumber(course?.options?.printScale, mapScale);
   const courseObjRatio = courseObjectRatio(appearance, mapScale, printScale);
-  const unit = pixelsPerMapMm * courseObjRatio;
+  const unit = pixelsPerMapMm * mapScale / 1000 * courseObjRatio;
   return {
     appearance,
     mapStandard: appearance?.mapStandard || eventModel?.event?.standards?.map || "2017",

@@ -1072,18 +1072,16 @@ button:hover {
   body {
     width: 100%;
     max-width: 100%;
-    height: auto;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   .app-frame {
     width: 100dvw;
     max-width: 100dvw;
     min-width: 0;
-    height: auto;
-    min-height: 100dvh;
+    height: 100dvh;
     grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   }
 

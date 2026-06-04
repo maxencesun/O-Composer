@@ -1022,6 +1022,7 @@ export class MapView {
   pointerDown(event) {
     this.canvas.setPointerCapture(event.pointerId);
     const screen = pointerPosition(event);
+    this._dragRect = event.currentTarget?.getBoundingClientRect?.() || null;
     this.activePointers.set(event.pointerId, screen);
     if (this.activePointers.size >= 2) {
       this.beginPinch();
@@ -1108,7 +1109,7 @@ export class MapView {
   }
 
   pointerMove(event) {
-    const screen = pointerPosition(event);
+    const screen = pointerPosition(event, this._dragRect);
     if (this.activePointers.has(event.pointerId)) {
       this.activePointers.set(event.pointerId, screen);
     }
@@ -1313,6 +1314,7 @@ export class MapView {
     this.descriptionDragPreview = null;
     this.specialShapePreview = null;
     this.drag = null;
+    this._dragRect = null;
   }
 
   updateToolPreview(tool, point) {
@@ -2519,8 +2521,8 @@ function wheelZoomFactor(event, fallbackHeight) {
   return clamp(Math.exp(-deltaY * 0.0015), 0.72, 1.38);
 }
 
-function pointerPosition(event) {
-  const rect = event.currentTarget?.getBoundingClientRect?.();
+function pointerPosition(event, cachedRect) {
+  const rect = cachedRect || event.currentTarget?.getBoundingClientRect?.();
   if (!rect) return { x: event.offsetX, y: event.offsetY };
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }

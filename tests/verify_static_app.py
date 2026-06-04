@@ -81,6 +81,8 @@ def verify_app_files() -> None:
     assert re.search(r'const APP_VERSION = "\d+\.\d+\.\d+"', app_shell), "app version must be three numeric levels"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
+    for token in ["feedback-link", "https://365.kdocs.cn/l/cmBYi18akxdM", "Feedback", "反馈通道"]:
+        assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing feedback channel next to app branding: {token}"
     assert "prompt(" not in app_shell, "browser prompt dialogs should not be used"
     assert (ROOT / "src" / "state" / "cookie-cache.js").exists()
     cookie_cache = (ROOT / "src" / "state" / "cookie-cache.js").read_text(encoding="utf-8")
@@ -130,9 +132,9 @@ def verify_app_files() -> None:
     for token in ["flex-wrap: wrap", "align-content: flex-start", "overflow-y: auto"]:
         assert token in styles, f"mobile quick toolbar should wrap when icons do not fit one row: {token}"
     assert ".map-view-controls {\n    display: none;" in styles, "mobile should hide top map view sliders and controls"
-    for token in ["@media (pointer: coarse) and (orientation: landscape)", "grid-template-columns: clamp(340px, 42dvw, 420px) minmax(0, 1fr)", "grid-template-rows: auto minmax(110px, 0.5fr) minmax(280px, 1.5fr)", ".description-table {\n    min-width: 320px;", "order: 1", "order: 2"]:
+    for token in ["@media (pointer: coarse) and (orientation: landscape)", "grid-template-columns: clamp(320px, 38dvw, 390px) minmax(380px, 1fr) clamp(280px, 34dvw, 380px)", "overflow-x: auto", ".description-table {\n    min-width: 320px;", "grid-column: 2", "grid-column: 3"]:
         assert token in styles, f"mobile landscape should put description/selection panels left of the map with a readable description width: {token}"
-    for token in ["mobile-side-controls", "mobileCourseSelect", "mobilePanelSelect", "selectCourse", ".course-tabs {\n    display: none;", "grid-template-rows: auto minmax(110px, 0.5fr) minmax(280px, 1.5fr)"]:
+    for token in ["mobile-side-controls", "mobileCourseSelect", "mobilePanelSelect", "selectCourse", ".course-tabs {\n    display: none;", "display: contents", ".left-panel > .panel-block:not(.selection-panel)"]:
         assert token in styles + app_shell, f"mobile landscape should use left-panel course/panel dropdowns above description/selection: {token}"
     assert ".left-panel .panel-heading {\n    display: none;" in styles, "mobile landscape should hide Description/Report segmented buttons when using the panel dropdown"
     for token in ["--mobile-landscape-height: 100dvh", "--mobile-landscape-height: 100svh", "height: var(--mobile-landscape-height)", "env(safe-area-inset-bottom", "overflow-y: hidden", "min-height: 0", "overflow: hidden", "max-height: 40px", "flex-wrap: nowrap"]:

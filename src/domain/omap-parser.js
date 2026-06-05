@@ -1,6 +1,7 @@
 const OMAP_UNIT = 1000;
+const DEFAULT_OMAP_SCALE = 15000;
 
-export function parseOmap(xmlText, fileName = "map.omap") {
+export function parseOmap(xmlText, fileName = "map.omap", options = {}) {
   const text = String(xmlText || "");
   if (text.startsWith("PK")) {
     throw new Error("This looks like a compressed archive. Save or export the map as an uncompressed OpenOrienteering Mapper .omap/.xmap XML file, then import it again.");
@@ -20,17 +21,21 @@ export function parseOmap(xmlText, fileName = "map.omap") {
     throw new Error("The selected file is not an OpenOrienteering Mapper map.");
   }
 
-  const colors = parseColors(root);
-  const symbols = parseSymbols(root, colors);
-  const objects = parseObjects(root, symbols);
-  const bounds = computeBounds(objects, symbols);
   const georeferencing = firstDescendant(root, "georeferencing");
+  const mapScale = positiveScale(scaleAttr(georeferencing, "scale", null));
+  const fallbackScale = positiveScale(options?.fallbackScale) || DEFAULT_OMAP_SCALE;
+  const unitScale = omapUnitScale(mapScale || fallbackScale);
+  const colors = parseColors(root);
+  const symbols = parseSymbols(root, colors, unitScale);
+  const objects = parseObjects(root, symbols, unitScale);
+  const bounds = computeBounds(objects, symbols);
 
   return {
     kind: "omap",
     name: fileName,
     version: root.getAttribute("version") || "",
-    scale: numberAttr(georeferencing, "scale", null),
+    scale: mapScale,
+    unitScale,
     colors,
     symbols,
     objects,
@@ -70,18 +75,18 @@ function parseColors(root) {
   return colors;
 }
 
-function parseSymbols(root, colors) {
+function parseSymbols(root, colors, unitScale) {
   const symbols = {};
   for (const element of byTag(root, "symbol")) {
     const id = element.getAttribute("id");
     if (id === null) continue;
-    symbols[id] = parseSymbol(element, colors, 0);
+    symbols[id] = parseSymbol(element, colors, 0, unitScale);
   }
   resolveCombinedSymbolPriorities(symbols);
   return symbols;
 }
 
-function parseSymbol(element, colors, depth = 0) {
+function parseSymbol(element, colors, depth = 0, unitScale = 1 / OMAP_UNIT) {
   if (!element) {
     return null;
   }
@@ -107,23 +112,23 @@ function parseSymbol(element, colors, depth = 0) {
 
   if (line) {
     symbol.kind = "line";
-    symbol.line = parseLineSymbol(line, colors);
+    symbol.line = parseLineSymbol(line, colors, unitScale);
   }
   else if (area) {
     symbol.kind = "area";
-    symbol.area = parseAreaSymbol(area, colors, depth);
+    symbol.area = parseAreaSymbol(area, colors, depth, unitScale);
   }
   else if (point) {
     symbol.kind = "point";
-    symbol.point = parsePointSymbol(point, colors, depth);
+    symbol.point = parsePointSymbol(point, colors, depth, unitScale);
   }
   else if (text) {
     symbol.kind = "text";
-    symbol.text = parseTextSymbol(text, colors);
+    symbol.text = parseTextSymbol(text, colors, unitScale);
   }
   else if (combined) {
     symbol.kind = "combined";
-    symbol.combined = parseCombinedSymbol(combined, colors, depth);
+    symbol.combined = parseCombinedSymbol(combined, colors, depth, unitScale);
   }
   else {
     symbol.kind = "unknown";
@@ -132,14 +137,14 @@ function parseSymbol(element, colors, depth = 0) {
   return symbol;
 }
 
-function parseCombinedSymbol(element, colors, depth) {
+function parseCombinedSymbol(element, colors, depth, unitScale) {
   const parts = children(element, "part")
     .map(part => {
       const symbolId = part.getAttribute("symbol");
       if (symbolId !== null) {
         return { symbolId, symbol: null };
       }
-      const inlineSymbol = depth < 5 ? parseSymbol(firstChild(part, "symbol"), colors, depth + 1) : null;
+      const inlineSymbol = depth < 5 ? parseSymbol(firstChild(part, "symbol"), colors, depth + 1, unitScale) : null;
       return inlineSymbol ? { symbolId: null, symbol: inlineSymbol } : null;
     })
     .filter(Boolean);
@@ -161,24 +166,24 @@ function resolveCombinedSymbolPriorities(symbols) {
   }
 }
 
-function parseLineSymbol(element, colors) {
+function parseLineSymbol(element, colors, unitScale) {
   const colorId = stringAttr(element, "color", "-1");
-  const midSymbol = parseWrappedSymbol(firstChild(element, "mid_symbol"), colors);
-  const startSymbol = parseWrappedSymbol(firstChild(element, "start_symbol"), colors);
-  const endSymbol = parseWrappedSymbol(firstChild(element, "end_symbol"), colors);
-  const borders = parseLineBorders(element, colors);
+  const midSymbol = parseWrappedSymbol(firstChild(element, "mid_symbol"), colors, unitScale);
+  const startSymbol = parseWrappedSymbol(firstChild(element, "start_symbol"), colors, unitScale);
+  const endSymbol = parseWrappedSymbol(firstChild(element, "end_symbol"), colors, unitScale);
+  const borders = parseLineBorders(element, colors, unitScale);
   return {
     colorId,
     color: colorFor(colors, colorId, "#222"),
-    width: unitAttr(element, "line_width", 180),
+    width: unitAttr(element, "line_width", 180, unitScale),
     dashed: element.getAttribute("dashed") === "true",
-    dashLength: unitAttr(element, "dash_length", 2000),
-    breakLength: unitAttr(element, "break_length", 800),
-    segmentLength: unitAttr(element, "segment_length", 4000),
-    endLength: unitAttr(element, "end_length", 0),
+    dashLength: unitAttr(element, "dash_length", 2000, unitScale),
+    breakLength: unitAttr(element, "break_length", 800, unitScale),
+    segmentLength: unitAttr(element, "segment_length", 4000, unitScale),
+    endLength: unitAttr(element, "end_length", 0, unitScale),
     showAtLeastOneSymbol: element.getAttribute("show_at_least_one_symbol") === "true",
     midSymbolsPerSpot: numberAttr(element, "mid_symbols_per_spot", 1),
-    midSymbolDistance: unitAttr(element, "mid_symbol_distance", 0),
+    midSymbolDistance: unitAttr(element, "mid_symbol_distance", 0, unitScale),
     midSymbolPlacement: stringAttr(element, "mid_symbol_placement", "0"),
     midSymbol,
     startSymbol,
@@ -191,9 +196,9 @@ function parseLineSymbol(element, colors) {
   };
 }
 
-function parseLineBorders(element, colors) {
+function parseLineBorders(element, colors, unitScale) {
   const bordersElement = firstChild(element, "borders");
-  const borders = children(bordersElement, "border").map(border => parseLineBorder(border, colors)).filter(Boolean);
+  const borders = children(bordersElement, "border").map(border => parseLineBorder(border, colors, unitScale)).filter(Boolean);
   if (borders.length === 1) {
     return [
       { ...borders[0], side: "left" },
@@ -209,9 +214,9 @@ function parseLineBorders(element, colors) {
   return [];
 }
 
-function parseLineBorder(element, colors) {
+function parseLineBorder(element, colors, unitScale) {
   const colorId = stringAttr(element, "color", "-1");
-  const width = unitAttr(element, "width", 0);
+  const width = unitAttr(element, "width", 0, unitScale);
   const color = colorFor(colors, colorId, null);
   if (!color || width <= 0) {
     return null;
@@ -220,60 +225,60 @@ function parseLineBorder(element, colors) {
     colorId,
     color,
     width,
-    shift: unitAttr(element, "shift", 0),
+    shift: unitAttr(element, "shift", 0, unitScale),
     dashed: element.getAttribute("dashed") === "true",
-    dashLength: unitAttr(element, "dash_length", 2000),
-    breakLength: unitAttr(element, "break_length", 1000),
+    dashLength: unitAttr(element, "dash_length", 2000, unitScale),
+    breakLength: unitAttr(element, "break_length", 1000, unitScale),
     priority: colorPriority(colors, colorId)
   };
 }
 
-function parseAreaSymbol(element, colors, depth) {
+function parseAreaSymbol(element, colors, depth, unitScale) {
   const innerColorId = stringAttr(element, "inner_color", "-1");
-  const patterns = children(element, "pattern").map(pattern => parsePattern(pattern, colors, depth));
+  const patterns = children(element, "pattern").map(pattern => parsePattern(pattern, colors, depth, unitScale));
   const priorities = uniquePriorities([colorPriority(colors, innerColorId), ...patterns.flatMap(pattern => pattern.priorities)]);
   return {
     innerColorId,
     innerColor: colorFor(colors, innerColorId, null),
     innerPriority: colorPriority(colors, innerColorId),
-    minArea: unitAttr(element, "min_area", 0),
+    minArea: unitAttr(element, "min_area", 0, unitScale * unitScale),
     patterns,
     priority: firstPriority(priorities),
     priorities
   };
 }
 
-function parsePattern(element, colors, depth) {
+function parsePattern(element, colors, depth, unitScale) {
   const colorId = stringAttr(element, "color", "-1");
-  const nestedSymbol = depth < 5 ? parseSymbol(firstChild(element, "symbol"), colors, depth + 1) : null;
+  const nestedSymbol = depth < 5 ? parseSymbol(firstChild(element, "symbol"), colors, depth + 1, unitScale) : null;
   const priorities = uniquePriorities([colorPriority(colors, colorId), ...symbolPriorities(nestedSymbol)]);
   return {
     type: stringAttr(element, "type", "1"),
     angle: numberAttr(element, "angle", 0),
-    lineSpacing: unitAttr(element, "line_spacing", 1000),
-    lineOffset: unitAttr(element, "line_offset", 0),
-    pointDistance: unitAttr(element, "point_distance", 1000),
-    offsetAlongLine: unitAttr(element, "offset_along_line", 0),
+    lineSpacing: unitAttr(element, "line_spacing", 1000, unitScale),
+    lineOffset: unitAttr(element, "line_offset", 0, unitScale),
+    pointDistance: unitAttr(element, "point_distance", 1000, unitScale),
+    offsetAlongLine: unitAttr(element, "offset_along_line", 0, unitScale),
     colorId,
     color: colorFor(colors, colorId, "#777"),
-    lineWidth: unitAttr(element, "line_width", 160),
+    lineWidth: unitAttr(element, "line_width", 160, unitScale),
     symbol: nestedSymbol,
     priority: firstPriority(priorities),
     priorities
   };
 }
 
-function parsePointSymbol(element, colors, depth) {
+function parsePointSymbol(element, colors, depth, unitScale) {
   const innerColorId = stringAttr(element, "inner_color", "-1");
   const outerColorId = stringAttr(element, "outer_color", "-1");
-  const elements = depth < 5 ? children(element, "element").map(child => parsePointElement(child, colors, depth + 1)).filter(Boolean) : [];
+  const elements = depth < 5 ? children(element, "element").map(child => parsePointElement(child, colors, depth + 1, unitScale)).filter(Boolean) : [];
   return {
-    innerRadius: unitAttr(element, "inner_radius", 700),
+    innerRadius: unitAttr(element, "inner_radius", 700, unitScale),
     rotatable: element.getAttribute("rotatable") === "true",
     innerColorId,
     innerColor: colorFor(colors, innerColorId, null),
     innerPriority: colorPriority(colors, innerColorId),
-    outerWidth: unitAttr(element, "outer_width", 0),
+    outerWidth: unitAttr(element, "outer_width", 0, unitScale),
     outerColorId,
     outerColor: colorFor(colors, outerColorId, null),
     outerPriority: colorPriority(colors, outerColorId),
@@ -283,22 +288,22 @@ function parsePointSymbol(element, colors, depth) {
   };
 }
 
-function parsePointElement(element, colors, depth) {
-  const symbol = parseSymbol(firstChild(element, "symbol"), colors, depth);
-  const object = parseObject(firstChild(element, "object"), -1);
+function parsePointElement(element, colors, depth, unitScale) {
+  const symbol = parseSymbol(firstChild(element, "symbol"), colors, depth, unitScale);
+  const object = parseObject(firstChild(element, "object"), -1, null, unitScale);
   if (!symbol || !object) {
     return null;
   }
   return { symbol, object };
 }
 
-function parseTextSymbol(element, colors) {
+function parseTextSymbol(element, colors, unitScale) {
   const font = firstChild(element, "font");
   const text = firstChild(element, "text");
   const colorId = stringAttr(text, "color", "-1");
   return {
     family: stringAttr(font, "family", "Arial"),
-    size: unitAttr(font, "size", 3500),
+    size: unitAttr(font, "size", 3500, unitScale),
     colorId,
     color: colorFor(colors, colorId, "#222"),
     lineSpacing: numberAttr(text, "line_spacing", 1.15),
@@ -306,8 +311,8 @@ function parseTextSymbol(element, colors) {
   };
 }
 
-function parseWrappedSymbol(element, colors) {
-  return parseSymbol(firstChild(element, "symbol"), colors, 1);
+function parseWrappedSymbol(element, colors, unitScale) {
+  return parseSymbol(firstChild(element, "symbol"), colors, 1, unitScale);
 }
 
 function symbolPriorities(symbol) {
@@ -328,13 +333,13 @@ function firstPriority(values) {
   return values.length ? Math.min(...values) : 99;
 }
 
-function parseObjects(root, symbols) {
+function parseObjects(root, symbols, unitScale) {
   const objects = [];
   let index = 0;
   for (const part of byTag(root, "part")) {
     for (const container of children(part, "objects")) {
       for (const objectElement of children(container, "object")) {
-        const object = parseObject(objectElement, index, symbols);
+        const object = parseObject(objectElement, index, symbols, unitScale);
         if (object) {
           objects.push(object);
           index += 1;
@@ -345,12 +350,12 @@ function parseObjects(root, symbols) {
   return objects;
 }
 
-function parseObject(element, index, symbols) {
+function parseObject(element, index, symbols, unitScale = 1 / OMAP_UNIT) {
   if (!element) {
     return null;
   }
-  const coords = parseCoords(textOf(firstChild(element, "coords")));
-  const size = parseSize(element, coords);
+  const coords = parseCoords(textOf(firstChild(element, "coords")), unitScale);
+  const size = parseSize(element, coords, unitScale);
   const object = {
     type: stringAttr(element, "type", "1"),
     symbolId: element.getAttribute("symbol"),
@@ -366,7 +371,7 @@ function parseObject(element, index, symbols) {
   return object;
 }
 
-function parseCoords(text) {
+function parseCoords(text, unitScale = 1 / OMAP_UNIT) {
   return String(text || "")
     .split(";")
     .map(part => part.trim())
@@ -374,19 +379,19 @@ function parseCoords(text) {
     .map(part => {
       const values = part.split(/\s+/).map(Number).filter(Number.isFinite);
       return {
-        x: (values[0] || 0) / OMAP_UNIT,
-        y: -(values[1] || 0) / OMAP_UNIT,
+        x: (values[0] || 0) * unitScale,
+        y: -(values[1] || 0) * unitScale,
         flags: values[2] || 0
       };
     });
 }
 
-function parseSize(element, coords) {
+function parseSize(element, coords, unitScale = 1 / OMAP_UNIT) {
   const size = firstChild(element, "size");
   if (size) {
     return {
-      width: unitAttr(size, "width", 0),
-      height: unitAttr(size, "height", 0)
+      width: unitAttr(size, "width", 0, unitScale),
+      height: unitAttr(size, "height", 0, unitScale)
     };
   }
   if (stringAttr(element, "type", "") === "4" && coords.length > 1) {
@@ -565,8 +570,31 @@ function numberAttr(element, name, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
 }
 
-function unitAttr(element, name, fallback = 0) {
-  return numberAttr(element, name, fallback) / OMAP_UNIT;
+function unitAttr(element, name, fallback = 0, unitScale = 1 / OMAP_UNIT) {
+  return numberAttr(element, name, fallback) * unitScale;
+}
+
+function omapUnitScale(mapScale) {
+  // OMAP stores coordinates and symbol dimensions as 1/1000 mm on the printed map.
+  // The rest of this app stores map geometry in real-world metres. Convert:
+  //   raw / 1000 printed-mm * mapScale / 1000 metres-per-printed-mm.
+  const scale = positiveScale(mapScale) || DEFAULT_OMAP_SCALE;
+  return scale / (OMAP_UNIT * 1000);
+}
+
+function scaleAttr(element, name, fallback = null) {
+  if (!element) return fallback;
+  const raw = element.getAttribute(name);
+  if (raw === null || raw === undefined || raw === "") return fallback;
+  const direct = Number(raw);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const match = String(raw).match(/(?:1\s*:\s*)?([0-9]+(?:\.[0-9]+)?)/);
+  return match ? Number(match[1]) : fallback;
+}
+
+function positiveScale(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
 }
 
 function colorFor(colors, id, fallback) {

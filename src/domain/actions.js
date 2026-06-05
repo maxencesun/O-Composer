@@ -8,6 +8,7 @@ import {
 } from "./event-model.js";
 import {
   controlsUsedByCourse,
+  courseGraphCourseControlIds,
   courseView,
   getControl,
   getCourse,
@@ -29,16 +30,22 @@ export function addControlAt(eventModel, kind, location, selectedCourseId = null
   }
   eventModel.controls.push(control);
 
+  let courseControl = null;
   if (selectedCourseId && selectedCourseId !== "all") {
-    appendControlToCourse(eventModel, Number(selectedCourseId), control.id, {
+    courseControl = appendControlToCourse(eventModel, Number(selectedCourseId), control.id, {
       mapExchange: kind === "map-exchange",
       mapFlip: !!options.mapFlip,
       afterCourseControl: coursePlacement ? null : options.afterCourseControl,
+      beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
       placement: coursePlacement
     });
   }
 
-  return { type: "control", id: control.id };
+  return {
+    type: "control",
+    id: control.id,
+    courseControl: courseControl?.id || null
+  };
 }
 
 export function addExistingControlToCourse(eventModel, courseId, controlId, options = {}) {
@@ -46,10 +53,15 @@ export function addExistingControlToCourse(eventModel, courseId, controlId, opti
   const coursePlacement = controlCoursePlacement(control?.kind, eventModel, courseId);
   const courseControl = appendControlToCourse(eventModel, Number(courseId), Number(controlId), {
     afterCourseControl: coursePlacement ? null : options.afterCourseControl,
+    beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
     placement: coursePlacement,
     beforeFinish: options.beforeFinish
   });
-  return courseControl ? { type: "control", id: Number(controlId) } : null;
+  return courseControl ? {
+    type: "control",
+    id: Number(controlId),
+    courseControl: courseControl.id
+  } : null;
 }
 
 export function addSpecialAt(eventModel, kind, location, options = {}) {
@@ -138,10 +150,45 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
     return newCourseControl;
   }
 
+  const insertBefore = options.beforeCourseControl ? getCourseControl(eventModel, options.beforeCourseControl) : null;
+  if (insertBefore && courseContainsCourseControl(eventModel, courseId, insertBefore.id)) {
+    newCourseControl.nextCourseControl = insertBefore.id;
+    const variationEndOwners = variationOwnersEndingAtCourseControl(eventModel, courseId, insertBefore.id);
+    let rewired = false;
+    for (const courseControl of eventModel.courseControls) {
+      if (Number(courseControl.nextCourseControl) === Number(insertBefore.id)
+        && Number(courseControl.id) !== Number(newCourseControl.id)
+        && courseContainsCourseControl(eventModel, courseId, courseControl.id)) {
+        courseControl.nextCourseControl = newCourseControl.id;
+        rewired = true;
+      }
+    }
+    if (Number(course.firstCourseControl) === Number(insertBefore.id)) {
+      course.firstCourseControl = newCourseControl.id;
+      rewired = true;
+    }
+    if (rewired) {
+      // If the target is the join checkpoint of a fork, inserting before it
+      // should create a shared checkpoint after the branch block, not a new
+      // checkpoint duplicated inside every branch. Promote the new checkpoint
+      // to be the variationEnd, then keep the old join as the next common
+      // checkpoint.
+      for (const owner of variationEndOwners) {
+        owner.variationEnd = newCourseControl.id;
+      }
+      return newCourseControl;
+    }
+  }
+
   const insertAfter = options.afterCourseControl ? getCourseControl(eventModel, options.afterCourseControl) : null;
   if (insertAfter && courseContainsCourseControl(eventModel, courseId, insertAfter.id)) {
-    newCourseControl.nextCourseControl = insertAfter.nextCourseControl || null;
-    insertAfter.nextCourseControl = newCourseControl.id;
+    if (insertAfter.variation && insertAfter.variationCourseControls?.length) {
+      insertCourseControlBetweenForkOwnerAndVariation(eventModel, insertAfter, newCourseControl);
+    }
+    else {
+      newCourseControl.nextCourseControl = insertAfter.nextCourseControl || null;
+      insertAfter.nextCourseControl = newCourseControl.id;
+    }
     return newCourseControl;
   }
 
@@ -182,6 +229,15 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
   return newCourseControl;
 }
 
+function variationOwnersEndingAtCourseControl(eventModel, courseId, courseControlId) {
+  const targetId = Number(courseControlId) || 0;
+  if (!targetId) return [];
+  return eventModel.courseControls
+    .filter(courseControl => courseControl?.variation
+      && Number(courseControl.variationEnd) === targetId
+      && courseContainsCourseControl(eventModel, courseId, courseControl.id));
+}
+
 function courseContainsCourseControl(eventModel, courseId, courseControlId) {
   const course = getCourse(eventModel, courseId);
   const id = Number(courseControlId);
@@ -218,6 +274,42 @@ function courseContainsCourseControl(eventModel, courseId, courseControlId) {
   }
 
   return visit(course.firstCourseControl);
+}
+
+
+function insertCourseControlBetweenForkOwnerAndVariation(eventModel, forkOwnerCourseControl, newCourseControl) {
+  const oldNext = forkOwnerCourseControl.nextCourseControl || null;
+  const movedVariation = forkOwnerCourseControl.variation || "";
+  const movedVariationEnd = forkOwnerCourseControl.variationEnd || null;
+  const movedBranches = [...(forkOwnerCourseControl.variationCourseControls || [])];
+  const oldOwnerControl = forkOwnerCourseControl.control;
+
+  forkOwnerCourseControl.variation = "";
+  forkOwnerCourseControl.variationEnd = null;
+  forkOwnerCourseControl.variationCourseControls = [];
+  forkOwnerCourseControl.nextCourseControl = newCourseControl.id;
+
+  newCourseControl.nextCourseControl = oldNext;
+  newCourseControl.variation = movedVariation;
+  newCourseControl.variationEnd = Number(movedVariationEnd) === Number(forkOwnerCourseControl.id)
+    ? newCourseControl.id
+    : movedVariationEnd;
+  newCourseControl.variationCourseControls = movedBranches;
+
+  // Hidden branch markers use the same map control as their fork owner. Once
+  // the split is moved down to the inserted checkpoint, update those markers so
+  // they stay hidden and continue to mean "start of this branch" rather than a
+  // real repeated control.
+  for (const branchId of movedBranches) {
+    const branchCourseControl = getCourseControl(eventModel, branchId);
+    if (!branchCourseControl) continue;
+    if (Number(branchCourseControl.control) === Number(oldOwnerControl)) {
+      branchCourseControl.control = newCourseControl.control;
+    }
+    if (Number(branchCourseControl.nextCourseControl) === Number(forkOwnerCourseControl.id)) {
+      branchCourseControl.nextCourseControl = newCourseControl.id;
+    }
+  }
 }
 
 export function controlCoursePlacement(kind, eventModel, selectedCourseId) {
@@ -317,7 +409,7 @@ export function removeControlFromCourse(eventModel, controlId, selectedCourseId)
 export function removeCourse(eventModel, courseId) {
   const course = getCourse(eventModel, courseId);
   if (!course) return;
-  const usedCourseControls = new Set(courseView(eventModel, course.id, { allBranches: true }).map(row => row.courseControl.id));
+  const usedCourseControls = new Set(courseGraphCourseControlIds(eventModel, course.id));
   eventModel.courses = eventModel.courses.filter(candidate => candidate.id !== Number(courseId));
   eventModel.courseControls = eventModel.courseControls.filter(courseControl => !usedCourseControls.has(courseControl.id));
   resequenceCourses(eventModel);
@@ -375,7 +467,9 @@ export function duplicateCourse(eventModel, courseId, name) {
   clone.order = eventModel.courses.length + 1;
 
   const idMap = new Map();
-  const sourceControls = courseView(eventModel, source.id, { allBranches: true }).map(row => row.courseControl);
+  const sourceControls = courseGraphCourseControlIds(eventModel, source.id)
+    .map(id => getCourseControl(eventModel, id))
+    .filter(Boolean);
   for (const sourceCourseControl of sourceControls) {
     const copied = structuredClone(sourceCourseControl);
     copied.id = nextId([...eventModel.courseControls, ...idMapValues(idMap)]);
@@ -466,36 +560,46 @@ export function setCourseOrder(eventModel, orderedIds) {
 
 export function addVariationAtCourseControl(eventModel, courseId, courseControlId, options = {}) {
   const course = getCourse(eventModel, courseId);
-  const fromCourseControl = getCourseControl(eventModel, courseControlId);
-  const toCourseControl = getCourseControl(eventModel, fromCourseControl?.nextCourseControl);
-  if (!course || course.kind === "score" || !fromCourseControl || !toCourseControl || fromCourseControl.variation) return null;
+  const forkCourseControl = getCourseControl(eventModel, courseControlId);
+  const joinCourseControl = getCourseControl(eventModel, forkCourseControl?.nextCourseControl);
+  if (!course || course.kind === "score" || !forkCourseControl || !joinCourseControl || forkCourseControl.variation) return null;
 
-  const from = getControl(eventModel, fromCourseControl.control);
-  const to = getControl(eventModel, toCourseControl.control);
-  if (!from || !to || from.kind === "finish") return null;
+  const forkControl = getControl(eventModel, forkCourseControl.control);
+  const joinControl = getControl(eventModel, joinCourseControl.control);
+  if (!forkControl || !joinControl || forkControl.kind === "finish") return null;
 
   const branchCount = Math.max(2, Math.min(6, Math.round(Number(options.branches) || 2)));
   const variation = options.kind === "loop" ? "loop" : "fork";
-  const joinCourseControlId = variation === "loop" ? fromCourseControl.id : toCourseControl.id;
+  const joinCourseControlId = variation === "loop" ? forkCourseControl.id : joinCourseControl.id;
 
-  const branchControls = [fromCourseControl];
-  for (let index = 1; index < branchCount; index += 1) {
-    const courseControl = createCourseControl(nextId(eventModel.courseControls), fromCourseControl.control, joinCourseControlId);
-    eventModel.courseControls.push(courseControl);
-    branchControls.push(courseControl);
+  // Relay variations are stored as a proper fork/join graph. The visible fork
+  // course-control owns the variation metadata. Each branch gets its own hidden
+  // branch marker course-control; the marker uses the same map control as the
+  // fork, and its nextCourseControl points to the first real control on that
+  // branch, or directly to variationEnd while the branch is empty.
+  //
+  // Do NOT put the fork owner itself in variationCourseControls. A self-branch
+  // makes the first branch disappear from traversal/code generation and makes
+  // branch clicks ambiguous.
+  const branchControls = [];
+  for (let index = 0; index < branchCount; index += 1) {
+    const branch = createCourseControl(nextId(eventModel.courseControls), forkCourseControl.control, joinCourseControlId);
+    branch.variation = "";
+    branch.variationEnd = null;
+    branch.variationCourseControls = [];
+    eventModel.courseControls.push(branch);
+    branchControls.push(branch);
   }
 
-  const branchIds = branchControls.map(courseControl => courseControl.id);
-  for (const courseControl of branchControls) {
-    courseControl.variation = variation;
-    courseControl.variationEnd = joinCourseControlId;
-    courseControl.variationCourseControls = [...branchIds];
-  }
+  forkCourseControl.variation = variation;
+  forkCourseControl.variationEnd = joinCourseControlId;
+  forkCourseControl.variationCourseControls = branchControls.map(branch => branch.id);
+
   return {
     type: "variation-branch",
-    forkCourseControl: fromCourseControl.id,
+    forkCourseControl: forkCourseControl.id,
     branchCourseControl: branchControls[0]?.id || null,
-    control: fromCourseControl.control || null
+    control: forkCourseControl.control || null
   };
 }
 

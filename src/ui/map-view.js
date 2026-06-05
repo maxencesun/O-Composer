@@ -707,7 +707,7 @@ export class MapView {
         drawTextSpecial(ctx, special, points, this.scale(ui));
       }
       else if (special.kind === "descriptions" && points.length >= 2) {
-        drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, point => this.toScreen(point, ui));
+        drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, point => this.toScreen(point, ui), mapCourseDisplayOptions(eventModel, ui));
       }
       else if (points.length) {
         if (!drawPointSpecialSymbol(ctx, special, points[0], metrics)) {
@@ -756,8 +756,13 @@ export class MapView {
         directionAngle: outgoingDirection(row, legs),
         circleGaps: autoCircleGaps.get(String(row.control.id)) || []
       });
+    }
+
+    const labelRows = mergedCourseLabelRows(rows);
+    for (const row of labelRows) {
       if (row.label && row.control.kind === "normal") {
-        const labelPoint = numberLocationPoint(row, point, metrics, rows, legs, location => this.toScreen(location, ui));
+        const point = this.toScreen(row.control.location, ui);
+        const labelPoint = numberLocationPoint(row, point, metrics, labelRows, legs, location => this.toScreen(location, ui));
         drawControlLabel(ctx, row.label, labelPoint, metrics);
       }
     }
@@ -834,8 +839,9 @@ export class MapView {
       if (row) {
         const selectedCourse = getCourse(eventModel, ui.selectedCourseId);
         const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), false);
-        const rows = courseView(eventModel, ui.selectedCourseId);
-        const legs = courseLegs(eventModel, ui.selectedCourseId);
+        const displayOptions = mapCourseDisplayOptions(eventModel, ui);
+        const rows = mergedCourseLabelRows(courseView(eventModel, ui.selectedCourseId, displayOptions));
+        const legs = courseLegs(eventModel, ui.selectedCourseId, displayOptions);
         const rect = controlNumberScreenRect(row, metrics, rows, legs, location => this.toScreen(location, ui), 4);
         ctx.strokeRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
       }
@@ -844,7 +850,7 @@ export class MapView {
       const special = eventModel.specials.find(item => item.id === ui.selection.id);
       if (special?.locations?.length && specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) {
         const sourcePoints = special.kind === "descriptions"
-          ? descriptionCornerPoints(eventModel, special, ui.selectedCourseId).map(point => this.toScreen(point, ui))
+          ? descriptionCornerPoints(eventModel, special, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui)).map(point => this.toScreen(point, ui))
           : specialSelectionPoints(special, ui, this.scale(ui)).map(point => this.toScreen(point, ui));
         if (sourcePoints.length) {
           const rect = screenRectFromPoints(sourcePoints);
@@ -932,10 +938,10 @@ export class MapView {
         const dy = preview.location.y - first.y;
         const moved = { ...special, locations: special.locations.map(point => ({ x: point.x + dx, y: point.y + dy })) };
         if (moved.kind === "descriptions") {
-          drawControlDescriptionBlock(ctx, eventModel, moved, ui.selectedCourseId, point => this.toScreen(point, ui));
+          drawControlDescriptionBlock(ctx, eventModel, moved, ui.selectedCourseId, point => this.toScreen(point, ui), mapCourseDisplayOptions(eventModel, ui));
         }
         const sourcePoints = moved.kind === "descriptions"
-          ? descriptionCornerPoints(eventModel, moved, ui.selectedCourseId)
+          ? descriptionCornerPoints(eventModel, moved, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
           : specialSelectionPoints(moved, ui, this.scale(ui));
         const points = sourcePoints.map(point => this.toScreen(point, ui));
         const rect = screenRectFromPoints(points);
@@ -954,7 +960,7 @@ export class MapView {
     ctx.globalAlpha = 0.58;
     drawSpecialObject(ctx, eventModel, preview.special, ui, point => this.toScreen(point, ui), this.scale(ui));
     const sourcePoints = preview.special.kind === "descriptions"
-      ? descriptionCornerPoints(eventModel, preview.special, ui.selectedCourseId)
+      ? descriptionCornerPoints(eventModel, preview.special, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
       : specialSelectionPoints(preview.special, ui, this.scale(ui));
     const points = sourcePoints.map(point => this.toScreen(point, ui));
     const rect = screenRectFromPoints(points);
@@ -993,9 +999,9 @@ export class MapView {
         const special = this.descriptionDragPreview || {
           id: 0,
           kind,
-          ...createDescriptionSpecialOptions(eventModel, this.toolPreview.point, ui.selectedCourseId)
+          ...createDescriptionSpecialOptions(eventModel, this.toolPreview.point, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
         };
-        drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, mapPoint => this.toScreen(mapPoint, ui));
+        drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, mapPoint => this.toScreen(mapPoint, ui), mapCourseDisplayOptions(eventModel, ui));
       }
       else if (this.specialShapePreview && this.specialShapePreview.tool === ui.tool) {
         const special = this.specialShapePreview;
@@ -1056,7 +1062,7 @@ export class MapView {
       return;
     }
     if (state.ui.tool === "special:descriptions") {
-      const options = createDescriptionSpecialOptions(state.eventModel, mapPoint, state.ui.selectedCourseId);
+      const options = createDescriptionSpecialOptions(state.eventModel, mapPoint, state.ui.selectedCourseId, mapCourseDisplayOptions(state.eventModel, state.ui));
       this.descriptionDragPreview = {
         ...options,
         id: 0,
@@ -1150,9 +1156,9 @@ export class MapView {
       const base = {
         id: 0,
         kind: "descriptions",
-        ...createDescriptionSpecialOptions(state.eventModel, this.drag.startMap, state.ui.selectedCourseId)
+        ...createDescriptionSpecialOptions(state.eventModel, this.drag.startMap, state.ui.selectedCourseId, mapCourseDisplayOptions(state.eventModel, state.ui))
       };
-      this.descriptionDragPreview = resizedDescriptionSpecial(state.eventModel, base, this.drag.startMap, mapPoint, state.ui.selectedCourseId);
+      this.descriptionDragPreview = resizedDescriptionSpecial(state.eventModel, base, this.drag.startMap, mapPoint, state.ui.selectedCourseId, mapCourseDisplayOptions(state.eventModel, state.ui));
       this.requestDraw(state);
       return;
     }
@@ -1223,7 +1229,7 @@ export class MapView {
       return;
     }
     if (this.drag.descriptionAdd) {
-      const options = this.descriptionDragPreview || createDescriptionSpecialOptions(state.eventModel, this.drag.startMap, state.ui.selectedCourseId);
+      const options = this.descriptionDragPreview || createDescriptionSpecialOptions(state.eventModel, this.drag.startMap, state.ui.selectedCourseId, mapCourseDisplayOptions(state.eventModel, state.ui));
       this.callbacks.onAddDescriptionSpecial?.(this.drag.startMap, options);
       this.descriptionDragPreview = null;
       this.cancelDrag();
@@ -1449,7 +1455,7 @@ export class MapView {
         continue;
       }
       if (special.kind === "descriptions") {
-        const bounds = descriptionBounds(state.eventModel, special, state.ui.selectedCourseId);
+        const bounds = descriptionBounds(state.eventModel, special, state.ui.selectedCourseId, mapCourseDisplayOptions(state.eventModel, state.ui));
         const handleDistance = Math.hypot(bounds.right - point.x, bounds.bottom - point.y);
         if (handleDistance < specialThreshold * 1.5) {
           let effectiveDist = handleDistance;
@@ -1587,6 +1593,7 @@ export class MapView {
         return {
           type: "control-number",
           courseControl: row.courseControl.id,
+          courseControls: row.courseControlIds || [row.courseControl.id],
           control: row.control.id
         };
       }
@@ -1812,7 +1819,7 @@ function resizeForHit(hit) {
 function specialResizeHandles(special, ui, scale, eventModel) {
   if (!special?.locations?.length) return [];
   if (special.kind === "descriptions") {
-    const bounds = eventModel ? descriptionBounds(eventModel, special, ui.selectedCourseId) : null;
+    const bounds = eventModel ? descriptionBounds(eventModel, special, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui)) : null;
     return bounds ? [
       {
         handle: "move-anchor",
@@ -2060,7 +2067,7 @@ function currentCourseLabelRows(state, scale) {
   const displayOptions = mapCourseDisplayOptions(state.eventModel, state.ui);
   const rows = courseView(state.eventModel, selectedCourseId, displayOptions);
   return {
-    rows,
+    rows: mergedCourseLabelRows(rows),
     legs: courseLegs(state.eventModel, selectedCourseId, displayOptions),
     metrics: createCourseSymbolMetrics(state.eventModel, selectedCourse, state.eventModel.event.courseAppearance, scale, false)
   };
@@ -2075,8 +2082,12 @@ function selectedLegForSelection(eventModel, ui) {
 
 function selectedControlNumberRow(eventModel, ui) {
   if (ui.selection?.type !== "control-number" || !ui.selectedCourseId || ui.selectedCourseId === "all") return null;
-  return courseView(eventModel, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
-    .find(row => Number(row.courseControl?.id) === Number(ui.selection.courseControl)) || null;
+  const selectedIds = new Set([
+    Number(ui.selection.courseControl) || 0,
+    ...(Array.isArray(ui.selection.courseControls) ? ui.selection.courseControls.map(Number) : [])
+  ].filter(Boolean));
+  return mergedCourseLabelRows(courseView(eventModel, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui)))
+    .find(row => (row.courseControlIds || [row.courseControl?.id]).some(id => selectedIds.has(Number(id)))) || null;
 }
 
 function mapCourseDisplayOptions(eventModel, ui = {}) {
@@ -2678,13 +2689,110 @@ function outgoingDirection(row, legs) {
 }
 
 function numberLocationPoint(row, point, metrics, rows, legs, project) {
-  if (row.courseControl?.numberLocation) {
+  const numberLocation = controlNumberLocationForRow(row);
+  if (numberLocation) {
     return project({
-      x: row.control.location.x + row.courseControl.numberLocation.x,
-      y: row.control.location.y + row.courseControl.numberLocation.y
+      x: row.control.location.x + numberLocation.x,
+      y: row.control.location.y + numberLocation.y
     });
   }
   return bestControlLabelPoint(row, point, metrics, rows, legs, project);
+}
+
+function controlNumberLocationForRow(row) {
+  if (row.courseControl?.numberLocation) {
+    return row.courseControl.numberLocation;
+  }
+  return (row.courseControls || []).find(courseControl => courseControl?.numberLocation)?.numberLocation || null;
+}
+
+function mergedCourseLabelRows(rows) {
+  const result = [];
+  const groups = new Map();
+  for (const row of rows || []) {
+    if (!row?.control || row.control.kind !== "normal" || !row.label) {
+      continue;
+    }
+    const key = String(row.control.id);
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(row);
+  }
+
+  for (const row of rows || []) {
+    if (!row?.control || row.control.kind !== "normal" || !row.label) {
+      result.push(row);
+      continue;
+    }
+    const key = String(row.control.id);
+    const group = groups.get(key) || [row];
+    if (group[0] !== row) {
+      continue;
+    }
+    if (group.length === 1) {
+      result.push({
+        ...row,
+        courseControls: [row.courseControl].filter(Boolean),
+        courseControlIds: [row.courseControl?.id].filter(Boolean)
+      });
+      continue;
+    }
+    const courseControls = group.map(item => item.courseControl).filter(Boolean);
+    const courseControlIds = uniqueValues(courseControls.map(item => item.id));
+    const ordinals = uniqueValues(group.map(item => item.ordinal).filter(value => value !== "" && value != null));
+    const fallbackLabels = uniqueValues(group.map(item => item.label).filter(Boolean));
+    const ordinal = ordinals.join("/");
+    const label = mergedControlLabel(row.course, row.control, courseControls, ordinal, fallbackLabels);
+    const placementCourseControl = courseControls.find(item => item.numberLocation) || courseControls[0] || row.courseControl;
+    result.push({
+      ...row,
+      courseControl: placementCourseControl,
+      courseControls,
+      courseControlIds,
+      ordinal,
+      label,
+      mergedLabels: fallbackLabels
+    });
+  }
+  return result;
+}
+
+function mergedControlLabel(course, control, courseControls, ordinal, fallbackLabels) {
+  if (!course || !control || control.kind !== "normal") {
+    return fallbackLabels.join("/");
+  }
+  const code = control.code || "";
+  const firstCourseControl = courseControls[0] || {};
+  const scores = uniqueValues(courseControls
+    .map(item => Number(item?.points) || 0)
+    .filter(value => value > 0)
+    .map(String));
+  const score = scores.join("/") || (firstCourseControl.points ? String(firstCourseControl.points) : "");
+  const mergedOrdinal = ordinal || fallbackLabels.join("/");
+  switch (course.labelKind) {
+    case "code": return code;
+    case "sequence-and-code": return `${mergedOrdinal}-${code}`;
+    case "sequence-and-score": return score ? `${mergedOrdinal}(${score})` : String(mergedOrdinal);
+    case "code-and-score-brackets": return score ? `${code}[${score}]` : code;
+    case "code-and-score-dash": return score ? `${code}-${score}` : code;
+    case "code-and-score":
+    case "code-and-score-parens": return score ? `${code}(${score})` : code;
+    case "score": return score;
+    default: return String(mergedOrdinal);
+  }
+}
+
+function uniqueValues(values) {
+  const result = [];
+  const seen = new Set();
+  for (const value of values || []) {
+    const key = String(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+  return result;
 }
 
 function bestControlLabelPoint(row, point, metrics, rows, legs, project) {
@@ -2894,7 +3002,7 @@ function drawSpecialObject(ctx, eventModel, special, ui, project, scale) {
     drawTextSpecial(ctx, special, points, scale);
   }
   else if (special.kind === "descriptions" && points.length >= 2) {
-    drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, project);
+    drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, project, mapCourseDisplayOptions(eventModel, ui));
   }
 }
 
@@ -3066,8 +3174,8 @@ function screenRectFromPoints(points) {
   };
 }
 
-function descriptionCornerPoints(eventModel, special, selectedCourseId) {
-  const bounds = descriptionBounds(eventModel, special, selectedCourseId);
+function descriptionCornerPoints(eventModel, special, selectedCourseId, displayOptions = {}) {
+  const bounds = descriptionBounds(eventModel, special, selectedCourseId, displayOptions);
   return [
     { x: bounds.left, y: bounds.top },
     { x: bounds.right, y: bounds.top },

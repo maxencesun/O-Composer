@@ -802,6 +802,7 @@ export class PurplePenApp extends HTMLElement {
       || this.renderKeys.selection !== keys.selection
       || this.renderKeys.variationBranch !== keys.variationBranch
       || this.renderKeys.variationAnchorCourseControl !== keys.variationAnchorCourseControl
+      || this.renderKeys.variationInsertAfterCourseControl !== keys.variationInsertAfterCourseControl
       || this.renderKeys.variationAddKind !== keys.variationAddKind
       || this.renderKeys.variationAddBranches !== keys.variationAddBranches;
 
@@ -852,6 +853,7 @@ export class PurplePenApp extends HTMLElement {
       ui.variationCode = "";
       ui.variationBranch = null;
       ui.variationAnchorCourseControl = null;
+      ui.variationInsertAfterCourseControl = null;
       ui.relayTeam = 1;
       ui.relayLeg = 1;
       ui.printAreaEdit = null;
@@ -1073,6 +1075,7 @@ export class PurplePenApp extends HTMLElement {
     const selectedBranch = normalizedVariationBranch(eventModel, courseId, ui.variationBranch);
     const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui);
     const branchEdges = topologyBranchEdgeMap(topology);
+    const previousCourseControls = topologyPreviousCourseControlMap(topology);
     const paths = [];
     const junctions = [];
     const labels = [];
@@ -1084,31 +1087,39 @@ export class PurplePenApp extends HTMLElement {
       if ((view.legTo || []).length > 1 && position.forkStart?.some(Boolean)) {
         const forkY = position.forkStart.find(Boolean)?.y;
         junctions.push(`<circle class="variation-topology-junction-hit" cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(forkY)}" r="22" data-select-variation-course-control="${view.courseControlIds[0]}"></circle>`);
+        const stemInsertAfter = previousCourseControls.get(index) || view.courseControlIds[0];
+        const stemStartY = position.y + topologyConnectionRadius(view.control, nodeRadius);
+        const stemPath = `M ${formatSvgNumber(position.x)} ${formatSvgNumber(stemStartY)} V ${formatSvgNumber(forkY)}`;
+        paths.push(topologyPathSvg(stemPath, {
+          insertAfterCourseControl: stemInsertAfter,
+          selected: Number(selectedAnchor?.id) === Number(stemInsertAfter)
+        }));
       }
       for (let legIndex = 0; legIndex < view.legTo.length; legIndex += 1) {
         const targetPosition = layout.positions[view.legTo[legIndex]];
         if (!targetPosition) continue;
         const edgeBranch = branchEdges.get(topologyEdgeKey(index, view.legTo[legIndex]));
-        const selected = selectedBranch
+        const branchSelected = selectedBranch
           && edgeBranch
           && Number(selectedBranch.forkCourseControl) === Number(edgeBranch.forkCourseControl)
           && Number(selectedBranch.branchCourseControl) === Number(edgeBranch.branchCourseControl);
         const forkStart = position.forkStart?.[legIndex] || null;
         const startRadius = topologyConnectionRadius(view.control, nodeRadius);
         const endRadius = topologyConnectionRadius(topology[view.legTo[legIndex]]?.control, nodeRadius);
-        const path = topologyLegPath(position, targetPosition, forkStart, startRadius, endRadius);
+        const path = topologyLegPath(position, targetPosition, forkStart, startRadius, endRadius, !!edgeBranch);
+        const insertAfterCourseControl = edgeBranch && (view.legTo || []).length > 1
+          ? edgeBranch.branchCourseControl
+          : view.courseControlIds[0];
+        const selected = branchSelected || Number(selectedAnchor?.id) === Number(insertAfterCourseControl);
         const branchAttrs = edgeBranch
           ? ` data-select-variation-branch data-fork-course-control="${edgeBranch.forkCourseControl}" data-branch-course-control="${edgeBranch.branchCourseControl}"`
           : "";
-        if (branchAttrs) {
-          paths.push(`<path class="variation-topology-leg-hit" d="${path}"${branchAttrs}></path>`);
-        }
-        paths.push(`<path class="variation-topology-leg ${selected ? "selected" : ""}" d="${path}"${branchAttrs}></path>`);
+        paths.push(topologyPathSvg(path, { insertAfterCourseControl, branchAttrs, selected }));
         const code = edgeBranch ? branchCodes.get(Number(edgeBranch.branchCourseControl)) : "";
         if (forkStart && code) {
           const labelX = forkStart.x + (forkStart.x < position.x ? -36 : 36);
           const labelY = forkStart.y + 2;
-          labels.push(`<text class="variation-topology-code ${selected ? "selected" : ""}" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY)}" text-anchor="middle"${branchAttrs}>(${escapeHtml(code)})</text>`);
+          labels.push(`<text class="variation-topology-code ${branchSelected ? "selected" : ""}" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY)}" text-anchor="middle"${branchAttrs}>(${escapeHtml(code)})</text>`);
         }
       }
       const joinHitPoint = topologyJoinHitPoint(view, topology, layout.positions, nodeRadius);
@@ -1129,8 +1140,8 @@ export class PurplePenApp extends HTMLElement {
     }
     return `
       <svg class="variation-topology" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttr(this.t("Variation"))}">
-        <g>${paths.join("")}</g>
         <g>${junctions.join("")}</g>
+        <g>${paths.join("")}</g>
         <g>${labels.join("")}</g>
         <g>${nodes.join("")}</g>
       </svg>
@@ -1155,20 +1166,39 @@ export class PurplePenApp extends HTMLElement {
     if (branchButton) {
       const branchCourseControl = Number(branchButton.dataset.branchCourseControl) || null;
       const forkCourseControl = Number(branchButton.dataset.forkCourseControl) || null;
+      const insertAfterCourseControl = Number(branchButton.dataset.insertAfterCourseControl) || null;
       this.store.updateUi(ui => {
         ui.variationBranch = { forkCourseControl, branchCourseControl };
-        ui.variationAnchorCourseControl = forkCourseControl;
+        ui.variationAnchorCourseControl = insertAfterCourseControl || forkCourseControl;
+        ui.variationInsertAfterCourseControl = insertAfterCourseControl;
         ui.variationMode = "all";
         ui.status = this.t("Branch selected. Add controls to insert them on this branch.");
       }, "Select variation branch");
+      return;
+    }
+    const insertionButton = event.target.closest("[data-select-variation-insertion]");
+    if (insertionButton) {
+      const insertAfterCourseControl = Number(insertionButton.dataset.insertAfterCourseControl) || null;
+      this.store.updateUi(ui => {
+        ui.variationInsertAfterCourseControl = insertAfterCourseControl;
+        ui.variationAnchorCourseControl = insertAfterCourseControl;
+        ui.variationBranch = null;
+        ui.variationMode = "all";
+        ui.status = this.t("Variation insertion point selected.");
+      }, "Select variation insertion");
       return;
     }
     const courseControlButton = event.target.closest("[data-select-variation-course-control]");
     if (courseControlButton) {
       const courseControlId = Number(courseControlButton.dataset.selectVariationCourseControl) || null;
       const courseControl = getCourseControl(this.store.snapshot().eventModel, courseControlId);
+      const courseId = this.store.snapshot().ui.selectedCourseId;
+      const insertAfterCourseControl = courseControl?.variation
+        ? previousCourseControlId(this.store.snapshot().eventModel, courseId, courseControlId) || courseControlId
+        : courseControlId;
       this.store.updateUi(ui => {
         ui.variationAnchorCourseControl = courseControlId;
+        ui.variationInsertAfterCourseControl = insertAfterCourseControl;
         ui.variationBranch = null;
         ui.selection = courseControl ? { type: "control", id: courseControl.control } : ui.selection;
       }, "Select variation anchor");
@@ -3877,13 +3907,15 @@ function layoutVariationTopology(topology, branchCodes) {
   };
 }
 
-function topologyLegPath(from, to, forkStart, startRadius, endRadius) {
+function topologyLegPath(from, to, forkStart, startRadius, endRadius, skipForkStem = false) {
   const startY = from.y + startRadius;
   const endY = to.y - endRadius;
   if (forkStart) {
+    const start = skipForkStem
+      ? `M ${formatSvgNumber(from.x)} ${formatSvgNumber(forkStart.y)}`
+      : `M ${formatSvgNumber(from.x)} ${formatSvgNumber(startY)} V ${formatSvgNumber(forkStart.y)}`;
     return [
-      `M ${formatSvgNumber(from.x)} ${formatSvgNumber(startY)}`,
-      `V ${formatSvgNumber(forkStart.y)}`,
+      start,
       `H ${formatSvgNumber(forkStart.x)}`,
       `V ${formatSvgNumber(endY)}`
     ].join(" ");
@@ -3898,6 +3930,17 @@ function topologyLegPath(from, to, forkStart, startRadius, endRadius) {
     `H ${formatSvgNumber(to.x)}`,
     `V ${formatSvgNumber(endY)}`
   ].join(" ");
+}
+
+function topologyPathSvg(path, options = {}) {
+  const insertAfter = Number(options.insertAfterCourseControl) || null;
+  const insertAttrs = insertAfter ? ` data-select-variation-insertion data-insert-after-course-control="${insertAfter}"` : "";
+  const branchAttrs = options.branchAttrs || "";
+  const selectedClass = options.selected ? " selected" : "";
+  return [
+    `<path class="variation-topology-leg-hit" d="${path}"${insertAttrs}${branchAttrs}></path>`,
+    `<path class="variation-topology-leg${selectedClass}" d="${path}"${insertAttrs}${branchAttrs}></path>`
+  ].join("");
 }
 
 function topologyBranchEdgeMap(topology) {
@@ -3916,6 +3959,21 @@ function topologyBranchEdgeMap(topology) {
     }
   }
   return branchEdges;
+}
+
+function topologyPreviousCourseControlMap(topology) {
+  const previous = new Map();
+  for (let fromIndex = 0; fromIndex < topology.length; fromIndex += 1) {
+    const from = topology[fromIndex];
+    const fromCourseControl = Number(from?.courseControlIds?.[0]) || null;
+    if (!fromCourseControl) continue;
+    for (const toIndex of from.legTo || []) {
+      if (Number.isInteger(toIndex) && !previous.has(toIndex)) {
+        previous.set(toIndex, fromCourseControl);
+      }
+    }
+  }
+  return previous;
 }
 
 function markTopologyBranchEdges(topology, branchEdges, fromIndex, toIndex, joinIndex, branch, seen) {
@@ -3985,8 +4043,10 @@ function insertionCourseControlId(state) {
   const selection = state.ui.selection;
   const courseId = state.ui.selectedCourseId;
   if (!courseId || courseId === "all") return null;
-  const branchInsertion = lastCourseControlInVariationBranch(state.eventModel, courseId, state.ui.variationBranch);
-  if (branchInsertion) return branchInsertion.id;
+  const explicitInsertion = Number(state.ui.variationInsertAfterCourseControl) || null;
+  if (explicitInsertion && courseControlTopologyIds(state.eventModel, courseId).has(explicitInsertion)) {
+    return explicitInsertion;
+  }
   if (!selection) return null;
   if (selection.type === "control-number" && selection.courseControl) {
     return selection.courseControl;
@@ -4058,7 +4118,10 @@ function courseControlTopologyIds(eventModel, courseId) {
       ids.add(currentId);
       if (courseControl.variation) {
         for (const branchId of courseControl.variationCourseControls || []) {
-          visit(branchId, courseControl.variationEnd);
+          const branchCourseControl = getCourseControl(eventModel, branchId);
+          if (!branchCourseControl) continue;
+          ids.add(Number(branchCourseControl.id));
+          visit(branchCourseControl.nextCourseControl, courseControl.variationEnd);
         }
         currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
       }
@@ -4070,6 +4133,45 @@ function courseControlTopologyIds(eventModel, courseId) {
 
   visit(course?.firstCourseControl);
   return ids;
+}
+
+function previousCourseControlId(eventModel, courseId, courseControlId) {
+  const course = getCourse(eventModel, courseId);
+  const target = Number(courseControlId) || 0;
+  if (!course || !target) return null;
+  const seen = new Set();
+  const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 20);
+  let steps = 0;
+
+  function visit(startId, joinId = null, previousId = null) {
+    let currentId = Number(startId) || 0;
+    let lastId = Number(previousId) || null;
+    while (currentId && currentId !== Number(joinId) && steps++ < maxSteps) {
+      if (currentId === target) return lastId;
+      if (seen.has(currentId)) return null;
+      seen.add(currentId);
+      const courseControl = getCourseControl(eventModel, currentId);
+      if (!courseControl) return null;
+      if (courseControl.variation) {
+        for (const branchId of courseControl.variationCourseControls || []) {
+          const branchCourseControl = getCourseControl(eventModel, branchId);
+          if (!branchCourseControl) continue;
+          if (Number(branchCourseControl.id) === target) return lastId;
+          const found = visit(branchCourseControl.nextCourseControl, courseControl.variationEnd, branchCourseControl.id);
+          if (found) return found;
+        }
+        lastId = Number(courseControl.variation === "loop" ? courseControl.id : courseControl.variationEnd) || lastId;
+        currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
+      }
+      else {
+        lastId = currentId;
+        currentId = Number(courseControl.nextCourseControl) || 0;
+      }
+    }
+    return null;
+  }
+
+  return visit(course.firstCourseControl);
 }
 
 function lastCourseControlInVariationBranch(eventModel, courseId, variationBranch) {
@@ -4107,6 +4209,7 @@ function safeCachedUi(ui = {}) {
     variationAddKind: ui.variationAddKind === "loop" ? "loop" : "fork",
     variationAddBranches: Math.max(2, Math.min(6, Math.round(Number(ui.variationAddBranches) || 2))),
     variationAnchorCourseControl: Number(ui.variationAnchorCourseControl) || null,
+    variationInsertAfterCourseControl: Number(ui.variationInsertAfterCourseControl) || null,
     variationBranch: ui.variationBranch ? {
       forkCourseControl: Number(ui.variationBranch.forkCourseControl) || null,
       branchCourseControl: Number(ui.variationBranch.branchCourseControl) || null
@@ -4824,6 +4927,7 @@ function renderKeysFor({ eventModel, ui }) {
     variationAddKind: ui.variationAddKind || "fork",
     variationAddBranches: ui.variationAddBranches || 2,
     variationAnchorCourseControl: ui.variationAnchorCourseControl || "",
+    variationInsertAfterCourseControl: ui.variationInsertAfterCourseControl || "",
     variationBranch: ui.variationBranch ? `${ui.variationBranch.forkCourseControl || ""}:${ui.variationBranch.branchCourseControl || ""}` : "",
     relayTeam: ui.relayTeam || 1,
     relayLeg: ui.relayLeg || 1,

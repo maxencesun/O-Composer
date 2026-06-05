@@ -8,7 +8,6 @@ import {
 } from "./event-model.js";
 import {
   controlsUsedByCourse,
-  courseTopology,
   courseView,
   getControl,
   getCourse,
@@ -184,9 +183,41 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
 }
 
 function courseContainsCourseControl(eventModel, courseId, courseControlId) {
+  const course = getCourse(eventModel, courseId);
   const id = Number(courseControlId);
-  return courseTopology(eventModel, courseId)
-    .some(view => view.courseControlIds.map(Number).includes(id) || view.courseControls.some(courseControl => Number(courseControl.id) === id));
+  if (!course || !id) return false;
+  const seen = new Set();
+  const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 20);
+  let steps = 0;
+
+  function visit(startId, joinId = null) {
+    let currentId = Number(startId) || 0;
+    while (currentId && currentId !== Number(joinId) && steps++ < maxSteps) {
+      if (currentId === id) return true;
+      if (seen.has(currentId)) return false;
+      seen.add(currentId);
+      const courseControl = getCourseControl(eventModel, currentId);
+      if (!courseControl) return false;
+      if (courseControl.variation) {
+        for (const branchId of courseControl.variationCourseControls || []) {
+          const branchCourseControl = getCourseControl(eventModel, branchId);
+          if (!branchCourseControl) continue;
+          if (Number(branchCourseControl.id) === id) return true;
+          if (!seen.has(Number(branchCourseControl.id))) {
+            seen.add(Number(branchCourseControl.id));
+          }
+          if (visit(branchCourseControl.nextCourseControl, courseControl.variationEnd)) return true;
+        }
+        currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
+      }
+      else {
+        currentId = Number(courseControl.nextCourseControl) || 0;
+      }
+    }
+    return false;
+  }
+
+  return visit(course.firstCourseControl);
 }
 
 export function controlCoursePlacement(kind, eventModel, selectedCourseId) {

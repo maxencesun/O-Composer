@@ -390,18 +390,29 @@ button:hover {
 }
 
 .variation-tree {
-  display: grid;
-  gap: 6px;
   min-width: 260px;
   overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
 }
 
 .variation-topology {
   display: block;
-  width: max(100%, 260px);
+  width: auto;
   height: auto;
+  max-width: none;
   min-height: 220px;
   background: #fff;
+}
+
+.variation-topology-leg-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 18;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  cursor: pointer;
+  pointer-events: stroke;
 }
 
 .variation-topology-leg {
@@ -434,27 +445,46 @@ button:hover {
   cursor: pointer;
 }
 
+.variation-topology-node-hit {
+  fill: transparent;
+  stroke: transparent;
+  pointer-events: all;
+}
+
+.variation-topology-junction-hit {
+  fill: transparent;
+  stroke: transparent;
+  cursor: pointer;
+  pointer-events: all;
+}
+
 .variation-topology-node polygon,
-.variation-topology-node circle {
+.variation-topology-node circle:not(.variation-topology-node-hit) {
   fill: #fff;
   stroke: #111827;
   stroke-width: 1.5;
 }
 
 .variation-topology-node.selected polygon,
-.variation-topology-node.selected circle {
+.variation-topology-node.selected circle:not(.variation-topology-node-hit) {
   stroke: var(--accent);
   stroke-width: 3;
 }
 
 .variation-topology-number {
   fill: #111827;
+  stroke: #fff;
+  stroke-width: 5px;
+  paint-order: stroke fill;
   font-size: 26px;
   dominant-baseline: middle;
 }
 
 .variation-topology-special {
   fill: #111827;
+  stroke: #fff;
+  stroke-width: 4px;
+  paint-order: stroke fill;
   font-size: 12px;
   dominant-baseline: middle;
 }

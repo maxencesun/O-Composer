@@ -939,7 +939,7 @@ export class PurplePenApp extends HTMLElement {
 
   renderDescription({ eventModel, ui }) {
     const courseId = ui.selectedCourseId;
-    const showingCourseRows = courseId !== "all" && !ui.showAllControls;
+    const showingCourseRows = courseId !== "all";
     const isScoreCourse = showingCourseRows && getCourse(eventModel, courseId)?.kind === "score";
     let rows = !showingCourseRows
       ? allControlsView(eventModel)
@@ -1073,12 +1073,17 @@ export class PurplePenApp extends HTMLElement {
     const selectedBranch = normalizedVariationBranch(eventModel, courseId, ui.variationBranch);
     const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui);
     const paths = [];
+    const junctions = [];
     const labels = [];
     const nodes = [];
     for (let index = 0; index < topology.length; index += 1) {
       const view = topology[index];
       const position = layout.positions[index];
       if (!position) continue;
+      if ((view.legTo || []).length > 1 && position.forkStart?.some(Boolean)) {
+        const forkY = position.forkStart.find(Boolean)?.y;
+        junctions.push(`<circle class="variation-topology-junction-hit" cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(forkY)}" r="22" data-select-variation-course-control="${view.courseControlIds[0]}"></circle>`);
+      }
       for (let legIndex = 0; legIndex < view.legTo.length; legIndex += 1) {
         const targetPosition = layout.positions[view.legTo[legIndex]];
         if (!targetPosition) continue;
@@ -1087,17 +1092,29 @@ export class PurplePenApp extends HTMLElement {
           && Number(selectedBranch.forkCourseControl) === Number(view.courseControlIds[0])
           && Number(selectedBranch.branchCourseControl) === Number(branchCourseControl);
         const forkStart = position.forkStart?.[legIndex] || null;
-        const path = topologyLegPath(position, targetPosition, forkStart, nodeRadius);
+        const startRadius = topologyConnectionRadius(view.control, nodeRadius);
+        const endRadius = topologyConnectionRadius(topology[view.legTo[legIndex]]?.control, nodeRadius);
+        const path = topologyLegPath(position, targetPosition, forkStart, startRadius, endRadius);
         const branchAttrs = view.courseControlIds.length > 1
           ? ` data-select-variation-branch data-fork-course-control="${view.courseControlIds[0]}" data-branch-course-control="${branchCourseControl}"`
           : "";
+        if (branchAttrs) {
+          paths.push(`<path class="variation-topology-leg-hit" d="${path}"${branchAttrs}></path>`);
+        }
         paths.push(`<path class="variation-topology-leg ${selected ? "selected" : ""}" d="${path}"${branchAttrs}></path>`);
         const code = branchCodes.get(Number(branchCourseControl));
         if (forkStart && code) {
-          const labelX = forkStart.x + (forkStart.x < position.x ? -22 : 22);
+          const labelX = forkStart.x + (forkStart.x < position.x ? -36 : 36);
           const labelY = forkStart.y + 2;
           labels.push(`<text class="variation-topology-code ${selected ? "selected" : ""}" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY)}" text-anchor="middle"${branchAttrs}>(${escapeHtml(code)})</text>`);
         }
+      }
+      const joinHitPoint = topologyJoinHitPoint(view, topology, layout.positions, nodeRadius);
+      const joinCourseControlId = Number.isInteger(view.joinIndex) && view.joinIndex !== index
+        ? topology[view.joinIndex]?.courseControlIds?.[0]
+        : null;
+      if ((view.legTo || []).length > 1 && joinHitPoint && joinCourseControlId) {
+        junctions.push(`<circle class="variation-topology-junction-hit" cx="${formatSvgNumber(joinHitPoint.x)}" cy="${formatSvgNumber(joinHitPoint.y)}" r="24" data-select-variation-course-control="${joinCourseControlId}"></circle>`);
       }
     }
     for (let index = 0; index < topology.length; index += 1) {
@@ -1109,8 +1126,9 @@ export class PurplePenApp extends HTMLElement {
       nodes.push(topologyNodeSvg(view.control, position, courseControlId, selected));
     }
     return `
-      <svg class="variation-topology" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttr(this.t("Variation"))}">
+      <svg class="variation-topology" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttr(this.t("Variation"))}">
         <g>${paths.join("")}</g>
+        <g>${junctions.join("")}</g>
         <g>${labels.join("")}</g>
         <g>${nodes.join("")}</g>
       </svg>
@@ -3719,7 +3737,7 @@ function objectForSelection(model, selection) {
 
 function courseDisplayOptions(eventModel, ui = {}) {
   const courseId = ui.selectedCourseId;
-  if (!courseId || courseId === "all" || ui.showAllControls) return {};
+  if (!courseId || courseId === "all") return {};
   if (ui.variationMode === "all") return { allBranches: true };
   if (ui.variationMode === "variation") {
     const variation = variationForCode(eventModel, courseId, ui.variationCode);
@@ -3732,9 +3750,9 @@ function courseDisplayOptions(eventModel, ui = {}) {
   return {};
 }
 
-const TOPOLOGY_WIDTH_UNIT = 72;
-const TOPOLOGY_HEIGHT_UNIT = 66;
-const TOPOLOGY_PADDING_X = 42;
+const TOPOLOGY_WIDTH_UNIT = 104;
+const TOPOLOGY_HEIGHT_UNIT = 60;
+const TOPOLOGY_PADDING_X = 56;
 const TOPOLOGY_PADDING_Y = 28;
 
 function layoutVariationTopology(topology, branchCodes) {
@@ -3805,10 +3823,10 @@ function layoutVariationTopology(topology, branchCodes) {
 
         abstractPositions[index].forkStart = forkStart;
         for (let branchIndex = startFork; branchIndex < numForks; branchIndex += 1) {
-          assign(legTo[branchIndex], view.joinIndex, forkStart[branchIndex].x, forkStart[branchIndex].y);
+          assign(legTo[branchIndex], view.joinIndex, forkStart[branchIndex].x, forkStart[branchIndex].y + 1);
         }
-        totalHeight += maxForkHeight + 1;
-        y += maxForkHeight + 1;
+        totalHeight += maxForkHeight + 2;
+        y += maxForkHeight + 2;
         totalWidth = Math.max(totalWidth, totalForkWidth);
         index = view.joinIndex === index ? legTo[0] : view.joinIndex;
       }
@@ -3857,9 +3875,9 @@ function layoutVariationTopology(topology, branchCodes) {
   };
 }
 
-function topologyLegPath(from, to, forkStart, nodeRadius) {
-  const startY = from.y + nodeRadius;
-  const endY = to.y - nodeRadius;
+function topologyLegPath(from, to, forkStart, startRadius, endRadius) {
+  const startY = from.y + startRadius;
+  const endY = to.y - endRadius;
   if (forkStart) {
     return [
       `M ${formatSvgNumber(from.x)} ${formatSvgNumber(startY)}`,
@@ -3880,19 +3898,46 @@ function topologyLegPath(from, to, forkStart, nodeRadius) {
   ].join(" ");
 }
 
+function topologyJoinHitPoint(view, topology, positions, nodeRadius) {
+  if (!Number.isInteger(view.joinIndex) || view.joinIndex < 0 || view.joinIndex >= positions.length) {
+    return null;
+  }
+  const joinPosition = positions[view.joinIndex];
+  const branchPositions = (view.legTo || [])
+    .map(index => ({ position: positions[index], control: topology[index]?.control }))
+    .filter(item => item.position);
+  if (!joinPosition || !branchPositions.length) return null;
+  const endY = joinPosition.y - topologyConnectionRadius(topology[view.joinIndex]?.control, nodeRadius);
+  const mergeYs = branchPositions.map(({ position, control }) => {
+    const startY = position.y + topologyConnectionRadius(control, nodeRadius);
+    return Math.abs(position.x - joinPosition.x) < 0.1
+      ? endY
+      : (startY + endY) / 2;
+  });
+  return {
+    x: joinPosition.x,
+    y: mergeYs.reduce((sum, value) => sum + value, 0) / mergeYs.length
+  };
+}
+
+function topologyConnectionRadius(control, symbolRadius) {
+  return control?.kind === "start" || control?.kind === "finish" ? symbolRadius : 0;
+}
+
 function topologyNodeSvg(control, position, courseControlId, selected) {
   const attrs = `data-select-variation-course-control="${courseControlId}"`;
   const selectedClass = selected ? " selected" : "";
+  const hitCircle = `<circle class="variation-topology-node-hit" cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(position.y)}" r="28" ${attrs}></circle>`;
   if (control.kind === "start") {
     const points = `${formatSvgNumber(position.x)},${formatSvgNumber(position.y - 18)} ${formatSvgNumber(position.x - 14)},${formatSvgNumber(position.y + 10)} ${formatSvgNumber(position.x + 14)},${formatSvgNumber(position.y + 10)}`;
-    return `<g class="variation-topology-node${selectedClass}" ${attrs}><polygon points="${points}"></polygon></g>`;
+    return `<g class="variation-topology-node${selectedClass}" ${attrs}>${hitCircle}<polygon points="${points}" ${attrs}></polygon></g>`;
   }
   if (control.kind === "finish") {
-    return `<g class="variation-topology-node${selectedClass}" ${attrs}><circle cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(position.y)}" r="13"></circle><circle cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(position.y)}" r="9"></circle></g>`;
+    return `<g class="variation-topology-node${selectedClass}" ${attrs}>${hitCircle}<circle cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(position.y)}" r="13" ${attrs}></circle><circle cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(position.y)}" r="9" ${attrs}></circle></g>`;
   }
   const label = control.kind === "normal" ? control.code || "" : controlKindLabel(control.kind);
   const className = control.kind === "normal" ? "variation-topology-number" : "variation-topology-special";
-  return `<g class="variation-topology-node${selectedClass}" ${attrs}><text class="${className}" x="${formatSvgNumber(position.x)}" y="${formatSvgNumber(position.y + 8)}" text-anchor="middle">${escapeHtml(label)}</text></g>`;
+  return `<g class="variation-topology-node${selectedClass}" ${attrs}>${hitCircle}<text class="${className}" x="${formatSvgNumber(position.x)}" y="${formatSvgNumber(position.y + 8)}" text-anchor="middle" ${attrs}>${escapeHtml(label)}</text></g>`;
 }
 
 function formatSvgNumber(value) {
@@ -4019,7 +4064,7 @@ function safeCachedUi(ui = {}) {
     mapIntensity: Number.isFinite(Number(ui.mapIntensity)) ? Number(ui.mapIntensity) : 0.65,
     highQuality: ui.highQuality !== false,
     showPrintArea: !!ui.showPrintArea,
-    showAllControls: ui.selectedCourseId === "all" || !!ui.showAllControls,
+    showAllControls: (ui.selectedCourseId || "all") === "all",
     variationMode: ui.variationMode || "default",
     variationCode: ui.variationCode || "",
     variationAddKind: ui.variationAddKind === "loop" ? "loop" : "fork",

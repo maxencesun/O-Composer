@@ -720,13 +720,13 @@ export class MapView {
 
   drawCourse(ctx, eventModel, ui) {
     const selectedCourseId = ui.selectedCourseId || "all";
-    const allControls = selectedCourseId === "all" || ui.showAllControls;
+    const allControls = selectedCourseId === "all";
     const selectedCourse = allControls ? null : getCourse(eventModel, selectedCourseId);
     const displayOptions = mapCourseDisplayOptions(eventModel, ui);
-    const rows = selectedCourseId === "all" || ui.showAllControls
+    const rows = allControls
       ? allControlsView(eventModel)
       : courseView(eventModel, selectedCourseId, displayOptions);
-    const legs = selectedCourseId === "all" || ui.showAllControls ? [] : courseLegs(eventModel, selectedCourseId, displayOptions);
+    const legs = allControls ? [] : courseLegs(eventModel, selectedCourseId, displayOptions);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), allControls);
     const autoGaps = automaticLegGaps(legs, rows, metrics, this.scale(ui), eventModel.event.courseAppearance?.autoLegGapSize || 3.5);
     const autoCircleGaps = allControls ? new Map() : automaticControlCircleGaps(rows, metrics, this.scale(ui));
@@ -765,7 +765,7 @@ export class MapView {
   }
 
   drawAddableControls(ctx, eventModel, ui) {
-    if (!ui.tool?.startsWith("control:") || !ui.selectedCourseId || ui.selectedCourseId === "all" || ui.showAllControls) {
+    if (!ui.tool?.startsWith("control:") || !ui.selectedCourseId || ui.selectedCourseId === "all") {
       return;
     }
     const kind = ui.tool.slice("control:".length);
@@ -792,7 +792,7 @@ export class MapView {
       const control = getControl(eventModel, ui.selection.id);
       if (control) {
         const selectedCourseId = ui.selectedCourseId || "all";
-        const allControls = selectedCourseId === "all" || ui.showAllControls;
+        const allControls = selectedCourseId === "all";
         const selectedCourse = allControls ? null : getCourse(eventModel, selectedCourseId);
         const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), allControls);
         const point = this.toScreen(control.location, ui);
@@ -901,7 +901,7 @@ export class MapView {
       const control = getControl(eventModel, preview.selection.id);
       if (control) {
         const selectedCourseId = ui.selectedCourseId || "all";
-        const allControls = selectedCourseId === "all" || ui.showAllControls;
+        const allControls = selectedCourseId === "all";
         const selectedCourse = allControls ? null : getCourse(eventModel, selectedCourseId);
         const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), allControls);
         const point = this.toScreen(preview.location, ui);
@@ -971,7 +971,7 @@ export class MapView {
     }
     const point = this.toScreen(this.toolPreview.point, ui);
     const selectedCourseId = ui.selectedCourseId || "all";
-    const allControls = selectedCourseId === "all" || ui.showAllControls;
+    const allControls = selectedCourseId === "all";
     const selectedCourse = allControls ? null : getCourse(eventModel, selectedCourseId);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), allControls);
 
@@ -1782,7 +1782,7 @@ function positiveNumber(value, fallback) {
 
 function currentCourseLegs(state) {
   const selectedCourseId = state.ui.selectedCourseId || "all";
-  return selectedCourseId === "all" || state.ui.showAllControls ? [] : courseLegs(state.eventModel, selectedCourseId);
+  return selectedCourseId === "all" ? [] : courseLegs(state.eventModel, selectedCourseId);
 }
 
 function moveOffsetForHit(eventModel, hit, mapPoint) {
@@ -2052,7 +2052,7 @@ function addableControlsForTool(eventModel, courseId, kind) {
 
 function currentCourseLabelRows(state, scale) {
   const selectedCourseId = state.ui.selectedCourseId || "all";
-  if (selectedCourseId === "all" || state.ui.showAllControls) {
+  if (selectedCourseId === "all") {
     return null;
   }
   const selectedCourse = getCourse(state.eventModel, selectedCourseId);
@@ -2081,7 +2081,7 @@ function selectedControlNumberRow(eventModel, ui) {
 
 function mapCourseDisplayOptions(eventModel, ui = {}) {
   const courseId = ui.selectedCourseId;
-  if (!courseId || courseId === "all" || ui.showAllControls) return {};
+  if (!courseId || courseId === "all") return {};
   if (ui.variationMode === "all") return { allBranches: true };
   if (ui.variationMode === "variation") {
     const variation = variationForCode(eventModel, courseId, ui.variationCode);

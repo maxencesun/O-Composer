@@ -408,7 +408,7 @@ button:hover {
 .variation-topology-leg-hit {
   fill: none;
   stroke: transparent;
-  stroke-width: 18;
+  stroke-width: 28;
   stroke-linecap: round;
   stroke-linejoin: round;
   cursor: pointer;

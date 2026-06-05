@@ -1072,6 +1072,7 @@ export class PurplePenApp extends HTMLElement {
     const height = Math.max(120, Math.ceil(layout.height));
     const selectedBranch = normalizedVariationBranch(eventModel, courseId, ui.variationBranch);
     const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui);
+    const branchEdges = topologyBranchEdgeMap(topology);
     const paths = [];
     const junctions = [];
     const labels = [];
@@ -1087,22 +1088,23 @@ export class PurplePenApp extends HTMLElement {
       for (let legIndex = 0; legIndex < view.legTo.length; legIndex += 1) {
         const targetPosition = layout.positions[view.legTo[legIndex]];
         if (!targetPosition) continue;
-        const branchCourseControl = view.courseControlIds[legIndex] || view.courseControlIds[0];
+        const edgeBranch = branchEdges.get(topologyEdgeKey(index, view.legTo[legIndex]));
         const selected = selectedBranch
-          && Number(selectedBranch.forkCourseControl) === Number(view.courseControlIds[0])
-          && Number(selectedBranch.branchCourseControl) === Number(branchCourseControl);
+          && edgeBranch
+          && Number(selectedBranch.forkCourseControl) === Number(edgeBranch.forkCourseControl)
+          && Number(selectedBranch.branchCourseControl) === Number(edgeBranch.branchCourseControl);
         const forkStart = position.forkStart?.[legIndex] || null;
         const startRadius = topologyConnectionRadius(view.control, nodeRadius);
         const endRadius = topologyConnectionRadius(topology[view.legTo[legIndex]]?.control, nodeRadius);
         const path = topologyLegPath(position, targetPosition, forkStart, startRadius, endRadius);
-        const branchAttrs = view.courseControlIds.length > 1
-          ? ` data-select-variation-branch data-fork-course-control="${view.courseControlIds[0]}" data-branch-course-control="${branchCourseControl}"`
+        const branchAttrs = edgeBranch
+          ? ` data-select-variation-branch data-fork-course-control="${edgeBranch.forkCourseControl}" data-branch-course-control="${edgeBranch.branchCourseControl}"`
           : "";
         if (branchAttrs) {
           paths.push(`<path class="variation-topology-leg-hit" d="${path}"${branchAttrs}></path>`);
         }
         paths.push(`<path class="variation-topology-leg ${selected ? "selected" : ""}" d="${path}"${branchAttrs}></path>`);
-        const code = branchCodes.get(Number(branchCourseControl));
+        const code = edgeBranch ? branchCodes.get(Number(edgeBranch.branchCourseControl)) : "";
         if (forkStart && code) {
           const labelX = forkStart.x + (forkStart.x < position.x ? -36 : 36);
           const labelY = forkStart.y + 2;
@@ -3896,6 +3898,41 @@ function topologyLegPath(from, to, forkStart, startRadius, endRadius) {
     `H ${formatSvgNumber(to.x)}`,
     `V ${formatSvgNumber(endY)}`
   ].join(" ");
+}
+
+function topologyBranchEdgeMap(topology) {
+  const branchEdges = new Map();
+  for (let forkIndex = 0; forkIndex < topology.length; forkIndex += 1) {
+    const fork = topology[forkIndex];
+    if (!fork || (fork.legTo || []).length <= 1 || (fork.courseControlIds || []).length <= 1) continue;
+    for (let legIndex = 0; legIndex < fork.legTo.length; legIndex += 1) {
+      const targetIndex = fork.legTo[legIndex];
+      if (!Number.isInteger(targetIndex)) continue;
+      const branch = {
+        forkCourseControl: Number(fork.courseControlIds[0]),
+        branchCourseControl: Number(fork.courseControlIds[legIndex] || fork.courseControlIds[0])
+      };
+      markTopologyBranchEdges(topology, branchEdges, forkIndex, targetIndex, fork.joinIndex, branch, new Set());
+    }
+  }
+  return branchEdges;
+}
+
+function markTopologyBranchEdges(topology, branchEdges, fromIndex, toIndex, joinIndex, branch, seen) {
+  if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) return;
+  branchEdges.set(topologyEdgeKey(fromIndex, toIndex), branch);
+  if (toIndex === joinIndex || seen.has(toIndex)) return;
+  seen.add(toIndex);
+  const view = topology[toIndex];
+  for (const nextIndex of view?.legTo || []) {
+    if (Number.isInteger(nextIndex)) {
+      markTopologyBranchEdges(topology, branchEdges, toIndex, nextIndex, joinIndex, branch, seen);
+    }
+  }
+}
+
+function topologyEdgeKey(fromIndex, toIndex) {
+  return `${fromIndex}:${toIndex}`;
 }
 
 function topologyJoinHitPoint(view, topology, positions, nodeRadius) {

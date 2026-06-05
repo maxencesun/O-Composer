@@ -145,6 +145,7 @@ const ZH = Object.freeze({
   "Selected branch": "已选分支",
   "New controls will be inserted on this branch.": "新检查点会插入到此分支。",
   "Branch selected. Add controls to insert them on this branch.": "已选择分支。添加检查点会插入到此分支。",
+  "Variation insertion point selected.": "已选择分叉插入位置。",
   "This course has no controls.": "这条路线没有检查点。",
   "Missing control": "缺失检查点",
   "Hide variation codes on map": "在地图上隐藏分叉代码",

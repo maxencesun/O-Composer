@@ -114,9 +114,9 @@ export function storageForIscdSelection(column, value) {
   return { ref: value, text: "" };
 }
 
-export function createDescriptionSpecialOptions(eventModel, point, selectedCourseId = "all") {
+export function createDescriptionSpecialOptions(eventModel, point, selectedCourseId = "all", displayOptions = {}) {
   const targetCourseId = descriptionTargetForNewSpecial(eventModel, selectedCourseId);
-  const rows = buildControlDescriptionRows(eventModel, targetCourseId, "symbols");
+  const rows = buildControlDescriptionRows(eventModel, targetCourseId, "symbols", displayOptions);
   const cellSize = DEFAULT_CELL_SIZE;
   const cellSizeMap = descriptionCellSizeMap(eventModel, targetCourseId, { cellSize });
   return {
@@ -144,9 +144,10 @@ export function existingDescriptionSpecialForTarget(eventModel, selectedCourseId
   }) || null;
 }
 
-export function buildControlDescriptionRows(eventModel, selectedCourseId = "all", descriptionKind = "symbols") {
+export function buildControlDescriptionRows(eventModel, selectedCourseId = "all", descriptionKind = "symbols", displayOptions = {}) {
   const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
-  let view = selectedCourseId === "all" ? courseView(eventModel, "all") : courseView(eventModel, selectedCourseId);
+  const options = selectedCourseId === "all" ? {} : (displayOptions || {});
+  let view = selectedCourseId === "all" ? courseView(eventModel, "all") : courseView(eventModel, selectedCourseId, options);
   if (course?.kind === "score") {
     view = scoreCourseDescriptionRows(view);
   }
@@ -237,10 +238,11 @@ export function specialVisibleForCourse(special, selectedCourseId = "all", showA
   return (special.courses || []).some(course => Number(course.course) === Number(courseId));
 }
 
-export function descriptionMetrics(eventModel, special, selectedCourseId = "all") {
+export function descriptionMetrics(eventModel, special, selectedCourseId = "all", displayOptions = {}) {
   const targetCourseId = descriptionCoursesTarget(special, selectedCourseId);
   const kind = descriptionKindForSpecial(special, eventModel, targetCourseId);
-  const rows = buildControlDescriptionRows(eventModel, targetCourseId, kind);
+  const options = String(targetCourseId) === String(selectedCourseId) ? (displayOptions || {}) : {};
+  const rows = buildControlDescriptionRows(eventModel, targetCourseId, kind, options);
   const columns = Math.max(1, Number(special?.numColumns) || 1);
   const cellSize = descriptionCellSizeMap(eventModel, targetCourseId, special);
   const widthCells = kind === "symbols-and-text" ? 13 : 8;
@@ -251,14 +253,14 @@ export function descriptionMetrics(eventModel, special, selectedCourseId = "all"
   return { targetCourseId, kind, rows, columns, rowsPerColumn, widthCells, cellSize, columnWidth, columnGap, margin, width: columns * columnWidth + Math.max(0, columns - 1) * columnGap + margin * 2, height: rowsPerColumn * cellSize + margin * 2 };
 }
 
-export function descriptionBounds(eventModel, special, selectedCourseId = "all") {
+export function descriptionBounds(eventModel, special, selectedCourseId = "all", displayOptions = {}) {
   const topLeft = special?.locations?.[0] || { x: 0, y: 0 };
-  const metrics = descriptionMetrics(eventModel, special, selectedCourseId);
+  const metrics = descriptionMetrics(eventModel, special, selectedCourseId, displayOptions);
   return { left: topLeft.x, right: topLeft.x + metrics.width, top: topLeft.y, bottom: topLeft.y - metrics.height, width: metrics.width, height: metrics.height, metrics };
 }
 
-export function resizedDescriptionSpecial(eventModel, special, anchor, target, selectedCourseId = "all") {
-  const metrics = descriptionMetrics(eventModel, special, selectedCourseId);
+export function resizedDescriptionSpecial(eventModel, special, anchor, target, selectedCourseId = "all", displayOptions = {}) {
+  const metrics = descriptionMetrics(eventModel, special, selectedCourseId, displayOptions);
   const targetCourseId = descriptionCoursesTarget(special, selectedCourseId);
   const printScale = printScaleForDescription(eventModel, targetCourseId);
   const minCellSizeMap = paperMmToMapUnits(MIN_CELL_SIZE, printScale);
@@ -286,8 +288,8 @@ export function resizedDescriptionSpecial(eventModel, special, anchor, target, s
   return { ...special, numColumns: best.columns, cellSize, locations: [topLeft, { x: topLeft.x + cellSizeMap, y: topLeft.y }] };
 }
 
-export function drawControlDescriptionBlock(ctx, eventModel, special, selectedCourseId, toScreen) {
-  const bounds = descriptionBounds(eventModel, special, selectedCourseId);
+export function drawControlDescriptionBlock(ctx, eventModel, special, selectedCourseId, toScreen, displayOptions = {}) {
+  const bounds = descriptionBounds(eventModel, special, selectedCourseId, displayOptions);
   const topLeft = toScreen({ x: bounds.left, y: bounds.top });
   const bottomRight = toScreen({ x: bounds.right, y: bounds.bottom });
   ctx.save();

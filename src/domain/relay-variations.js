@@ -116,7 +116,11 @@ function enumerateVariationChoices(eventModel, startId, visited = new Set()) {
         if (visited.has(Number(branchId))) continue;
         visited.add(Number(branchId));
         const branch = getCourseControl(eventModel, branchId);
-        const tails = enumerateVariationChoices(eventModel, branch?.nextCourseControl, visited);
+        const tails = enumerateVariationChoices(
+          eventModel,
+          branchTraversalStart(courseControl, branch),
+          visited
+        );
         visited.delete(Number(branchId));
         for (const tail of tails) {
           result.push([Number(branchId), ...tail]);
@@ -127,6 +131,20 @@ function enumerateVariationChoices(eventModel, startId, visited = new Set()) {
     currentId = Number(courseControl.nextCourseControl) || 0;
   }
   return [[]];
+}
+
+function branchTraversalStart(ownerCourseControl, branchCourseControl) {
+  if (!branchCourseControl) return null;
+  if (Number(branchCourseControl.id) === Number(ownerCourseControl?.id)) {
+    return Number(branchCourseControl.nextCourseControl) || null;
+  }
+  // New branches are hidden markers using the same map control as the fork.
+  // Imported files may put the first real branch control directly in the
+  // variation list. Support both representations.
+  if (Number(branchCourseControl.control) === Number(ownerCourseControl?.control)) {
+    return Number(branchCourseControl.nextCourseControl) || null;
+  }
+  return Number(branchCourseControl.id) || null;
 }
 
 function courseControlIdsInVariationOrder(eventModel, course) {

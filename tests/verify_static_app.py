@@ -85,6 +85,8 @@ def verify_app_files() -> None:
         assert token in app_shell + actions, f"missing Purple Pen-style variation ordering UI: {token}"
     for token in ["courseTopology", "topologyCourseLegs", "layoutVariationTopology", "variation-topology", "variation-topology-leg", "sharedSplitControlId"]:
         assert token in app_shell + styles + course_service, f"variation UI should show an equal branch tree without duplicated split controls: {token}"
+    for token in ["courseContainsCourseControl", "courseTopology(eventModel, courseId)", "options.afterCourseControl"]:
+        assert token in actions, f"adding controls to an empty selected branch should insert into that branch, not the course end: {token}"
     add_variation_body = actions.split("export function addVariationAtCourseControl", 1)[1].split("export function addForkToLeg", 1)[0]
     assert "createControl(" not in add_variation_body, "adding a fork must not create fake map controls"
     for token in ["backgroundCalibrationAnchorCenter", "resetBackgroundCalibrationBase(ui.background)", "applyBackgroundCalibration(ui.background, backgroundAspect(ui.background))", "background.centerX"]:

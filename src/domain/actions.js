@@ -8,6 +8,7 @@ import {
 } from "./event-model.js";
 import {
   controlsUsedByCourse,
+  courseTopology,
   courseView,
   getControl,
   getCourse,
@@ -139,7 +140,7 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
   }
 
   const insertAfter = options.afterCourseControl ? getCourseControl(eventModel, options.afterCourseControl) : null;
-  if (insertAfter && courseView(eventModel, courseId, { allBranches: true }).some(row => row.courseControl.id === insertAfter.id)) {
+  if (insertAfter && courseContainsCourseControl(eventModel, courseId, insertAfter.id)) {
     newCourseControl.nextCourseControl = insertAfter.nextCourseControl || null;
     insertAfter.nextCourseControl = newCourseControl.id;
     return newCourseControl;
@@ -180,6 +181,12 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
     }
   }
   return newCourseControl;
+}
+
+function courseContainsCourseControl(eventModel, courseId, courseControlId) {
+  const id = Number(courseControlId);
+  return courseTopology(eventModel, courseId)
+    .some(view => view.courseControlIds.map(Number).includes(id) || view.courseControls.some(courseControl => Number(courseControl.id) === id));
 }
 
 export function controlCoursePlacement(kind, eventModel, selectedCourseId) {

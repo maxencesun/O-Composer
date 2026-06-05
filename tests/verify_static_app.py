@@ -81,9 +81,9 @@ def verify_app_files() -> None:
         assert token in relay_variations + course_service, f"missing relay/variation path calculation support: {token}"
     for token in ["courseVariationControls", "data-course-variation-mode", "data-relay-team", "data-relay-branch", "addForkToLeg", "relayAssignmentTable"]:
         assert token in app_shell + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing relay design UI support: {token}"
-    for token in ["variationPanel", "data-panel=\"variation\"", "renderVariation", "variationSequenceHtml", "data-select-variation-branch", "addVariationAtCourseControl", "lastCourseControlInVariationBranch"]:
+    for token in ["variationPanel", "data-panel=\"variation\"", "renderVariation", "variationTopologySvg", "data-select-variation-branch", "addVariationAtCourseControl", "lastCourseControlInVariationBranch"]:
         assert token in app_shell + actions, f"missing Purple Pen-style variation ordering UI: {token}"
-    for token in ["variation-branch-list", "variation-empty-branch", "skipFirstControlId", "sharedSplitControlId"]:
+    for token in ["courseTopology", "topologyCourseLegs", "layoutVariationTopology", "variation-topology", "variation-topology-leg", "sharedSplitControlId"]:
         assert token in app_shell + styles + course_service, f"variation UI should show an equal branch tree without duplicated split controls: {token}"
     add_variation_body = actions.split("export function addVariationAtCourseControl", 1)[1].split("export function addForkToLeg", 1)[0]
     assert "createControl(" not in add_variation_body, "adding a fork must not create fake map controls"

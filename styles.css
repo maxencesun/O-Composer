@@ -393,94 +393,75 @@ button:hover {
   display: grid;
   gap: 6px;
   min-width: 260px;
+  overflow-x: auto;
 }
 
-.variation-node {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  width: calc(100% - var(--variation-depth, 0) * 14px);
-  margin-left: calc(var(--variation-depth, 0) * 14px);
-  min-height: 30px;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
+.variation-topology {
+  display: block;
+  width: max(100%, 260px);
+  height: auto;
+  min-height: 220px;
   background: #fff;
-  text-align: left;
 }
 
-.variation-node.selected,
-.variation-branch.selected > .variation-branch-button {
-  border-color: var(--accent);
-  background: #e6f1ef;
-  color: var(--accent);
+.variation-topology-leg {
+  fill: none;
+  stroke: #111827;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  cursor: pointer;
+}
+
+.variation-topology-leg.selected {
+  stroke: var(--accent);
+  stroke-width: 4;
+}
+
+.variation-topology-code {
+  fill: #8a9198;
+  font-size: 16px;
+  dominant-baseline: middle;
+  cursor: pointer;
+}
+
+.variation-topology-code.selected {
+  fill: var(--accent);
   font-weight: 700;
 }
 
-.variation-node small {
-  color: var(--muted);
-  font-size: 11px;
+.variation-topology-node {
+  cursor: pointer;
 }
 
-.variation-split {
-  display: grid;
-  gap: 6px;
-  margin-left: calc(var(--variation-depth, 0) * 14px + 8px);
-  padding: 8px 0 8px 10px;
-  border-left: 2px solid var(--purple);
-  background: #f8fafb;
+.variation-topology-node polygon,
+.variation-topology-node circle {
+  fill: #fff;
+  stroke: #111827;
+  stroke-width: 1.5;
 }
 
-.variation-split-title {
-  color: var(--muted);
+.variation-topology-node.selected polygon,
+.variation-topology-node.selected circle {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.variation-topology-number {
+  fill: #111827;
+  font-size: 26px;
+  dominant-baseline: middle;
+}
+
+.variation-topology-special {
+  fill: #111827;
   font-size: 12px;
+  dominant-baseline: middle;
+}
+
+.variation-topology-node.selected text {
+  fill: var(--accent);
   font-weight: 700;
-}
-
-.variation-branch-list {
-  display: grid;
-  gap: 8px;
-}
-
-.variation-branch {
-  display: grid;
-  gap: 4px;
-  padding-left: 10px;
-  border-left: 1px solid #c8d2da;
-}
-
-.variation-branch-button {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 30px;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: #f8fafb;
-  text-align: left;
-}
-
-.variation-branch-button span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.variation-branch-body {
-  display: grid;
-  gap: 4px;
-}
-
-.variation-empty-branch {
-  min-height: 28px;
-  padding: 5px 8px;
-  border: 1px dashed #aeb8c2;
-  border-radius: 4px;
-  color: var(--muted);
-  background: #fff;
-  font-size: 12px;
 }
 
 .variation-branch-hint {

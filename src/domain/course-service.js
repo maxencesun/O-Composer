@@ -133,6 +133,104 @@ export function courseView(eventModel, courseId, options = {}) {
     .filter(Boolean);
 }
 
+export function courseTopology(eventModel, courseId) {
+  const course = getCourse(eventModel, courseId);
+  if (!course || course.kind === "score") {
+    return [];
+  }
+
+  const views = [];
+  const viewByCourseControlId = new Map();
+  const handledSplitKeys = new Set();
+  const maxSteps = Math.max(1000, eventModel.courseControls.length * 20);
+  let steps = 0;
+
+  function splitKey(courseControl) {
+    return (courseControl.variationCourseControls || []).map(Number).filter(Boolean).join(":");
+  }
+
+  function addView(courseControl) {
+    const control = getControl(eventModel, courseControl?.control);
+    if (!courseControl || !control) return null;
+    if (courseControl.variation && courseControl.variationCourseControls?.length) {
+      const key = splitKey(courseControl);
+      if (handledSplitKeys.has(key)) {
+        return viewByCourseControlId.get(Number(courseControl.id)) ?? null;
+      }
+      const courseControlIds = courseControl.variationCourseControls.map(Number).filter(Boolean);
+      const view = {
+        course,
+        control,
+        courseControlIds,
+        courseControls: courseControlIds.map(id => getCourseControl(eventModel, id)).filter(Boolean),
+        variation: courseControl.variation,
+        joinCourseControlId: Number(courseControl.variationEnd) || null,
+        legToCourseControlIds: courseControlIds
+          .map(id => Number(getCourseControl(eventModel, id)?.nextCourseControl) || 0)
+          .filter(Boolean),
+        legTo: [],
+        joinIndex: -1
+      };
+      const index = views.length;
+      views.push(view);
+      handledSplitKeys.add(key);
+      for (const id of courseControlIds) {
+        viewByCourseControlId.set(Number(id), index);
+      }
+      return index;
+    }
+
+    if (viewByCourseControlId.has(Number(courseControl.id))) {
+      return viewByCourseControlId.get(Number(courseControl.id));
+    }
+    const view = {
+      course,
+      control,
+      courseControlIds: [Number(courseControl.id)],
+      courseControls: [courseControl],
+      variation: "",
+      joinCourseControlId: null,
+      legToCourseControlIds: Number(courseControl.nextCourseControl) ? [Number(courseControl.nextCourseControl)] : [],
+      legTo: [],
+      joinIndex: -1
+    };
+    const index = views.length;
+    views.push(view);
+    viewByCourseControlId.set(Number(courseControl.id), index);
+    return index;
+  }
+
+  function visit(startId, joinId = null) {
+    let currentId = Number(startId) || 0;
+    while (currentId && currentId !== Number(joinId) && steps++ < maxSteps) {
+      const courseControl = getCourseControl(eventModel, currentId);
+      if (!courseControl) break;
+      const index = addView(courseControl);
+      if (index == null) break;
+      if (courseControl.variation && courseControl.variationCourseControls?.length) {
+        for (const branchId of courseControl.variationCourseControls || []) {
+          visit(getCourseControl(eventModel, branchId)?.nextCourseControl, courseControl.variationEnd);
+        }
+        currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
+      }
+      else {
+        currentId = Number(courseControl.nextCourseControl) || 0;
+      }
+    }
+  }
+
+  visit(course.firstCourseControl);
+
+  for (const view of views) {
+    view.legTo = view.legToCourseControlIds
+      .map(id => viewByCourseControlId.get(Number(id)))
+      .filter(index => Number.isInteger(index));
+    view.joinIndex = view.joinCourseControlId ? viewByCourseControlId.get(Number(view.joinCourseControlId)) ?? -1 : -1;
+  }
+
+  return views;
+}
+
 export function allControlsView(eventModel) {
   return [...eventModel.controls]
     .sort(compareControls)
@@ -155,6 +253,9 @@ export function courseLegs(eventModel, courseId, options = {}) {
   if (course.kind === "score") {
     return scoreCourseFinishLeg(eventModel, course, view);
   }
+  if (options.allBranches) {
+    return topologyCourseLegs(eventModel, courseId);
+  }
   const legs = [];
   for (let i = 0; i < view.length - 1; i += 1) {
     const from = view[i];
@@ -173,6 +274,38 @@ export function courseLegs(eventModel, courseId, options = {}) {
     });
   }
   return legs;
+}
+
+function topologyCourseLegs(eventModel, courseId) {
+  const topology = courseTopology(eventModel, courseId);
+  const legs = [];
+  for (const view of topology) {
+    for (let index = 0; index < view.legTo.length; index += 1) {
+      const toView = topology[view.legTo[index]];
+      const fromCourseControl = view.courseControls[index] || view.courseControls[0];
+      const toCourseControl = toView?.courseControls[0];
+      if (!fromCourseControl || !toCourseControl || !view.control || !toView?.control) continue;
+      const from = rowForCourseControl(eventModel, view.course, fromCourseControl, view.control);
+      const to = rowForCourseControl(eventModel, toView.course, toCourseControl, toView.control);
+      legs.push({
+        from,
+        to,
+        leg: findLeg(eventModel, view.control.id, toView.control.id),
+        length: legLength(eventModel, view.control.id, toView.control.id)
+      });
+    }
+  }
+  return legs;
+}
+
+function rowForCourseControl(eventModel, course, courseControl, control) {
+  return {
+    course,
+    courseControl,
+    control,
+    ordinal: "",
+    label: labelForControl(course, courseControl, control, "")
+  };
 }
 
 function scoreCourseFinishLeg(eventModel, course, view) {

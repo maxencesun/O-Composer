@@ -447,9 +447,12 @@ export function addVariationAtCourseControl(eventModel, courseId, courseControlI
     branchControls.push(courseControl);
   }
 
-  fromCourseControl.variation = variation;
-  fromCourseControl.variationEnd = joinCourseControlId;
-  fromCourseControl.variationCourseControls = branchControls.map(courseControl => courseControl.id);
+  const branchIds = branchControls.map(courseControl => courseControl.id);
+  for (const courseControl of branchControls) {
+    courseControl.variation = variation;
+    courseControl.variationEnd = joinCourseControlId;
+    courseControl.variationCourseControls = [...branchIds];
+  }
   return {
     type: "variation-branch",
     forkCourseControl: fromCourseControl.id,

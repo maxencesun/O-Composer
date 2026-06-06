@@ -1,6 +1,7 @@
 # O-Composer
 
-O-Composer is a standalone, frontend-only orienteering course composer compatible with Purple Pen event files. It is intentionally a static web application: open it from a static file server and all work happens in the browser with local files, canvas rendering, IndexedDB caching, Blob downloads, and vector PDF export. It does not need to live inside, import from, or run through the original `purple-pen` source tree.
+O-Composer is a simple, no-download web tool for designing orienteering courses directly in your browser. You can create and edit courses, place controls on the map, manage course descriptions, import OpenOrienteering Mapper maps, preview the course layout, and export files such as PDF, SVG, PNG, GPX, KML, IOF XML, and Purple Pen-compatible event files. It is designed to make course planning easier for beginners while still covering the common workflows needed for real orienteering events.
+
 
 ## Framework Choice
 

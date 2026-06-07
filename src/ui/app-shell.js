@@ -410,19 +410,8 @@ export class PurplePenApp extends HTMLElement {
             ["tool-whiteout", "White Out"]
           ])}
           ${this.menu("Event", [
-            ["change-title", "Change Event Title"],
-            ["map-info", "Map Info"],
-            ["change-map-scale", "Change Map Scale"],
-            ["change-description-language", "Description Language"],
-            ["auto-number", "Auto Numbering"],
-            ["remove-unused", "Remove Unused Controls"],
-            ["move-all", "Move All Controls"],
-            ["std-desc-2004", "Description Standard 2004"],
-            ["std-desc-2024", "Description Standard 2024"],
-            ["std-map-2000", "Map Standard ISOM 2000"],
-            ["std-map-2017", "Map Standard ISOM 2017"],
-            ["std-map-sprint", "Map Standard ISSprOM 2019"],
-            ["appearance", "Course Appearance"]
+            ["event-adjustment", "Event Adjustment"],
+            ["map-info", "Map Info"]
           ])}
           ${this.menu("Course", [
             ["add-course", "Add Course"],
@@ -1449,8 +1438,8 @@ export class PurplePenApp extends HTMLElement {
   renderSelection({ eventModel, ui }) {
     const panel = this.querySelector("#selectionPanel");
     const selection = ui.selection;
-    if (!selection) {
-      panel.innerHTML = `<p class="muted">${escapeHtml(this.t("No item selected."))}</p>`;
+    if (!selection || selection.type === "event") {
+      panel.innerHTML = this.eventAdjustmentEditor(eventModel);
       return;
     }
     if (selection.type === "background") {
@@ -1486,6 +1475,91 @@ export class PurplePenApp extends HTMLElement {
     }
     this.bindSelectionColorInputs(panel);
     this.paintIscdCanvases(panel);
+  }
+
+  eventAdjustmentEditor(eventModel) {
+    const event = eventModel.event || {};
+    const descriptionStandard = event.standards?.description || "2024";
+    const mapStandard = event.standards?.map || event.courseAppearance?.mapStandard || "2017";
+    const descriptionLanguage = event.descriptions?.lang || event.descriptionLangId || "en";
+    const languages = DESCRIPTION_LANGUAGES.some(([code]) => code === descriptionLanguage)
+      ? DESCRIPTION_LANGUAGES
+      : [[descriptionLanguage, descriptionLanguage], ...DESCRIPTION_LANGUAGES];
+    const circleRatio = Number(event.courseAppearance?.controlCircleSizeRatio) || 1;
+    const numberingStart = Number(event.numbering?.start) || 31;
+    return `
+      <div class="event-adjustment-panel">
+        <h3>${escapeHtml(this.t("Event Settings"))}</h3>
+        <div class="form-grid">
+          <label class="span-2">${escapeHtml(this.t("Event title"))}
+            <input data-event-field="event.title" value="${escapeAttr(event.title || "")}" placeholder="${escapeAttr(this.t("Untitled Event"))}">
+          </label>
+          <label>${escapeHtml(this.t("Description language"))}
+            <select data-event-field="event.descriptions.lang">
+              ${languages.map(([code, label]) => `<option value="${escapeAttr(code)}" ${code === descriptionLanguage ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+            </select>
+          </label>
+          <label>${escapeHtml(this.t("Control circle size"))}
+            <select data-event-field="event.courseAppearance.controlCircleSizeRatio">
+              ${selectOptions(uniqueNumbers([circleRatio, 0.75, 0.9, 1, 1.1, 1.25, 1.5]), circleRatio, value => `${Math.round(value * 100)}%`)}
+            </select>
+          </label>
+        </div>
+
+        <h3>${escapeHtml(this.t("Standards"))}</h3>
+        <div class="form-grid">
+          <label>${escapeHtml(this.t("Description standard"))}
+            <select data-event-field="event.standards.description">
+              <option value="2024" ${descriptionStandard === "2024" ? "selected" : ""}>${escapeHtml(this.t("ISCD 2024"))}</option>
+              <option value="2004" ${descriptionStandard === "2004" ? "selected" : ""}>${escapeHtml(this.t("ISCD 2004"))}</option>
+            </select>
+          </label>
+          <label>${escapeHtml(this.t("Map standard"))}
+            <select data-event-field="event.standards.map">
+              <option value="2017" ${mapStandard === "2017" ? "selected" : ""}>${escapeHtml(this.t("ISOM 2017"))}</option>
+              <option value="Spr2019" ${mapStandard === "Spr2019" ? "selected" : ""}>${escapeHtml(this.t("ISSprOM 2019"))}</option>
+              <option value="2000" ${mapStandard === "2000" ? "selected" : ""}>${escapeHtml(this.t("ISOM 2000"))}</option>
+            </select>
+          </label>
+        </div>
+        <p class="muted">${escapeHtml(this.t("Current standards are shown directly in the selectors above."))}</p>
+
+        <h3>${escapeHtml(this.t("Control numbering"))}</h3>
+        <div class="form-grid">
+          <label>${escapeHtml(this.t("First control code"))}
+            <input data-event-field="event.numbering.start" type="number" min="1" step="1" value="${numberingStart}">
+          </label>
+          <label class="check">
+            <input data-event-field="event.numbering.disallowInvertible" type="checkbox" ${event.numbering?.disallowInvertible ? "checked" : ""}>
+            ${escapeHtml(this.t("Avoid invertible codes"))}
+          </label>
+        </div>
+        <button type="button" class="secondary" data-event-action="auto-number">${escapeHtml(this.t("Apply auto numbering"))}</button>
+
+        <h3>${escapeHtml(this.t("Bulk actions"))}</h3>
+        <div class="form-grid">
+          <label>${escapeHtml(this.t("Direction"))}
+            <select data-event-move-direction>
+              <option value="east">${escapeHtml(this.t("East"))}</option>
+              <option value="west">${escapeHtml(this.t("West"))}</option>
+              <option value="north">${escapeHtml(this.t("North"))}</option>
+              <option value="south">${escapeHtml(this.t("South"))}</option>
+              <option value="northeast">${escapeHtml(this.t("Northeast"))}</option>
+              <option value="northwest">${escapeHtml(this.t("Northwest"))}</option>
+              <option value="southeast">${escapeHtml(this.t("Southeast"))}</option>
+              <option value="southwest">${escapeHtml(this.t("Southwest"))}</option>
+            </select>
+          </label>
+          <label>${escapeHtml(this.t("Distance"))}
+            <select data-event-move-distance>${selectOptions(MOVE_DISTANCE_CHOICES, 10, value => `${value} ${this.t("map units")}`)}</select>
+          </label>
+        </div>
+        <div class="button-row">
+          <button type="button" class="secondary" data-event-action="move-all">${escapeHtml(this.t("Move all controls"))}</button>
+          <button type="button" class="secondary" data-event-action="remove-unused">${escapeHtml(this.t("Remove unused controls"))}</button>
+        </div>
+      </div>
+    `;
   }
 
   bindSelectionColorInputs(panel) {
@@ -1923,6 +1997,9 @@ export class PurplePenApp extends HTMLElement {
       case "quality":
         this.store.updateUi(ui => { ui.highQuality = !ui.highQuality; }, "Map quality");
         break;
+      case "event-adjustment":
+        this.store.updateUi(ui => { ui.selection = { type: "event" }; }, "Event adjustment");
+        break;
       case "change-title":
         this.promptEventTitle(eventModel);
         break;
@@ -2357,6 +2434,10 @@ export class PurplePenApp extends HTMLElement {
       this.updateBackgroundField(target.dataset.backgroundField, target.value);
       return;
     }
+    if (target.dataset.eventField !== undefined) {
+      this.updateEventAdjustmentField(target.dataset.eventField, valueFromInput(target));
+      return;
+    }
     if (!selection) return;
 
     if (target.dataset.descriptionBox && selection.type === "control") {
@@ -2470,6 +2551,47 @@ export class PurplePenApp extends HTMLElement {
       this.renderKeys = null;
       this.render(this.store.snapshot());
     }
+  }
+
+  updateEventAdjustmentField(field, value) {
+    this.store.updateEvent(model => {
+      model.event ||= {};
+      model.event.standards ||= { map: "2017", description: "2024" };
+      model.event.descriptions ||= { lang: "en", color: "black" };
+      model.event.numbering ||= { start: 31, disallowInvertible: true };
+      model.event.courseAppearance ||= {};
+      if (field === "event.title") {
+        model.event.title = String(value || "").trim() || "Untitled Event";
+        return;
+      }
+      if (field === "event.descriptions.lang") {
+        const lang = String(value || "en");
+        model.event.descriptions.lang = lang;
+        model.event.descriptionLangId = lang;
+        return;
+      }
+      if (field === "event.standards.description") {
+        model.event.standards.description = value === "2004" ? "2004" : "2024";
+        return;
+      }
+      if (field === "event.standards.map") {
+        const mapStandard = value === "Spr2019" ? "Spr2019" : value === "2000" ? "2000" : "2017";
+        model.event.standards.map = mapStandard;
+        model.event.courseAppearance.mapStandard = mapStandard;
+        return;
+      }
+      if (field === "event.numbering.start") {
+        model.event.numbering.start = Math.max(1, Number(value) || 31);
+        return;
+      }
+      if (field === "event.numbering.disallowInvertible") {
+        model.event.numbering.disallowInvertible = !!value;
+        return;
+      }
+      if (field === "event.courseAppearance.controlCircleSizeRatio") {
+        model.event.courseAppearance.controlCircleSizeRatio = Number(value) || 1;
+      }
+    }, "Edit event settings");
   }
 
   updateBackgroundField(field, value) {
@@ -2919,6 +3041,12 @@ export class PurplePenApp extends HTMLElement {
   }
 
   handleSelectionPanelClick(event) {
+    const eventAction = event.target.closest("[data-event-action]")?.dataset.eventAction;
+    if (eventAction) {
+      event.preventDefault();
+      this.handleEventAdjustmentAction(eventAction);
+      return;
+    }
     const symbolButton = event.target.closest("[data-iscd-symbol]");
     if (symbolButton) {
       event.preventDefault();
@@ -2979,6 +3107,30 @@ export class PurplePenApp extends HTMLElement {
         gapIndex: Number(button.dataset.selectLegGap) || 0
       };
     }, "Select cut");
+  }
+
+  handleEventAdjustmentAction(action) {
+    const state = this.store.snapshot();
+    if (action === "auto-number") {
+      const start = Number(state.eventModel.event.numbering?.start) || 31;
+      const disallow = !!state.eventModel.event.numbering?.disallowInvertible;
+      this.store.updateEvent(model => autoNumberControls(model, start, disallow), "Auto numbering");
+      return;
+    }
+    if (action === "remove-unused") {
+      this.store.updateEvent(model => {
+        const count = removeUnusedControls(model);
+        model.metadata.lastMessage = `${count} unused controls removed.`;
+      }, "Remove unused controls");
+      return;
+    }
+    if (action === "move-all") {
+      const panel = this.querySelector("#selectionPanel");
+      const direction = panel?.querySelector("[data-event-move-direction]")?.value || "east";
+      const distance = Number(panel?.querySelector("[data-event-move-distance]")?.value) || 0;
+      const vector = directionVector(direction);
+      this.store.updateEvent(model => moveAllControls(model, vector.x * distance, vector.y * distance), "Move all controls");
+    }
   }
 
   handleSelectionPanelInput(event) {

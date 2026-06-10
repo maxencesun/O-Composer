@@ -132,7 +132,8 @@ export function courseView(eventModel, courseId, options = {}) {
       if (!courseControl || !control) {
         return null;
       }
-      const displayOrdinal = control.kind === "normal"
+      const mandatoryNormal = control.kind === "normal" && !isTeamFreeCourseControl(course, courseControl);
+      const displayOrdinal = mandatoryNormal
         ? (allBranchOrdinals?.get(Number(courseControl.id)) || ordinal++)
         : "";
       return {
@@ -140,6 +141,7 @@ export function courseView(eventModel, courseId, options = {}) {
         courseControl,
         control,
         ordinal: displayOrdinal,
+        teamRole: teamCourseControlRole(course, courseControl),
         label: labelForControl(course, courseControl, control, displayOrdinal)
       };
     })
@@ -361,6 +363,9 @@ export function courseLegs(eventModel, courseId, options = {}) {
   if (course.kind === "score") {
     return scoreCourseFinishLeg(eventModel, course, view);
   }
+  if (course.kind === "team") {
+    return teamCourseLegs(eventModel, course, view);
+  }
   if (options.allBranches) {
     return topologyCourseLegs(eventModel, courseId);
   }
@@ -445,6 +450,24 @@ function scoreCourseFinishLeg(eventModel, course, view) {
   });
   return legs;
 }
+function teamCourseLegs(eventModel, course, view) {
+  const legs = [];
+  const mandatoryRows = view.filter(row => row.control?.kind !== "normal" || !isTeamFreeCourseControl(course, row.courseControl));
+  for (let i = 0; i < mandatoryRows.length - 1; i += 1) {
+    const from = mandatoryRows[i];
+    const to = mandatoryRows[i + 1];
+    if (!from.control || !to.control) continue;
+    if (from.courseControl?.mapExchange) continue;
+    legs.push({
+      from,
+      to,
+      leg: findLeg(eventModel, from.control.id, to.control.id),
+      length: legLength(eventModel, from.control.id, to.control.id)
+    });
+  }
+  return legs;
+}
+
 
 export function findLeg(eventModel, startControlId, endControlId) {
   return eventModel.legs.find(leg =>
@@ -645,11 +668,14 @@ export function eventBounds(eventModel) {
 
 export function createCourseSummary(eventModel) {
   const rows = sortedCourses(eventModel).map(course => {
-    const controls = courseView(eventModel, course.id).filter(row => row.control.kind === "normal").length;
+    const view = courseView(eventModel, course.id);
+    const controls = view.filter(row => row.control.kind === "normal").length;
+    const freeControls = course.kind === "team" ? view.filter(row => row.control.kind === "normal" && isTeamFreeCourseControl(course, row.courseControl)).length : 0;
     return {
       course: course.name,
       kind: course.kind,
       controls,
+      freeControls,
       length: courseLength(eventModel, course.id),
       climb: course.options?.climb ?? -1,
       load: course.options?.load ?? -1,
@@ -845,7 +871,7 @@ function allBranchOrdinalMap(eventModel, course) {
       const control = getControl(eventModel, courseControl?.control);
       if (!courseControl || !control) break;
 
-      if (control.kind === "normal") {
+      if (control.kind === "normal" && !isTeamFreeCourseControl(course, courseControl)) {
         result.set(Number(courseControl.id), formatOrdinal(currentOrdinal, suffix));
         currentOrdinal += 1;
       }
@@ -923,15 +949,34 @@ function branchCodeMapForCourse(eventModel, course) {
   return result;
 }
 
+
+export function teamCourseControlRole(course, courseControl) {
+  if (course?.kind !== "team" || !courseControl) return "mandatory";
+  return courseControl.teamRole === "free" ? "free" : "mandatory";
+}
+
+export function isTeamFreeCourseControl(course, courseControl) {
+  return teamCourseControlRole(course, courseControl) === "free";
+}
+
+export function isTeamMandatoryCourseControl(course, courseControl) {
+  return teamCourseControlRole(course, courseControl) !== "free";
+}
+
 function labelForControl(course, courseControl, control, ordinal) {
   if (control.kind !== "normal") {
     return controlKindLabel(control.kind);
   }
   const code = control.code || "";
+  const teamFree = isTeamFreeCourseControl(course, courseControl);
+  if (teamFree) {
+    return code;
+  }
   const score = course.kind === "score"
     ? String(Math.max(0, Number(courseControl?.points) || 0))
     : (courseControl?.points ? String(courseControl.points) : "");
-  switch (course.labelKind) {
+  const labelKind = course.labelKind;
+  switch (labelKind) {
     case "code": return code;
     case "sequence-and-code": return `${ordinal}-${code}`;
     case "sequence-and-score": return score ? `${ordinal}(${score})` : String(ordinal);

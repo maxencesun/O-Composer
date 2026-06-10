@@ -5,7 +5,8 @@ import {
   eventBounds,
   getControl,
   getCourse,
-  controlsUsedByCourse
+  controlsUsedByCourse,
+  isTeamFreeCourseControl
 } from "../domain/course-service.js";
 import {
   createDescriptionSpecialOptions,
@@ -2760,6 +2761,9 @@ function mergedCourseLabelRows(rows) {
 
 function mergedControlLabel(course, control, courseControls, ordinal, fallbackLabels) {
   if (!course || !control || control.kind !== "normal") {
+    return fallbackLabels.join("/");
+  }
+  if (course.kind === "team" && courseControls.some(courseControl => isTeamFreeCourseControl(course, courseControl))) {
     return fallbackLabels.join("/");
   }
   const code = control.code || "";

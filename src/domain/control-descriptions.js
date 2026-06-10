@@ -1,4 +1,4 @@
-import { courseLength, courseView, findLeg, getCourse, legLength, legPath, naturalCode } from "./course-service.js";
+import { courseLength, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -151,6 +151,9 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
   if (course?.kind === "score") {
     view = scoreCourseDescriptionRows(view);
   }
+  if (course?.kind === "team") {
+    return buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind);
+  }
   const normalControls = view.filter(row => row.control.kind === "normal");
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
@@ -167,6 +170,36 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
     if (selectedCourseId !== "all" && index < view.length - 1) {
       const marked = markedRouteRow(eventModel, view[index], view[index + 1]);
       if (marked) rows.push(marked);
+    }
+  }
+  return rows;
+}
+
+function buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind) {
+  const mandatoryView = view.filter(row => row.control?.kind !== "normal" || !isTeamFreeCourseControl(course, row.courseControl));
+  const freeView = scoreCourseDescriptionRows(view.filter(row => row.control?.kind === "normal" && isTeamFreeCourseControl(course, row.courseControl)));
+  const mandatoryCount = mandatoryView.filter(row => row.control?.kind === "normal").length;
+  const rows = [];
+  rows.push(...titleRows("title", eventModel.event?.title || ""));
+  if (course?.secondaryTitle) rows.push(...titleRows("subtitle", course.secondaryTitle));
+  rows.push(teamCourseHeaderRow(eventModel, course, mandatoryCount, freeView.length));
+  for (let index = 0; index < mandatoryView.length; index += 1) {
+    const row = mandatoryView[index];
+    if (row.control.kind === "finish" || row.control.kind === "crossing-point" || row.control.kind === "map-issue") {
+      rows.push(directiveRow(eventModel, mandatoryView, index, selectedCourseId));
+    }
+    else {
+      rows.push(iscdRow(row, descriptionKind));
+    }
+    if (index < mandatoryView.length - 1) {
+      const marked = markedRouteRow(eventModel, mandatoryView[index], mandatoryView[index + 1]);
+      if (marked) rows.push(marked);
+    }
+  }
+  if (freeView.length) {
+    rows.push(...titleRows("subtitle", symbolText("free_controls", "Free controls")));
+    for (const row of freeView) {
+      rows.push(iscdRow(row, descriptionKind));
     }
   }
   return rows;
@@ -495,6 +528,9 @@ function titleRows(kind, text) {
 }
 
 function courseHeaderRow(eventModel, course, normalControlCount) {
+  if (course.kind === "team") {
+    return teamCourseHeaderRow(eventModel, course, normalControlCount, 0);
+  }
   if (course.kind === "score") {
     return {
       kind: "header2",
@@ -510,6 +546,19 @@ function courseHeaderRow(eventModel, course, normalControlCount) {
     kind: "header3",
     boxes: [course.name || "", length, climb],
     text: climb ? formatSymbolText("course_length_climb", [length, climb], `${length}, ${climb}`) : formatSymbolText("course_length", length, `Length ${length}`)
+  };
+}
+
+function teamCourseHeaderRow(eventModel, course, mandatoryControlCount, freeControlCount) {
+  const length = formatCourseLength(courseLength(eventModel, course.id));
+  const climb = formatCourseClimb(course.options?.climb);
+  const suffix = freeControlCount ? ` + ${freeControlCount} free` : "";
+  return {
+    kind: "header3",
+    boxes: [course.name || "", length, climb],
+    text: climb
+      ? formatSymbolText("course_length_climb", [length, climb], `${length}, ${climb}${suffix}`)
+      : formatSymbolText("team_course_length", [length, mandatoryControlCount, freeControlCount], `${length}, ${mandatoryControlCount} mandatory${suffix}`)
   };
 }
 
@@ -661,14 +710,23 @@ function iscdRow(row, descriptionKind) {
   }
   const D = descriptionValue(row.control, "D") || defaultFeatureForControl(row.control.kind);
   const text = row.control.descriptionText || iscdSymbolLabel("D", D) || controlKindText(row.control.kind);
-  return { kind: "control", ordinal: row.course?.kind === "score" ? "" : String(row.ordinal || ""), code: row.control.code || "", text, C: descriptionValue(row.control, "C"), D, E: descriptionValue(row.control, "E"), F: descriptionValue(row.control, "F"), G: descriptionValue(row.control, "G"), H: descriptionValue(row.control, "H"), ...(HScore !== undefined ? { HScore } : {}), featureText: descriptionKind === "symbols" ? "" : text };
+  return { kind: "control", ordinal: (row.course?.kind === "score" || isTeamFreeCourseControl(row.course, row.courseControl)) ? "" : String(row.ordinal || ""), code: row.control.code || "", text, C: descriptionValue(row.control, "C"), D, E: descriptionValue(row.control, "E"), F: descriptionValue(row.control, "F"), G: descriptionValue(row.control, "G"), H: descriptionValue(row.control, "H"), ...(HScore !== undefined ? { HScore } : {}), featureText: descriptionKind === "symbols" ? "" : text };
 }
 
 function scoreDescriptionValue(row) {
-  if (row.course?.kind !== "score" || row.control?.kind !== "normal") {
+  if (row.control?.kind !== "normal") {
     return undefined;
   }
-  return String(Math.max(0, Number(row.courseControl?.points) || 0));
+  // Team-course free controls are ordered like score controls in the table,
+  // but they do not have per-control points. Keep column H as the normal
+  // ISCD column instead of drawing a score value such as 0.
+  if (row.course?.kind === "team") {
+    return undefined;
+  }
+  if (row.course?.kind === "score") {
+    return String(Math.max(0, Number(row.courseControl?.points) || 0));
+  }
+  return undefined;
 }
 
 export function drawIscdSymbol(ctx, column, value, cx, cy, r) {

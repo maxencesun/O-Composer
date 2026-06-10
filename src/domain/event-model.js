@@ -182,6 +182,7 @@ export function createCourseControl(id, controlId, nextCourseControl = null) {
     mapExchange: false,
     mapFlip: false,
     points: 0,
+    teamRole: "mandatory",
     numberLocation: null,
     descTextBefore: "",
     descTextAfter: ""

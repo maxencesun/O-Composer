@@ -72,6 +72,7 @@ import {
   getControl,
   getCourse,
   getCourseControl,
+  isTeamFreeCourseControl,
   sortedCourses
 } from "../domain/course-service.js";
 import {
@@ -239,7 +240,7 @@ export class PurplePenApp extends HTMLElement {
     this.renderKeys = null;
     this.cacheReady = false;
     this.mapView = new MapView(this.querySelector("#mapCanvas"), this.store, {
-      onSelect: selection => this.store.setSelection(selection),
+      onSelect: selection => this.setSelection(selection),
       onToolPoint: (tool, point, options) => this.applyTool(tool, point, options),
       onAddExistingControlToCourse: selection => this.addExistingControlToCurrentCourse(selection),
       onAddDescriptionSpecial: (point, options) => this.addDescriptionSpecial(point, options),
@@ -766,6 +767,17 @@ export class PurplePenApp extends HTMLElement {
     }
   }
 
+  setSelection(selection) {
+    const state = this.store.snapshot();
+    this.store.updateUi(ui => {
+      ui.selection = selection;
+      const role = teamAddControlRoleFromSelection(state.eventModel, ui, selection);
+      if (role) {
+        ui.teamAddControlRole = role;
+      }
+    }, "Selection");
+  }
+
   render(state) {
     const keys = renderKeysFor(state);
     const shouldRenderCourse = !this.renderKeys
@@ -785,7 +797,8 @@ export class PurplePenApp extends HTMLElement {
       || this.renderKeys.reportHtml !== keys.reportHtml;
     const shouldRenderDescription = shouldRenderCourse
       || !this.renderKeys
-      || this.renderKeys.selection !== keys.selection;
+      || this.renderKeys.selection !== keys.selection
+      || this.renderKeys.teamAddControlRole !== keys.teamAddControlRole;
     const shouldRenderVariation = shouldRenderCourse
       || !this.renderKeys
       || this.renderKeys.selection !== keys.selection
@@ -935,18 +948,36 @@ export class PurplePenApp extends HTMLElement {
   renderDescription({ eventModel, ui }) {
     const courseId = ui.selectedCourseId;
     const showingCourseRows = courseId !== "all";
-    const isScoreCourse = showingCourseRows && getCourse(eventModel, courseId)?.kind === "score";
+    const course = showingCourseRows ? getCourse(eventModel, courseId) : null;
+    const isScoreCourse = course?.kind === "score";
+    const isTeamCourse = course?.kind === "team";
     let rows = !showingCourseRows
       ? allControlsView(eventModel)
       : courseView(eventModel, courseId, courseDisplayOptions(eventModel, ui));
     if (isScoreCourse) {
       rows = scoreCourseDescriptionRows(rows);
     }
+    if (isTeamCourse) {
+      rows = teamCourseDescriptionPanelRows(rows, course);
+    }
+    const mode = isTeamCourse ? "team" : (isScoreCourse ? "score" : "normal");
+    const typeHeader = "";
+    const addRole = ui.teamAddControlRole === "free" ? "free" : "mandatory";
+    const teamToolbar = isTeamCourse ? `
+      <div class="panel-inline-toolbar team-add-control-toolbar">
+        <label>${escapeHtml(this.t("New normal controls"))}
+          <select data-team-new-control-role>
+            <option value="mandatory" ${addRole === "mandatory" ? "selected" : ""}>${escapeHtml(this.t("Mandatory"))}</option>
+            <option value="free" ${addRole === "free" ? "selected" : ""}>${escapeHtml(this.t("Free"))}</option>
+          </select>
+        </label>
+      </div>` : "";
     const html = `
+      ${teamToolbar}
       <table class="description-table">
-        <thead><tr><th>#</th><th>${escapeHtml(this.t("Code"))}</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th></tr></thead>
+        <thead><tr><th>#</th><th>${escapeHtml(this.t("Code"))}</th>${typeHeader}<th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th></tr></thead>
         <tbody>
-          ${rows.map(row => this.descriptionRow(row, isScoreCourse)).join("")}
+          ${rows.map(row => this.descriptionRow(row, mode)).join("")}
         </tbody>
       </table>
     `;
@@ -954,12 +985,17 @@ export class PurplePenApp extends HTMLElement {
     this.paintIscdCanvases(this.querySelector("#descriptionPanel"));
   }
 
-  descriptionRow(row, isScoreCourse = false, selection = this.store.snapshot().ui.selection) {
+  descriptionRow(row, mode = "normal", selection = this.store.snapshot().ui.selection) {
     const descriptions = new Map((row.control.descriptions || []).map(item => [item.box, item]));
     const selected = selection?.type === "control" && Number(selection.id) === Number(row.control.id);
+    const isScoreCourse = mode === "score";
+    const isTeamCourse = mode === "team";
+    const isTeamFree = isTeamCourse && isTeamFreeCourseControl(row.course, row.courseControl);
+    const typeCell = "";
     return `<tr data-control-id="${row.control.id}" class="${selected ? "selected" : ""}">
-      <td>${isScoreCourse ? "" : escapeHtml(row.ordinal || "")}</td>
+      <td>${isScoreCourse || isTeamFree ? "" : escapeHtml(row.ordinal || "")}</td>
       <td>${escapeHtml(row.control.code || this.t(controlKindLabel(row.control.kind)))}</td>
+      ${typeCell}
       ${["C", "D", "E", "F", "G", "H"].map(box => {
         if (isScoreCourse && box === "H") {
           return this.scoreDescriptionCell(row);
@@ -981,6 +1017,20 @@ export class PurplePenApp extends HTMLElement {
     return `<td class="score-cell"><input type="number" class="points-input" data-course-control-id="${row.courseControl.id}" data-field="courseControl.points" value="${row.courseControl.points || 0}" min="0"></td>`;
   }
 
+
+  teamRoleDescriptionCell(row) {
+    if (row.control.kind !== "normal" || !row.courseControl) {
+      return `<td class="team-role-cell"></td>`;
+    }
+    const role = isTeamFreeCourseControl(row.course, row.courseControl) ? "free" : "mandatory";
+    return `<td class="team-role-cell">
+      <select data-course-control-id="${row.courseControl.id}" data-field="courseControl.teamRole" title="${escapeAttr(this.t("Team role"))}">
+        <option value="mandatory" ${role === "mandatory" ? "selected" : ""}>${escapeHtml(this.t("Mandatory"))}</option>
+        <option value="free" ${role === "free" ? "selected" : ""}>${escapeHtml(this.t("Free"))}</option>
+      </select>
+    </td>`;
+  }
+
   handleDescriptionPanelClick(event) {
     if (event.target.closest("[data-field='courseControl.points']")) {
       return;
@@ -989,7 +1039,7 @@ export class PurplePenApp extends HTMLElement {
     const row = event.target.closest("[data-control-id]");
     if (!row) return;
     const controlId = Number(row.dataset.controlId);
-    this.store.setSelection({ type: "control", id: controlId });
+    this.setSelection({ type: "control", id: controlId });
     if (cell) {
       event.preventDefault();
       this.openIscdSymbolPicker(controlId, cell.dataset.box, cell.dataset.value || "");
@@ -997,16 +1047,21 @@ export class PurplePenApp extends HTMLElement {
   }
 
   handleDescriptionPanelChange(event) {
-    const input = event.target.closest("[data-field='courseControl.points']");
-    if (!input) return;
-    const courseControlId = Number(input.dataset.courseControlId);
+    const newControlRoleInput = event.target.closest("[data-team-new-control-role]");
+    if (newControlRoleInput) {
+      this.store.updateUi(ui => {
+        ui.teamAddControlRole = newControlRoleInput.value === "free" ? "free" : "mandatory";
+      }, "Team add control role");
+      return;
+    }
+    const pointsInput = event.target.closest("[data-field='courseControl.points']");
+    if (!pointsInput) return;
+    const courseControlId = Number(pointsInput.dataset.courseControlId);
     if (!courseControlId) return;
-    const points = Math.max(0, Number(input.value) || 0);
     this.store.updateEvent(model => {
       const courseControl = getCourseControl(model, courseControlId);
-      if (courseControl) {
-        courseControl.points = points;
-      }
+      if (!courseControl) return;
+      courseControl.points = Math.max(0, Number(pointsInput.value) || 0);
     }, "Change points");
   }
 
@@ -1023,6 +1078,9 @@ export class PurplePenApp extends HTMLElement {
     }
     if (course.kind === "score") {
       return `<p class="muted">${escapeHtml(this.t("Variations cannot be added to score courses."))}</p>`;
+    }
+    if (course.kind === "team") {
+      return `<p class="muted">${escapeHtml(this.t("Variations cannot be added to team courses."))}</p>`;
     }
 
     const branchCodes = variationBranchCodeMap(eventModel, course.id);
@@ -1320,6 +1378,11 @@ export class PurplePenApp extends HTMLElement {
     const state = this.store.snapshot();
     const courseId = state.ui.selectedCourseId;
     if (!courseId || courseId === "all") return;
+    const course = getCourse(state.eventModel, courseId);
+    if (course?.kind === "team") {
+      this.store.updateUi(ui => { ui.status = this.t("Variations cannot be added to team courses."); }, "Add variation");
+      return;
+    }
     const anchor = variationAnchorCourseControl(state.eventModel, courseId, state.ui);
     if (!anchor) {
       this.store.updateUi(ui => {
@@ -1604,6 +1667,7 @@ export class PurplePenApp extends HTMLElement {
   controlEditor(control) {
     const descriptions = new Map((control.descriptions || []).map(item => [item.box, item]));
     const scoreFinishControl = this.scoreFinishControlEditor(control);
+    const teamControl = this.teamControlEditor(control);
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Kind"))} <select data-field="control.kind">${CONTROL_KINDS.map(kind => `<option value="${kind}" ${kind === control.kind ? "selected" : ""}>${escapeHtml(optionLabel(kind))}</option>`).join("")}</select></label>
@@ -1614,6 +1678,7 @@ export class PurplePenApp extends HTMLElement {
         <label>${escapeHtml(this.t("After"))} <input data-field="control.descTextAfter" value="${escapeAttr(control.descTextAfter || "")}"></label>
       </div>
       ${scoreFinishControl}
+      ${teamControl}
       <h3>${escapeHtml(this.t("Descriptions"))}</h3>
       <div class="description-edit">
         ${ISCD_COLUMNS.map(([box, label]) => `
@@ -1654,6 +1719,35 @@ export class PurplePenApp extends HTMLElement {
     `;
   }
 
+
+  teamControlEditor(control) {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    if (!courseId || courseId === "all" || state.ui.showAllControls || control.kind !== "normal") {
+      return "";
+    }
+    const course = getCourse(state.eventModel, courseId);
+    if (course?.kind !== "team") {
+      return "";
+    }
+    const row = courseView(state.eventModel, courseId, { allBranches: true })
+      .find(candidate => Number(candidate.control?.id) === Number(control.id));
+    if (!row?.courseControl) return "";
+    const role = isTeamFreeCourseControl(course, row.courseControl) ? "free" : "mandatory";
+    return `
+      <h3>${escapeHtml(this.t("Team course"))}</h3>
+      <div class="form-grid">
+        <label>${escapeHtml(this.t("Team role"))}
+          <select data-team-course-control-role="${row.courseControl.id}">
+            <option value="mandatory" ${role === "mandatory" ? "selected" : ""}>${escapeHtml(this.t("Mandatory"))}</option>
+            <option value="free" ${role === "free" ? "selected" : ""}>${escapeHtml(this.t("Free"))}</option>
+          </select>
+        </label>
+      </div>
+      <p class="muted">${escapeHtml(this.t("Team courses combine mandatory controls drawn like a normal course with free controls drawn like score controls."))}</p>
+    `;
+  }
+
   courseEditor(course) {
     const finishRoute = finishRouteForCourse(this.store.snapshot().eventModel, course.id);
     const relay = course.relay || { firstTeam: 1, teams: 0, legs: 1, branches: [] };
@@ -1661,7 +1755,7 @@ export class PurplePenApp extends HTMLElement {
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Name"))} <input data-field="course.name" value="${escapeAttr(course.name)}"></label>
-        <label>${escapeHtml(this.t("Kind"))} <select data-field="course.kind"><option value="normal" ${course.kind === "normal" ? "selected" : ""}>${escapeHtml(this.t("normal"))}</option><option value="score" ${course.kind === "score" ? "selected" : ""}>${escapeHtml(this.t("score"))}</option></select></label>
+        <label>${escapeHtml(this.t("Kind"))} <select data-field="course.kind"><option value="normal" ${course.kind === "normal" ? "selected" : ""}>${escapeHtml(this.t("normal"))}</option><option value="score" ${course.kind === "score" ? "selected" : ""}>${escapeHtml(this.t("score"))}</option><option value="team" ${course.kind === "team" ? "selected" : ""}>${escapeHtml(this.t("team"))}</option></select></label>
         <label>${escapeHtml(this.t("Labels"))} <select data-field="course.labelKind">${["sequence", "code", "sequence-and-code", "sequence-and-score", "code-and-score-brackets", "code-and-score-dash", "code-and-score", "score"].map(kind => `<option value="${kind}" ${kind === course.labelKind ? "selected" : ""}>${escapeHtml(this.t(kind))}</option>`).join("")}</select></label>
         <label>${escapeHtml(this.t("Print scale"))} <input data-field="course.options.printScale" type="number" value="${course.options.printScale || 15000}"></label>
         <label>${escapeHtml(this.t("Climb"))} <input data-field="course.options.climb" type="number" value="${course.options.climb ?? -1}"></label>
@@ -1678,15 +1772,17 @@ export class PurplePenApp extends HTMLElement {
         </label>
         <label class="check"><input data-field="course.options.hideFromReports" type="checkbox" ${course.options.hideFromReports ? "checked" : ""}> ${escapeHtml(this.t("Hide from reports"))}</label>
       </div>
-      <h3>${escapeHtml(this.t("Relay"))}</h3>
-      <div class="form-grid">
-        <label>${escapeHtml(this.t("Teams"))} <input data-field="course.relay.teams" type="number" min="0" value="${relay.teams || 0}"></label>
-        <label>${escapeHtml(this.t("Legs"))} <input data-field="course.relay.legs" type="number" min="1" value="${relay.legs || 1}"></label>
-        <label>${escapeHtml(this.t("First team"))} <input data-field="course.relay.firstTeam" type="number" min="1" value="${relay.firstTeam || 1}"></label>
-        <label class="check"><input data-field="course.hideVariationsOnMap" type="checkbox" ${course.hideVariationsOnMap ? "checked" : ""}> ${escapeHtml(this.t("Hide variation codes on map"))}</label>
-      </div>
-      ${this.relayBranchEditor(course, assignments)}
-      ${this.relayAssignmentTable(assignments)}
+      ${course.kind === "team" ? `<p class="muted">${escapeHtml(this.t("Team courses combine mandatory controls drawn like a normal course with free controls drawn without route legs."))}</p>` : `
+        <h3>${escapeHtml(this.t("Relay"))}</h3>
+        <div class="form-grid">
+          <label>${escapeHtml(this.t("Teams"))} <input data-field="course.relay.teams" type="number" min="0" value="${relay.teams || 0}"></label>
+          <label>${escapeHtml(this.t("Legs"))} <input data-field="course.relay.legs" type="number" min="1" value="${relay.legs || 1}"></label>
+          <label>${escapeHtml(this.t("First team"))} <input data-field="course.relay.firstTeam" type="number" min="1" value="${relay.firstTeam || 1}"></label>
+          <label class="check"><input data-field="course.hideVariationsOnMap" type="checkbox" ${course.hideVariationsOnMap ? "checked" : ""}> ${escapeHtml(this.t("Hide variation codes on map"))}</label>
+        </div>
+        ${this.relayBranchEditor(course, assignments)}
+        ${this.relayAssignmentTable(assignments)}
+      `}
     `;
   }
 
@@ -1964,7 +2060,7 @@ export class PurplePenApp extends HTMLElement {
         this.store.updateEvent(model => deleteSelection(model, state.ui.selection, {
           selectedCourseId: state.ui.selectedCourseId
         }), "Delete");
-        this.store.setSelection(null);
+        this.setSelection(null);
         break;
       case "cancel":
         this.store.updateUi(ui => {
@@ -2053,7 +2149,7 @@ export class PurplePenApp extends HTMLElement {
         this.promptDuplicateCourse();
         break;
       case "course-properties":
-        if (state.ui.selectedCourseId !== "all") this.store.setSelection({ type: "course", id: state.ui.selectedCourseId });
+        if (state.ui.selectedCourseId !== "all") this.setSelection({ type: "course", id: state.ui.selectedCourseId });
         break;
       case "add-variation":
         this.switchPanel("variation");
@@ -2169,10 +2265,16 @@ export class PurplePenApp extends HTMLElement {
     }
     if (tool.startsWith("control:")) {
       const kind = tool.split(":")[1];
+      const selectedCourse = selectedCourseId && selectedCourseId !== "all" ? getCourse(state.eventModel, selectedCourseId) : null;
+      const teamAddRole = selectedCourse?.kind === "team" && state.ui.teamAddControlRole === "free" ? "free" : "mandatory";
+      if (teamAddRole === "free" && (kind === "start" || kind === "finish")) {
+        this.store.updateUi(ui => { ui.status = this.t("Free controls cannot be start or finish."); }, "Add control failed");
+        return;
+      }
       const snapped = snappedControlForPlacement(state, kind, point, this.mapView);
       if (snapped) {
         if (selectedCourseId && selectedCourseId !== "all" && !snapped.usedInSelectedCourse) {
-          this.addExistingControlToCurrentCourse({ type: "control", id: snapped.control.id });
+          this.addExistingControlToCurrentCourse({ type: "control", id: snapped.control.id }, { teamRole: teamAddRole });
           return;
         }
         this.store.updateUi(ui => {
@@ -2184,7 +2286,7 @@ export class PurplePenApp extends HTMLElement {
       }
       try {
         this.store.updateEvent(model => {
-          const selection = addControlAt(model, kind, point, selectedCourseId, { afterCourseControl, beforeCourseControl });
+          const selection = addControlAt(model, kind, point, selectedCourseId, { afterCourseControl, beforeCourseControl, teamRole: teamAddRole });
           model.metadata.pendingSelection = selection;
         }, `Add ${kind}`);
       }
@@ -2239,14 +2341,21 @@ export class PurplePenApp extends HTMLElement {
     }
   }
 
-  addExistingControlToCurrentCourse(selection) {
+  addExistingControlToCurrentCourse(selection, options = {}) {
     const state = this.store.snapshot();
     if (!selection?.id || !state.ui.selectedCourseId || state.ui.selectedCourseId === "all") return;
     const afterCourseControl = insertionCourseControlId(state);
     const beforeCourseControl = insertionBeforeCourseControlId(state);
+    const course = getCourse(state.eventModel, state.ui.selectedCourseId);
+    const control = getControl(state.eventModel, selection.id);
+    const teamRole = options.teamRole || (course?.kind === "team" && state.ui.teamAddControlRole === "free" ? "free" : "mandatory");
+    if (course?.kind === "team" && teamRole === "free" && (control?.kind === "start" || control?.kind === "finish")) {
+      this.store.updateUi(ui => { ui.status = this.t("Free controls cannot be start or finish."); }, "Add existing control failed");
+      return;
+    }
     try {
       this.store.updateEvent(model => {
-        const nextSelection = addExistingControlToCourse(model, state.ui.selectedCourseId, selection.id, { afterCourseControl, beforeCourseControl });
+        const nextSelection = addExistingControlToCourse(model, state.ui.selectedCourseId, selection.id, { afterCourseControl, beforeCourseControl, teamRole });
         model.metadata.pendingSelection = nextSelection || selection;
       }, "Add existing control");
     }
@@ -2476,6 +2585,19 @@ export class PurplePenApp extends HTMLElement {
       return;
     }
 
+    if (target.dataset.teamCourseControlRole !== undefined && selection.type === "control") {
+      const courseControlId = Number(target.dataset.teamCourseControlRole) || 0;
+      this.store.updateEvent(model => {
+        const courseControl = getCourseControl(model, courseControlId);
+        if (courseControl) {
+          courseControl.teamRole = target.value === "free" ? "free" : "mandatory";
+          if (courseControl.teamRole === "free") courseControl.points = 0;
+        }
+      }, "Change team role");
+      this.renderKeys = null;
+      return;
+    }
+
     if (target.dataset.legFlagging !== undefined && ["leg", "leg-bend"].includes(selection.type)) {
       this.store.updateEvent(model => {
         const leg = ensureLegBetween(model, selection.startControl, selection.endControl);
@@ -2545,9 +2667,12 @@ export class PurplePenApp extends HTMLElement {
         return;
       }
       setPath(object, field.split(".").slice(1), valueFromInput(target));
+      if (field === "course.kind") {
+        applyCourseKindDefaults(object);
+      }
     }, "Edit selection");
     // Re-render selection panel when kind or lineKind changes to show/hide relevant fields
-    if (field === "special.lineKind" || field.startsWith("course.relay.") || field === "course.hideVariationsOnMap") {
+    if (field === "special.lineKind" || field === "course.kind" || field.startsWith("course.relay.") || field === "course.hideVariationsOnMap") {
       this.renderKeys = null;
       this.render(this.store.snapshot());
     }
@@ -3783,6 +3908,7 @@ export class PurplePenApp extends HTMLElement {
             <select id="addCourseKind">
               <option value="normal">${escapeHtml(this.t("Normal course"))}</option>
               <option value="score">${escapeHtml(this.t("Score course"))}</option>
+              <option value="team">${escapeHtml(this.t("Team course"))}</option>
             </select>
           </label>
         </div>
@@ -3837,7 +3963,7 @@ export class PurplePenApp extends HTMLElement {
       this.store.updateEvent(model => deleteSelection(model, selection, {
         selectedCourseId: state.ui.selectedCourseId
       }), "Remove control from course");
-      this.store.setSelection(null);
+      this.setSelection(null);
       return;
     }
 
@@ -3847,7 +3973,7 @@ export class PurplePenApp extends HTMLElement {
       this.store.updateEvent(model => deleteSelection(model, selection, {
         selectedCourseId: "all"
       }), "Delete control");
-      this.store.setSelection(null);
+      this.setSelection(null);
       return;
     }
 
@@ -3870,7 +3996,7 @@ export class PurplePenApp extends HTMLElement {
         this.store.updateEvent(model => deleteSelection(model, selection, {
           selectedCourseId: "all"
         }), "Delete control");
-        this.store.setSelection(null);
+        this.setSelection(null);
       }
     });
   }
@@ -4041,6 +4167,36 @@ export class PurplePenApp extends HTMLElement {
   }
 }
 
+function teamAddControlRoleFromSelection(eventModel, ui, selection) {
+  const courseId = ui?.selectedCourseId;
+  if (!courseId || courseId === "all" || !selection) return null;
+  const course = getCourse(eventModel, courseId);
+  if (course?.kind !== "team") return null;
+  let courseControl = null;
+  const candidateIds = [];
+  if (selection.courseControl) candidateIds.push(Number(selection.courseControl));
+  if (Array.isArray(selection.courseControls)) {
+    candidateIds.push(...selection.courseControls.map(Number));
+  }
+  for (const id of candidateIds) {
+    const candidate = getCourseControl(eventModel, id);
+    if (candidate?.control) {
+      courseControl = candidate;
+      break;
+    }
+  }
+  if (!courseControl && (selection.type === "control" || selection.type === "control-number")) {
+    const controlId = Number(selection.id || selection.control) || 0;
+    if (controlId) {
+      const row = courseView(eventModel, courseId, { allBranches: true })
+        .find(candidate => Number(candidate.control?.id) === controlId && candidate.courseControl);
+      courseControl = row?.courseControl || null;
+    }
+  }
+  if (!courseControl) return null;
+  return isTeamFreeCourseControl(course, courseControl) ? "free" : "mandatory";
+}
+
 function objectForSelection(model, selection) {
   if (selection.type === "control") return getControl(model, selection.id);
   if (selection.type === "course") return getCourse(model, selection.id);
@@ -4048,6 +4204,20 @@ function objectForSelection(model, selection) {
   if (selection.type === "leg" || selection.type === "leg-bend") return findLeg(model, selection.startControl, selection.endControl);
   if (selection.type === "control-number") return getCourseControl(model, selection.courseControl);
   return null;
+}
+
+function teamCourseDescriptionPanelRows(rows, course) {
+  const mandatory = [];
+  const free = [];
+  for (const row of rows || []) {
+    if (row.control?.kind === "normal" && isTeamFreeCourseControl(course, row.courseControl)) {
+      free.push(row);
+    }
+    else {
+      mandatory.push(row);
+    }
+  }
+  return [...mandatory, ...scoreCourseDescriptionRows(free)];
 }
 
 function courseDisplayOptions(eventModel, ui = {}) {
@@ -5061,6 +5231,25 @@ function setFinishRouteFlagging(model, courseId, kind) {
   if (!pair) return;
   const leg = ensureLegBetween(model, pair.previous.control.id, pair.finish.control.id);
   leg.flagging = { kind: ["all", "end"].includes(kind) ? kind : "none", point: null };
+}
+
+function applyCourseKindDefaults(course) {
+  if (!course) return;
+  course.options ||= {};
+  if (course.kind === "score") {
+    course.labelKind = course.labelKind === "sequence" ? "code-and-score" : course.labelKind;
+    course.options.scoreColumn = course.options.scoreColumn >= 0 ? course.options.scoreColumn : 7;
+  }
+  else if (course.kind === "team") {
+    course.labelKind = course.labelKind || "sequence";
+    course.options.scoreColumn = -1;
+  }
+  else {
+    course.options.scoreColumn = -1;
+    if (["code-and-score", "code-and-score-brackets", "code-and-score-dash", "score"].includes(course.labelKind)) {
+      course.labelKind = "sequence";
+    }
+  }
 }
 
 function setScoreFinishControl(model, courseId, controlId, enabled) {

@@ -1,7 +1,5 @@
 const COURSE_PURPLE_ALPHA = 0.82;
-const ALL_CONTROLS_PURPLE_ALPHA = 0.58;
 const COURSE_PURPLE = `rgba(166, 38, 255, ${COURSE_PURPLE_ALPHA})`;
-const ALL_CONTROLS_PURPLE = `rgba(255, 128, 255, ${ALL_CONTROLS_PURPLE_ALPHA})`;
 const WHITE = "#ffffff";
 
 const NORMAL = Object.freeze({
@@ -59,7 +57,7 @@ export function createCourseSymbolMetrics(eventModel, course, appearance, pixels
     pixelsPerMapMm,
     courseObjRatio,
     unit,
-    color: allControls ? ALL_CONTROLS_PURPLE : courseColor(appearance),
+    color: courseColor(appearance),
     allControls
   };
 }

@@ -171,28 +171,70 @@ function parseLineSymbol(element, colors, unitScale) {
   const midSymbol = parseWrappedSymbol(firstChild(element, "mid_symbol"), colors, unitScale);
   const startSymbol = parseWrappedSymbol(firstChild(element, "start_symbol"), colors, unitScale);
   const endSymbol = parseWrappedSymbol(firstChild(element, "end_symbol"), colors, unitScale);
+  const dashSymbol = parseWrappedSymbol(firstChild(element, "dash_symbol"), colors, unitScale);
   const borders = parseLineBorders(element, colors, unitScale);
+  const dashed = element.getAttribute("dashed") === "true";
+  const rawDashLength = unitAttr(element, "dash_length", 2000, unitScale);
+  const inGroupBreakLength = unitAttr(element, "in_group_break_length", 0, unitScale);
+  const dashesInGroup = Math.max(1, Math.floor(numberAttr(element, "dashes_in_group", 1) || 1));
+  const groupedDashLength = dashesInGroup >= 2
+    ? rawDashLength * dashesInGroup + inGroupBreakLength * (dashesInGroup - 1)
+    : rawDashLength;
+  const halfOuterDashes = element.getAttribute("half_outer_dashes") === "true";
+  const dashLength = Math.max(0, groupedDashLength);
+  const dashInfo = {
+    spacingMethod: "openmapper-dashes",
+    dashLength,
+    rawDashLength,
+    singleDashLength: rawDashLength,
+    dashesInGroup,
+    inGroupBreakLength,
+    halfOuterDashes,
+    firstDashLength: halfOuterDashes ? dashLength / 2 : dashLength,
+    lastDashLength: halfOuterDashes ? dashLength / 2 : dashLength,
+    gapLength: unitAttr(element, "break_length", 800, unitScale),
+    halfEndDashLengthWhenClosed: !halfOuterDashes && dashesInGroup !== 2,
+    secondaryMiddleGaps: dashesInGroup >= 2 ? dashesInGroup - 1 : 0,
+    secondaryEndGaps: dashesInGroup >= 2 ? dashesInGroup - 1 : 0,
+    secondaryMiddleLength: inGroupBreakLength,
+    secondaryEndLength: inGroupBreakLength,
+    minGaps: 0
+  };
   return {
     colorId,
     color: colorFor(colors, colorId, "#222"),
     width: unitAttr(element, "line_width", 180, unitScale),
-    dashed: element.getAttribute("dashed") === "true",
-    dashLength: unitAttr(element, "dash_length", 2000, unitScale),
-    breakLength: unitAttr(element, "break_length", 800, unitScale),
+    minimumLength: unitAttr(element, "minimum_length", 0, unitScale),
+    dashed,
+    dashLength,
+    rawDashLength,
+    breakLength: dashInfo.gapLength,
+    inGroupBreakLength,
+    dashesInGroup,
+    halfOuterDashes,
+    dashInfo,
     segmentLength: unitAttr(element, "segment_length", 4000, unitScale),
     endLength: unitAttr(element, "end_length", 0, unitScale),
     showAtLeastOneSymbol: element.getAttribute("show_at_least_one_symbol") === "true",
-    midSymbolsPerSpot: numberAttr(element, "mid_symbols_per_spot", 1),
+    minimumMidSymbolCount: Math.max(0, Math.floor(numberAttr(element, "minimum_mid_symbol_count", 0) || 0)),
+    minimumMidSymbolCountWhenClosed: Math.max(0, Math.floor(numberAttr(element, "minimum_mid_symbol_count_when_closed", 0) || 0)),
+    midSymbolsPerSpot: Math.max(1, Math.floor(numberAttr(element, "mid_symbols_per_spot", 1) || 1)),
     midSymbolDistance: unitAttr(element, "mid_symbol_distance", 0, unitScale),
     midSymbolPlacement: stringAttr(element, "mid_symbol_placement", "0"),
+    suppressDashSymbolAtEnds: element.getAttribute("suppress_dash_symbol_at_ends") === "true",
+    scaleDashSymbol: element.getAttribute("scale_dash_symbol") !== "false",
+    startOffset: unitAttr(element, "start_offset", 0, unitScale),
+    endOffset: unitAttr(element, "end_offset", 0, unitScale),
+    pointedCapLength: unitAttr(element, "pointed_cap_length", 0, unitScale),
     midSymbol,
     startSymbol,
     endSymbol,
+    dashSymbol,
     borders,
     capStyle: stringAttr(element, "cap_style", "0"),
     joinStyle: stringAttr(element, "join_style", "1"),
     priority: colorPriority(colors, colorId),
-    priorities: uniquePriorities([colorPriority(colors, colorId), ...borders.map(border => border.priority), ...symbolPriorities(midSymbol), ...symbolPriorities(startSymbol), ...symbolPriorities(endSymbol)])
+    priorities: uniquePriorities([colorPriority(colors, colorId), ...borders.map(border => border.priority), ...symbolPriorities(midSymbol), ...symbolPriorities(startSymbol), ...symbolPriorities(endSymbol), ...symbolPriorities(dashSymbol)])
   };
 }
 
@@ -221,14 +263,34 @@ function parseLineBorder(element, colors, unitScale) {
   if (!color || width <= 0) {
     return null;
   }
+  const dashLength = unitAttr(element, "dash_length", 2000, unitScale);
+  const breakLength = unitAttr(element, "break_length", 1000, unitScale);
   return {
     colorId,
     color,
     width,
     shift: unitAttr(element, "shift", 0, unitScale),
     dashed: element.getAttribute("dashed") === "true",
-    dashLength: unitAttr(element, "dash_length", 2000, unitScale),
-    breakLength: unitAttr(element, "break_length", 1000, unitScale),
+    dashLength,
+    breakLength,
+    dashInfo: {
+      spacingMethod: "openmapper-dashes",
+      dashLength,
+      rawDashLength: dashLength,
+      singleDashLength: dashLength,
+      dashesInGroup: 1,
+      inGroupBreakLength: 0,
+      halfOuterDashes: false,
+      firstDashLength: dashLength,
+      lastDashLength: dashLength,
+      gapLength: breakLength,
+      halfEndDashLengthWhenClosed: true,
+      secondaryMiddleGaps: 0,
+      secondaryEndGaps: 0,
+      secondaryMiddleLength: 0,
+      secondaryEndLength: 0,
+      minGaps: 0
+    },
     priority: colorPriority(colors, colorId)
   };
 }

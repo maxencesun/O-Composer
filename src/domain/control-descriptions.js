@@ -38,6 +38,183 @@ const MIN_CELL_SIZE = 1.2;
 const COLUMN_GAP_CELLS = 0.6;
 const MARGIN_CELLS = 0.05;
 const DESCRIPTION_STANDARD = "2024";
+const FALLBACK_DESCRIPTION_LANGUAGES = Object.freeze([["en", "English"]]);
+const DESCRIPTION_LANGUAGE_LABELS = Object.freeze({
+  en: "English",
+  zh: "中文",
+  "zh-CN": "简体中文",
+  "zh-TW": "繁體中文",
+  de: "Deutsch",
+  fr: "Français",
+  es: "Español",
+  ja: "日本語",
+  sv: "Svenska",
+  fi: "Suomi",
+  no: "Norsk",
+  nl: "Nederlands",
+  it: "Italiano",
+  ca: "Català",
+  sl: "Slovenščina"
+});
+const APP_DESCRIPTION_LANGUAGES = Object.freeze([
+  ["en", "English"],
+  ["zh", "中文"]
+]);
+const FALLBACK_ISCD_LABEL_TRANSLATIONS = Object.freeze({
+  zh: Object.freeze({
+    "Not specified": "未指定",
+    "Northern": "北部",
+    "North-eastern": "东北部",
+    "Eastern": "东部",
+    "South-eastern": "东南部",
+    "Southern": "南部",
+    "South-western": "西南部",
+    "Western": "西部",
+    "North-western": "西北部",
+    "Upper": "上部",
+    "Lower": "下部",
+    "Middle": "中部",
+    "Terrace": "台地",
+    "Spur": "山鼻",
+    "Re-entrant": "山谷",
+    "Earth bank": "土坎",
+    "Earth wall": "土墙",
+    "Erosion gully": "冲沟",
+    "Small knoll": "小土丘",
+    "Depression": "凹地",
+    "Pit": "坑",
+    "Cliff": "崖",
+    "Rock pillar": "石柱",
+    "Cave": "洞穴",
+    "Boulder": "巨石",
+    "Boulder cluster": "巨石群",
+    "Stony ground": "石块地",
+    "Lake": "湖",
+    "Pond": "池塘",
+    "Waterhole": "水坑",
+    "River": "河流",
+    "Stream": "溪流",
+    "Ditch": "沟渠",
+    "Marsh": "沼泽",
+    "Narrow marsh": "窄沼泽",
+    "Well": "井",
+    "Spring": "泉",
+    "Open land": "开阔地",
+    "Forest corner": "森林角",
+    "Clearing": "林间空地",
+    "Thicket": "密林",
+    "Hedge": "树篱",
+    "Vegetation boundary": "植被边界",
+    "Copse": "小树林",
+    "Prominent tree": "突出树",
+    "Rootstock": "树根",
+    "Road": "道路",
+    "Track": "大路",
+    "Path": "小径",
+    "Ride": "林道",
+    "Bridge": "桥",
+    "Power line": "电力线",
+    "Pylon": "电塔",
+    "Tunnel": "隧道",
+    "Wall": "墙",
+    "Fence": "围栏",
+    "Crossing point": "通过点",
+    "Building": "建筑物",
+    "Paved area": "铺装地",
+    "Ruin": "废墟",
+    "Pipeline": "管线",
+    "Tower": "塔",
+    "Cairn": "石堆",
+    "Monument": "纪念物",
+    "Railway / tramway": "铁路 / 有轨电车",
+    "Low": "低",
+    "Shallow": "浅",
+    "Deep": "深",
+    "Overgrown": "覆盖",
+    "Open": "开阔",
+    "Rocky": "多石",
+    "Marshy": "沼泽",
+    "Sandy": "沙质",
+    "Ruined": "毁坏",
+    "Height": "高度",
+    "Length": "长度",
+    "Width": "宽度",
+    "Height and width": "高度和宽度",
+    "Junction": "交汇",
+    "Crossing": "交叉",
+    "Bend": "弯曲",
+    "Fork": "分叉",
+    "Between": "之间",
+    "North side": "北侧",
+    "North-east side": "东北侧",
+    "East side": "东侧",
+    "South-east side": "东南侧",
+    "South side": "南侧",
+    "South-west side": "西南侧",
+    "West side": "西侧",
+    "North-west side": "西北侧",
+    "Top": "顶部",
+    "Foot": "脚部",
+    "Beneath": "下方",
+    "Edge": "边缘",
+    "End": "末端",
+    "Inside corner": "内角",
+    "Outside corner": "外角",
+    "Taped route": "标记路线",
+    "Marked route": "标记路线",
+    "Mandatory crossing": "强制通过点",
+    "Refreshment": "补给",
+    "Radio control": "无线电检查点",
+    "First aid": "急救",
+    "Map exchange": "换图",
+    "Map flip": "翻图"
+  })
+});
+const FALLBACK_SYMBOL_TEXT = Object.freeze({
+  en: Object.freeze({
+    all_controls: "All controls",
+    number_controls: "{0} controls",
+    course_length: "Length {0}",
+    course_length_climb: "{0}, climb {1}",
+    team_course_length: "{0}, {1} mandatory + {2} free",
+    free_controls: "Free controls",
+    "13.1": "Marked route {0}",
+    "13.2": "Marked route {0}",
+    "13.3": "Mandatory crossing point {0}",
+    "13.5": "Map exchange {0}",
+    "13.6": "Map issue {0}",
+    "14.1": "Follow marked route to finish {0}",
+    "14.2": "Marked route to finish {0}",
+    "14.3": "Finish {0}"
+  }),
+  zh: Object.freeze({
+    all_controls: "全部检查点",
+    number_controls: "{0} 个检查点",
+    course_length: "长度 {0}",
+    course_length_climb: "{0}，爬升 {1}",
+    team_course_length: "{0}，{1} 个必访 + {2} 个自由",
+    free_controls: "自由检查点",
+    "13.1": "标记路线 {0}",
+    "13.2": "标记路线 {0}",
+    "13.3": "强制通过点 {0}",
+    "13.5": "换图 {0}",
+    "13.6": "发图 {0}",
+    "14.1": "沿标记路线到终点 {0}",
+    "14.2": "标记路线到终点 {0}",
+    "14.3": "终点 {0}"
+  })
+});
+const FALLBACK_CONTROL_KIND_TEXT = Object.freeze({
+  zh: Object.freeze({
+    Control: "检查点",
+    start: "起点",
+    finish: "终点",
+    normal: "检查点",
+    "crossing-point": "通过点",
+    "map-exchange": "换图",
+    "map-issue": "发图"
+  })
+});
 const COLUMN_F_TEXT_PREFIX = "column-f-text:";
 const THICK_LINE = 0.05;
 const THIN_LINE = 0.025;
@@ -83,26 +260,44 @@ export function hasIscdSymbolDb() {
   return !!symbolDb;
 }
 
-export function getIscdSymbolOptions(column) {
+export function getDescriptionLanguageOptions() {
+  return APP_DESCRIPTION_LANGUAGES;
+}
+
+export function normalizeDescriptionLanguage(language = "en") {
+  const requested = String(language || "en");
+  if (requested === "zh" || requested.startsWith("zh-")) return "zh";
+  return APP_DESCRIPTION_LANGUAGES.some(([code]) => code === requested) ? requested : "en";
+}
+
+export function descriptionLanguageForEvent(eventModel) {
+  return normalizeDescriptionLanguage(currentAppLanguage());
+}
+
+export function getIscdSymbolOptions(column, language = currentAppLanguage()) {
   if (!symbolDb) {
-    return ISCD_SYMBOLS[column] || [];
+    return (ISCD_SYMBOLS[column] || []).map(([value, label]) => [value, localizedFallbackLabel(label, language)]);
   }
   const allowedKinds = column === "D" ? new Set(["D", "A", "Y"]) : new Set([column]);
   return symbolDb.order
     .map(id => symbolDb.symbols.get(id))
     .filter(symbol => symbol && allowedKinds.has(symbol.kind) && symbolInDescriptionStandard(symbol, DESCRIPTION_STANDARD))
-    .map(symbol => [symbolOptionValue(column, symbol), symbolOptionLabel(column, symbol)]);
+    .map(symbol => [symbolOptionValue(column, symbol), symbolOptionLabel(column, symbol, language)]);
 }
 
-export function iscdSymbolLabel(column, value) {
+export function iscdSymbolLabel(column, value, language = currentAppLanguage()) {
   const id = normalizeIscdSymbolId(value);
+  if (!String(value || "").trim()) return "";
   if (column === "F" && isColumnFTextValue(value)) {
-    return columnFTextLabel(value);
+    return columnFTextLabel(value, language);
   }
   if (symbolDb?.symbols.has(id)) {
-    return localizedSymbolName(symbolDb.symbols.get(id)) || id;
+    const symbol = symbolDb.symbols.get(id);
+    const localized = localizedSymbolName(symbol, language);
+    return localizedFallbackLabel(localized || symbol?.name || id, language);
   }
-  return (ISCD_SYMBOLS[column] || []).find(([fallbackId]) => fallbackId === value)?.[1] || value || "";
+  const fallback = (ISCD_SYMBOLS[column] || []).find(([fallbackId]) => fallbackId === value || normalizeIscdSymbolId(fallbackId) === id);
+  return fallback ? localizedFallbackLabel(fallback[1], language) : (value || "");
 }
 
 export function storageForIscdSelection(column, value) {
@@ -145,6 +340,7 @@ export function existingDescriptionSpecialForTarget(eventModel, selectedCourseId
 }
 
 export function buildControlDescriptionRows(eventModel, selectedCourseId = "all", descriptionKind = "symbols", displayOptions = {}) {
+  const language = descriptionLanguageForEvent(eventModel);
   const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
   const options = selectedCourseId === "all" ? {} : (displayOptions || {});
   let view = selectedCourseId === "all" ? courseView(eventModel, "all") : courseView(eventModel, selectedCourseId, options);
@@ -152,54 +348,54 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
     view = scoreCourseDescriptionRows(view);
   }
   if (course?.kind === "team") {
-    return buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind);
+    return buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language);
   }
   const normalControls = view.filter(row => row.control.kind === "normal");
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
   if (course?.secondaryTitle) rows.push(...titleRows("subtitle", course.secondaryTitle));
-  rows.push(course ? courseHeaderRow(eventModel, course, normalControls.length) : allControlsHeaderRow(normalControls.length));
+  rows.push(course ? courseHeaderRow(eventModel, course, normalControls.length, language) : allControlsHeaderRow(normalControls.length, language));
   for (let index = 0; index < view.length; index += 1) {
     const row = view[index];
     if (row.control.kind === "finish" || row.control.kind === "crossing-point" || row.control.kind === "map-issue") {
-      rows.push(directiveRow(eventModel, view, index, selectedCourseId));
+      rows.push(directiveRow(eventModel, view, index, selectedCourseId, language));
     }
     else {
-      rows.push(iscdRow(row, descriptionKind));
+      rows.push(iscdRow(row, descriptionKind, language));
     }
     if (selectedCourseId !== "all" && index < view.length - 1) {
-      const marked = markedRouteRow(eventModel, view[index], view[index + 1]);
+      const marked = markedRouteRow(eventModel, view[index], view[index + 1], language);
       if (marked) rows.push(marked);
     }
   }
   return rows;
 }
 
-function buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind) {
+function buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language) {
   const mandatoryView = view.filter(row => row.control?.kind !== "normal" || !isTeamFreeCourseControl(course, row.courseControl));
   const freeView = scoreCourseDescriptionRows(view.filter(row => row.control?.kind === "normal" && isTeamFreeCourseControl(course, row.courseControl)));
   const mandatoryCount = mandatoryView.filter(row => row.control?.kind === "normal").length;
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
   if (course?.secondaryTitle) rows.push(...titleRows("subtitle", course.secondaryTitle));
-  rows.push(teamCourseHeaderRow(eventModel, course, mandatoryCount, freeView.length));
+  rows.push(teamCourseHeaderRow(eventModel, course, mandatoryCount, freeView.length, language));
   for (let index = 0; index < mandatoryView.length; index += 1) {
     const row = mandatoryView[index];
     if (row.control.kind === "finish" || row.control.kind === "crossing-point" || row.control.kind === "map-issue") {
-      rows.push(directiveRow(eventModel, mandatoryView, index, selectedCourseId));
+      rows.push(directiveRow(eventModel, mandatoryView, index, selectedCourseId, language));
     }
     else {
-      rows.push(iscdRow(row, descriptionKind));
+      rows.push(iscdRow(row, descriptionKind, language));
     }
     if (index < mandatoryView.length - 1) {
-      const marked = markedRouteRow(eventModel, mandatoryView[index], mandatoryView[index + 1]);
+      const marked = markedRouteRow(eventModel, mandatoryView[index], mandatoryView[index + 1], language);
       if (marked) rows.push(marked);
     }
   }
   if (freeView.length) {
-    rows.push(...titleRows("subtitle", symbolText("free_controls", "Free controls")));
+    rows.push(...titleRows("subtitle", symbolText("free_controls", "Free controls", language)));
     for (const row of freeView) {
-      rows.push(iscdRow(row, descriptionKind));
+      rows.push(iscdRow(row, descriptionKind, language));
     }
   }
   return rows;
@@ -527,16 +723,16 @@ function titleRows(kind, text) {
   return value.split("|").map(part => ({ kind, text: part }));
 }
 
-function courseHeaderRow(eventModel, course, normalControlCount) {
+function courseHeaderRow(eventModel, course, normalControlCount, language) {
   if (course.kind === "team") {
-    return teamCourseHeaderRow(eventModel, course, normalControlCount, 0);
+    return teamCourseHeaderRow(eventModel, course, normalControlCount, 0, language);
   }
   if (course.kind === "score") {
     return {
       kind: "header2",
       boxes: [
         course.name || "",
-        formatSymbolText("number_controls", normalControlCount, `${normalControlCount} controls`)
+        formatSymbolText("number_controls", normalControlCount, `${normalControlCount} controls`, language)
       ]
     };
   }
@@ -545,11 +741,11 @@ function courseHeaderRow(eventModel, course, normalControlCount) {
   return {
     kind: "header3",
     boxes: [course.name || "", length, climb],
-    text: climb ? formatSymbolText("course_length_climb", [length, climb], `${length}, ${climb}`) : formatSymbolText("course_length", length, `Length ${length}`)
+    text: climb ? formatSymbolText("course_length_climb", [length, climb], `${length}, ${climb}`, language) : formatSymbolText("course_length", length, `Length ${length}`, language)
   };
 }
 
-function teamCourseHeaderRow(eventModel, course, mandatoryControlCount, freeControlCount) {
+function teamCourseHeaderRow(eventModel, course, mandatoryControlCount, freeControlCount, language) {
   const length = formatCourseLength(courseLength(eventModel, course.id));
   const climb = formatCourseClimb(course.options?.climb);
   const suffix = freeControlCount ? ` + ${freeControlCount} free` : "";
@@ -557,22 +753,22 @@ function teamCourseHeaderRow(eventModel, course, mandatoryControlCount, freeCont
     kind: "header3",
     boxes: [course.name || "", length, climb],
     text: climb
-      ? formatSymbolText("course_length_climb", [length, climb], `${length}, ${climb}${suffix}`)
-      : formatSymbolText("team_course_length", [length, mandatoryControlCount, freeControlCount], `${length}, ${mandatoryControlCount} mandatory${suffix}`)
+      ? formatSymbolText("course_length_climb", [length, climb], `${length}, ${climb}${suffix}`, language)
+      : formatSymbolText("team_course_length", [length, mandatoryControlCount, freeControlCount], `${length}, ${mandatoryControlCount} mandatory${suffix}`, language)
   };
 }
 
-function allControlsHeaderRow(normalControlCount) {
+function allControlsHeaderRow(normalControlCount, language) {
   return {
     kind: "header2",
     boxes: [
-      symbolText("all_controls", "All controls"),
-      formatSymbolText("number_controls", normalControlCount, `${normalControlCount} controls`)
+      symbolText("all_controls", "All controls", language),
+      formatSymbolText("number_controls", normalControlCount, `${normalControlCount} controls`, language)
     ]
   };
 }
 
-function directiveRow(eventModel, view, index, selectedCourseId) {
+function directiveRow(eventModel, view, index, selectedCourseId, language) {
   const row = view[index];
   const control = row.control;
   const previous = index > 0 ? view[index - 1] : null;
@@ -599,7 +795,7 @@ function directiveRow(eventModel, view, index, selectedCourseId) {
     kind: "directive",
     symbol,
     distance: (control.kind === "finish" || control.kind === "map-issue") ? distance : "",
-    text: directiveText(symbol, distance)
+    text: directiveText(symbol, distance, language)
   };
 }
 
@@ -609,7 +805,7 @@ function scoreFinishFromRow(course, view) {
   return view.find(row => Number(row.control?.id) === controlId && row.control?.kind === "normal") || null;
 }
 
-function markedRouteRow(eventModel, from, to) {
+function markedRouteRow(eventModel, from, to, language) {
   if (!from?.control || !to?.control) return null;
   const leg = findLeg(eventModel, from.control.id, to.control.id);
   const flagging = normalizeLegFlaggingKind(leg?.flagging?.kind);
@@ -617,7 +813,7 @@ function markedRouteRow(eventModel, from, to) {
   if (to.control.kind === "finish" || to.control.kind === "map-exchange") return null;
   const symbol = flagging === "begin" ? "13.1" : "13.2";
   const distance = formatDirectiveDistance(flaggedLegLength(eventModel, leg, flagging));
-  return { kind: "directive", symbol, distance, text: directiveText(symbol, distance) };
+  return { kind: "directive", symbol, distance, text: directiveText(symbol, distance, language) };
 }
 
 function flaggedLegLength(eventModel, leg, flagging) {
@@ -687,11 +883,11 @@ function normalizeLegFlaggingKind(kind) {
   }[kind] || kind || "none";
 }
 
-function iscdRow(row, descriptionKind) {
+function iscdRow(row, descriptionKind, language) {
   const HScore = scoreDescriptionValue(row);
   if (row.control.kind === "start" || row.control.kind === "map-exchange") {
     const D = descriptionValue(row.control, "D") || (row.control.kind === "start" ? "" : defaultFeatureForControl(row.control.kind));
-    const text = row.control.descriptionText || iscdSymbolLabel("D", D) || controlKindText(row.control.kind);
+    const text = row.control.descriptionText || iscdSymbolLabel("D", D, language) || controlKindText(row.control.kind, language);
     return {
       kind: "control",
       ordinal: "",
@@ -709,7 +905,7 @@ function iscdRow(row, descriptionKind) {
     };
   }
   const D = descriptionValue(row.control, "D") || defaultFeatureForControl(row.control.kind);
-  const text = row.control.descriptionText || iscdSymbolLabel("D", D) || controlKindText(row.control.kind);
+  const text = row.control.descriptionText || iscdSymbolLabel("D", D, language) || controlKindText(row.control.kind, language);
   return { kind: "control", ordinal: (row.course?.kind === "score" || isTeamFreeCourseControl(row.course, row.courseControl)) ? "" : String(row.ordinal || ""), code: row.control.code || "", text, C: descriptionValue(row.control, "C"), D, E: descriptionValue(row.control, "E"), F: descriptionValue(row.control, "F"), G: descriptionValue(row.control, "G"), H: descriptionValue(row.control, "H"), ...(HScore !== undefined ? { HScore } : {}), featureText: descriptionKind === "symbols" ? "" : text };
 }
 
@@ -1013,8 +1209,10 @@ function formatMeters(length) {
   return `${Math.round(length)} m`;
 }
 
-function controlKindText(kind) {
-  return String(kind || "Control").replace(/-/g, " ");
+function controlKindText(kind, language = currentAppLanguage()) {
+  const normalized = String(kind || "Control");
+  return FALLBACK_CONTROL_KIND_TEXT[normalizeDescriptionLanguage(language)]?.[normalized]
+    || normalized.replace(/-/g, " ");
 }
 
 function defaultFeatureForControl(kind) {
@@ -1040,20 +1238,42 @@ function directiveSymbol(control) {
   return "";
 }
 
-function directiveText(symbolId, distance) {
+function directiveText(symbolId, distance, language) {
   const distanceText = distance ? `${distance} ` : "";
-  return formatSymbolText(symbolId, distanceText, `${symbolText(symbolId, symbolId)} ${distance}`.trim());
+  return formatSymbolText(symbolId, distanceText, `${symbolText(symbolId, symbolId, language)} ${distance}`.trim(), language);
 }
 
-function symbolText(id, fallback = "") {
+function symbolText(id, fallback = "", language = currentAppLanguage()) {
+  const normalizedLanguage = normalizeDescriptionLanguage(language);
   const symbol = symbolDb?.symbols.get(id);
-  return localizedSymbolText(symbol) || localizedSymbolName(symbol) || fallback;
+  const localized = hasLocalizedValue(symbol?.texts, normalizedLanguage)
+    ? localizedText(symbol.texts, normalizedLanguage)
+    : hasLocalizedValue(symbol?.names, normalizedLanguage)
+    ? localizedText(symbol.names, normalizedLanguage)
+    : "";
+  const englishFallback = localizedSymbolText(symbol, "en") || localizedSymbolName(symbol, "en") || fallback;
+  return localized
+    || FALLBACK_SYMBOL_TEXT[normalizedLanguage]?.[id]
+    || FALLBACK_SYMBOL_TEXT.en?.[id]
+    || localizedFallbackLabel(englishFallback, normalizedLanguage);
 }
 
-function formatSymbolText(id, values, fallback = "") {
-  const template = symbolText(id, fallback);
+function formatSymbolText(id, values, fallback = "", language = currentAppLanguage()) {
+  const template = symbolText(id, fallback, language);
   const parts = Array.isArray(values) ? values : [values];
-  return parts.reduce((text, value, index) => text.replace(new RegExp(`\\{${index}\\}`, "g"), String(value ?? "")), template);
+  return parts.reduce((text, value, index) => text.replace(new RegExp(`\\{${index}\\}`, "g"), String(value ?? "")), template).trim();
+}
+
+function localizedFallbackLabel(label, language = currentAppLanguage()) {
+  const normalizedLanguage = normalizeDescriptionLanguage(language);
+  const value = String(label || "");
+  return FALLBACK_ISCD_LABEL_TRANSLATIONS[normalizedLanguage]?.[value] || value;
+}
+
+function hasLocalizedValue(values = {}, preferredLanguage = currentAppLanguage()) {
+  const normalizedLanguage = normalizeDescriptionLanguage(preferredLanguage);
+  if (normalizedLanguage === "en") return !!localizedText(values, "en");
+  return languageFallbacks(normalizedLanguage).filter(language => language !== "en").some(language => !!values?.[language]);
 }
 
 function formatCourseLength(lengthMeters) {
@@ -1082,10 +1302,10 @@ function symbolOptionValue(column, symbol) {
   return symbol.id;
 }
 
-function symbolOptionLabel(column, symbol) {
-  const label = localizedSymbolName(symbol) || symbol.id;
+function symbolOptionLabel(column, symbol, language = currentAppLanguage()) {
+  const label = localizedSymbolName(symbol, language) || symbol.id;
   const columnFText = column === "F" ? columnFTextForSymbolId(symbol.id) : "";
-  return columnFText ? `${label}: ${columnFTextLabel(columnFText)}` : label;
+  return columnFText ? `${label}: ${columnFTextLabel(columnFText, language)}` : label;
 }
 
 function columnFTextForSymbolId(id) {
@@ -1108,15 +1328,18 @@ function isColumnFTextValue(value) {
   return /^[0-9]+(?:[.,][0-9]+)?m?(?:[xX/|][0-9]+(?:[.,][0-9]+)?m?)*$/.test(text);
 }
 
-function columnFTextLabel(value) {
-  return `Column F text ${normalizeColumnFText(value).replace(/x/gi, "\u00d7")}`;
+function columnFTextLabel(value, language = currentAppLanguage()) {
+  const text = normalizeColumnFText(value).replace(/x/gi, "\u00d7");
+  return normalizeDescriptionLanguage(language) === "zh" ? `F栏文字 ${text}` : `Column F text ${text}`;
 }
 
 function parsePurplePenSymbols(text) {
   if (typeof DOMParser === "undefined") {
-    return { symbols: new Map(), order: [] };
+    return { symbols: new Map(), order: [], languages: FALLBACK_DESCRIPTION_LANGUAGES };
   }
   const doc = new DOMParser().parseFromString(text, "application/xml");
+  const symbolLanguages = parseSymbolLanguages(doc);
+  const usedLanguages = new Set();
   const symbols = new Map();
   const order = [];
   for (const node of doc.querySelectorAll("symbol")) {
@@ -1129,8 +1352,13 @@ function parsePurplePenSymbols(text) {
       texts: localizedTextMap(node, "text"),
       strokes: []
     };
-    symbol.name = localizedText(symbol.names) || node.getAttribute("id") || "";
-    symbol.text = localizedText(symbol.texts) || "";
+    for (const lang of [...Object.keys(symbol.names), ...Object.keys(symbol.texts)]) {
+      usedLanguages.add(lang);
+      const base = lang.split("-")[0];
+      if (base) usedLanguages.add(base);
+    }
+    symbol.name = localizedText(symbol.names, "en") || node.getAttribute("id") || "";
+    symbol.text = localizedText(symbol.texts, "en") || "";
     if (!symbol.id) continue;
     for (const child of [...node.children]) {
       const tag = child.localName;
@@ -1157,15 +1385,48 @@ function parsePurplePenSymbols(text) {
       symbols.set(symbol.id, symbol);
     }
   }
-  return { symbols, order };
+  return { symbols, order, languages: supportedSymbolLanguages(symbolLanguages, usedLanguages) };
 }
 
-function localizedSymbolName(symbol) {
-  return localizedText(symbol?.names) || symbol?.name || "";
+function parseSymbolLanguages(doc) {
+  const languages = [];
+  const root = doc.documentElement;
+  if (!root) return FALLBACK_DESCRIPTION_LANGUAGES;
+  for (const child of [...root.children]) {
+    if (child.localName !== "language") continue;
+    const code = child.getAttribute("lang") || "";
+    const label = child.textContent?.trim() || code;
+    if (code) languages.push([code, label]);
+  }
+  return languages.length ? languages : FALLBACK_DESCRIPTION_LANGUAGES;
 }
 
-function localizedSymbolText(symbol) {
-  return localizedText(symbol?.texts) || symbol?.text || "";
+function supportedSymbolLanguages(languages, usedLanguages) {
+  const seen = new Set();
+  const supported = [];
+  for (const [code, label] of languages || []) {
+    const base = String(code || "").split("-")[0];
+    if (!code || seen.has(code)) continue;
+    if (code === "en" || usedLanguages.has(code) || (base && usedLanguages.has(base))) {
+      supported.push([code, label || code]);
+      seen.add(code);
+    }
+  }
+  for (const code of [...usedLanguages].sort()) {
+    if (!code || seen.has(code)) continue;
+    supported.push([code, DESCRIPTION_LANGUAGE_LABELS[code] || code]);
+    seen.add(code);
+  }
+  if (!seen.has("en")) supported.unshift(["en", "English"]);
+  return supported.length ? supported : FALLBACK_DESCRIPTION_LANGUAGES;
+}
+
+function localizedSymbolName(symbol, language = currentAppLanguage()) {
+  return localizedText(symbol?.names, language) || symbol?.name || "";
+}
+
+function localizedSymbolText(symbol, language = currentAppLanguage()) {
+  return localizedText(symbol?.texts, language) || symbol?.text || "";
 }
 
 function localizedTextMap(node, tagName) {
@@ -1179,8 +1440,8 @@ function localizedTextMap(node, tagName) {
   return values;
 }
 
-function localizedText(values = {}) {
-  for (const language of languageFallbacks(currentAppLanguage())) {
+function localizedText(values = {}, preferredLanguage = currentAppLanguage()) {
+  for (const language of languageFallbacks(preferredLanguage)) {
     if (values[language]) return values[language];
   }
   return Object.entries(values).find(([language]) => language.startsWith("en"))?.[1]

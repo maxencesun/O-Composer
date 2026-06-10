@@ -33,6 +33,7 @@ import {
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
   createDescriptionSpecialOptions,
+  descriptionLanguageForEvent,
   drawIscdSymbol,
   ensureIscdSymbolDb,
   existingDescriptionSpecialForTarget,
@@ -115,22 +116,12 @@ const PAPER_MARGINS = Object.freeze([
 
 const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 const APP_VERSION = "0.0.0";
-const DESCRIPTION_LANGUAGES = Object.freeze([
-  ["en", "English"],
-  ["de", "Deutsch"],
-  ["fr", "Francais"],
-  ["es", "Espanol"],
-  ["zh", "Chinese"],
-  ["ja", "Japanese"],
-  ["sv", "Svenska"],
-  ["fi", "Suomi"],
-  ["no", "Norsk"]
-]);
+const LANGUAGE_REFRESH_PARAM = "__pp_language_refresh";
 const COURSE_NAMES = Object.freeze(["Course 1", "Course 2", "Course 3", "Long", "Middle", "Sprint", "Score", "Training"]);
 const TEXT_PRESETS = Object.freeze(["Text", "Water", "First Aid", "Registration", "Start", "Finish", "Danger", "Out of Bounds"]);
 const MOVE_DISTANCE_CHOICES = Object.freeze([1, 2, 5, 10, 25, 50, 100]);
 const DEFAULT_TEXT_FONT_HEIGHT = 3;
-const CONTROL_SNAP_SCREEN_RADIUS = 24;
+const CONTROL_SNAP_SCREEN_RADIUS = 10;
 const FONT_CHOICES = Object.freeze([
   "Arial",
   "Arial Narrow",
@@ -234,9 +225,11 @@ const LEGACY_COLOR_ALIASES = Object.freeze({
 
 export class PurplePenApp extends HTMLElement {
   connectedCallback() {
+    consumeLanguageRefreshParam();
     this.language = getLanguage();
     this.store = new Store();
     this.innerHTML = this.template();
+    this.syncApplicationLanguageControl();
     this.renderKeys = null;
     this.cacheReady = false;
     this.mapView = new MapView(this.querySelector("#mapCanvas"), this.store, {
@@ -286,6 +279,16 @@ export class PurplePenApp extends HTMLElement {
 
   t(key, replacements = {}) {
     return t(key, replacements, this.language);
+  }
+
+  applyApplicationLanguage(language) {
+    setLanguage(language);
+    forceWholePageLanguageReload();
+  }
+
+  syncApplicationLanguageControl() {
+    const languageSelect = this.querySelector("#appLanguage");
+    if (languageSelect) languageSelect.value = this.language;
   }
 
   async restoreCachedSession() {
@@ -460,7 +463,7 @@ export class PurplePenApp extends HTMLElement {
           <span class="separator"></span>
           ${this.toolButton("set-print-area", "Set Export Area", "print-area", "Export Area")}
           <label class="toolbar-control">${escapeHtml(this.t("Language"))}
-            <select id="appLanguage">${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${code}" ${code === this.language ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>
+            <select id="appLanguage" autocomplete="off">${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${code}" ${code === this.language ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>
           </label>
         </section>
         <nav id="courseTabs" class="course-tabs" aria-label="${escapeAttr(this.t("Courses"))}"></nav>
@@ -647,8 +650,7 @@ export class PurplePenApp extends HTMLElement {
     });
     this.querySelector("#courseBanner").addEventListener("change", event => this.handleCourseBannerChange(event));
     this.querySelector("#appLanguage").addEventListener("change", event => {
-      setLanguage(event.target.value);
-      window.location.reload();
+      this.applyApplicationLanguage(event.target.value);
     });
 
     this.querySelector("#selectionPanel").addEventListener("change", event => this.updateSelectionField(event));
@@ -986,6 +988,7 @@ export class PurplePenApp extends HTMLElement {
   }
 
   descriptionRow(row, mode = "normal", selection = this.store.snapshot().ui.selection) {
+    const language = descriptionLanguageForEvent(this.store.snapshot().eventModel);
     const descriptions = new Map((row.control.descriptions || []).map(item => [item.box, item]));
     const selected = selection?.type === "control" && Number(selection.id) === Number(row.control.id);
     const isScoreCourse = mode === "score";
@@ -1002,7 +1005,7 @@ export class PurplePenApp extends HTMLElement {
         }
         const value = descriptions.get(box)?.ref || descriptions.get(box)?.text || "";
         return `<td>
-          <button type="button" class="iscd-cell-button" data-iscd-cell data-control-id="${row.control.id}" data-box="${box}" data-value="${escapeAttr(value)}" data-symbol-tooltip="${escapeAttr(this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box))}: ${escapeAttr(this.t(iscdSymbolLabel(box, value) || "Not specified"))}">
+          <button type="button" class="iscd-cell-button" data-iscd-cell data-control-id="${row.control.id}" data-box="${box}" data-value="${escapeAttr(value)}" data-symbol-tooltip="${escapeAttr(this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box))}: ${escapeAttr(iscdSymbolLabel(box, value, language) || this.t("Not specified"))}">
             <canvas class="iscd-symbol-canvas" width="24" height="24" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
           </button>
         </td>`;
@@ -1430,11 +1433,12 @@ export class PurplePenApp extends HTMLElement {
   }
 
   iscdSymbolPickerHtml(controlId, box, selectedValue = "") {
-    const options = symbolOptionsForColumn(box);
+    const language = descriptionLanguageForEvent(this.store.snapshot().eventModel);
+    const options = symbolOptionsForColumn(box, language);
     return `
       <div class="iscd-picker-grid">
         ${options.map(([value, label]) => `
-          <button type="button" class="iscd-picker-option ${value === selectedValue ? "selected" : ""}" data-iscd-symbol="${escapeAttr(value)}" data-control-id="${controlId}" data-box="${box}" data-symbol-tooltip="${escapeAttr(this.t(label))}">
+          <button type="button" class="iscd-picker-option ${value === selectedValue ? "selected" : ""}" data-iscd-symbol="${escapeAttr(value)}" data-control-id="${controlId}" data-box="${box}" data-symbol-tooltip="${escapeAttr(label === "Not specified" ? this.t(label) : label)}">
             <canvas class="iscd-picker-canvas" width="36" height="36" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
           </button>
         `).join("")}
@@ -1544,10 +1548,6 @@ export class PurplePenApp extends HTMLElement {
     const event = eventModel.event || {};
     const descriptionStandard = event.standards?.description || "2024";
     const mapStandard = event.standards?.map || event.courseAppearance?.mapStandard || "2017";
-    const descriptionLanguage = event.descriptions?.lang || event.descriptionLangId || "en";
-    const languages = DESCRIPTION_LANGUAGES.some(([code]) => code === descriptionLanguage)
-      ? DESCRIPTION_LANGUAGES
-      : [[descriptionLanguage, descriptionLanguage], ...DESCRIPTION_LANGUAGES];
     const circleRatio = Number(event.courseAppearance?.controlCircleSizeRatio) || 1;
     const numberingStart = Number(event.numbering?.start) || 31;
     return `
@@ -1556,11 +1556,6 @@ export class PurplePenApp extends HTMLElement {
         <div class="form-grid">
           <label class="span-2">${escapeHtml(this.t("Event title"))}
             <input data-event-field="event.title" value="${escapeAttr(event.title || "")}" placeholder="${escapeAttr(this.t("Untitled Event"))}">
-          </label>
-          <label>${escapeHtml(this.t("Description language"))}
-            <select data-event-field="event.descriptions.lang">
-              ${languages.map(([code, label]) => `<option value="${escapeAttr(code)}" ${code === descriptionLanguage ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
-            </select>
           </label>
           <label>${escapeHtml(this.t("Control circle size"))}
             <select data-event-field="event.courseAppearance.controlCircleSizeRatio">
@@ -1665,6 +1660,7 @@ export class PurplePenApp extends HTMLElement {
   }
 
   controlEditor(control) {
+    const language = descriptionLanguageForEvent(this.store.snapshot().eventModel);
     const descriptions = new Map((control.descriptions || []).map(item => [item.box, item]));
     const scoreFinishControl = this.scoreFinishControlEditor(control);
     const teamControl = this.teamControlEditor(control);
@@ -1684,7 +1680,7 @@ export class PurplePenApp extends HTMLElement {
         ${ISCD_COLUMNS.map(([box, label]) => `
           <label>${box}
             <select data-description-box="${box}" data-description-part="ref" title="${escapeAttr(this.t(label))}">
-              ${symbolOptionsForColumn(box).map(([value, optionText]) => `<option value="${escapeAttr(value)}" ${value === (descriptions.get(box)?.ref || "") ? "selected" : ""}>${escapeHtml(this.t(optionText))}</option>`).join("")}
+              ${symbolOptionsForColumn(box, language).map(([value, optionText]) => `<option value="${escapeAttr(value)}" ${value === (descriptions.get(box)?.ref || "") ? "selected" : ""}>${escapeHtml(optionText === "Not specified" ? this.t(optionText) : optionText)}</option>`).join("")}
             </select>
           </label>`).join("")}
       </div>
@@ -2106,9 +2102,6 @@ export class PurplePenApp extends HTMLElement {
         break;
       case "change-map-scale":
         this.promptMapScale(eventModel);
-        break;
-      case "change-description-language":
-        this.promptDescriptionLanguage(eventModel);
         break;
       case "auto-number":
         this.promptAutoNumber(eventModel);
@@ -2689,12 +2682,6 @@ export class PurplePenApp extends HTMLElement {
         model.event.title = String(value || "").trim() || "Untitled Event";
         return;
       }
-      if (field === "event.descriptions.lang") {
-        const lang = String(value || "en");
-        model.event.descriptions.lang = lang;
-        model.event.descriptionLangId = lang;
-        return;
-      }
       if (field === "event.standards.description") {
         model.event.standards.description = value === "2004" ? "2004" : "2024";
         return;
@@ -2887,6 +2874,7 @@ export class PurplePenApp extends HTMLElement {
 
   downloadPpen() {
     const model = cloneEvent(this.store.snapshot().eventModel);
+    syncDescriptionLanguageWithApp(model);
     const fileName = model.sourceName || "Untitled.ppen";
     download(fileName.endsWith(".ppen") ? fileName : `${baseName(fileName)}.ppen`, serializePpen(model), "application/xml");
     this.store.markClean(fileName);
@@ -3490,32 +3478,6 @@ export class PurplePenApp extends HTMLElement {
       apply: dialog => {
         const scale = Number(dialog.querySelector("#mapScaleChoice").value) || current;
         this.store.updateEvent(model => applyMapScale(model, scale, current), "Change map scale");
-      }
-    });
-  }
-
-  promptDescriptionLanguage(eventModel) {
-    const current = eventModel.event.descriptions.lang || "en";
-    const languages = DESCRIPTION_LANGUAGES.some(([code]) => code === current)
-      ? DESCRIPTION_LANGUAGES
-      : [[current, current], ...DESCRIPTION_LANGUAGES];
-    this.openCommandDialog({
-      title: "Description Language",
-      body: `
-        <div class="form-grid compact-form">
-          <label>${escapeHtml(this.t("Language"))}
-            <select id="descriptionLanguageChoice">
-              ${languages.map(([code, label]) => `<option value="${escapeAttr(code)}" ${code === current ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
-            </select>
-          </label>
-        </div>
-      `,
-      apply: dialog => {
-        const lang = dialog.querySelector("#descriptionLanguageChoice").value || "en";
-        this.store.updateEvent(model => {
-          model.event.descriptions.lang = lang;
-          model.event.descriptionLangId = lang;
-        }, "Description language");
       }
     });
   }
@@ -5583,8 +5545,25 @@ function uniqueStrings(values) {
   return [...new Set(values.map(value => String(value)).filter(Boolean))];
 }
 
-function symbolOptionsForColumn(box) {
-  const options = [["", "Not specified"], ...getIscdSymbolOptions(box)];
+
+function forceWholePageLanguageReload() {
+  const location = window.location;
+  const url = new URL(location.href);
+  url.searchParams.set(LANGUAGE_REFRESH_PARAM, String(Date.now()));
+  location.replace(url.toString());
+}
+
+function consumeLanguageRefreshParam() {
+  const location = window.location;
+  const url = new URL(location.href);
+  if (!url.searchParams.has(LANGUAGE_REFRESH_PARAM)) return;
+  url.searchParams.delete(LANGUAGE_REFRESH_PARAM);
+  const cleanUrl = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState(window.history.state, document.title, cleanUrl || location.pathname);
+}
+
+function symbolOptionsForColumn(box, language = "en") {
+  const options = [["", "Not specified"], ...getIscdSymbolOptions(box, language)];
   const seen = new Set();
   return options.filter(([value]) => {
     const key = String(value || "");
@@ -5639,6 +5618,14 @@ function renderKeysFor({ eventModel, ui }) {
     reportKind: ui.report?.kind || "",
     reportHtml: ui.report?.html || ""
   };
+}
+
+function syncDescriptionLanguageWithApp(eventModel) {
+  const language = descriptionLanguageForEvent(eventModel);
+  eventModel.event ||= {};
+  eventModel.event.descriptions ||= { lang: language, color: "black" };
+  eventModel.event.descriptions.lang = language;
+  eventModel.event.descriptionLangId = language;
 }
 
 function selectionKey(selection) {

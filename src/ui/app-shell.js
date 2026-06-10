@@ -229,6 +229,7 @@ export class PurplePenApp extends HTMLElement {
     this.language = getLanguage();
     this.store = new Store();
     this.innerHTML = this.template();
+    this.syncResponsiveUiClass();
     this.syncApplicationLanguageControl();
     this.renderKeys = null;
     this.cacheReady = false;
@@ -289,6 +290,23 @@ export class PurplePenApp extends HTMLElement {
   syncApplicationLanguageControl() {
     const languageSelect = this.querySelector("#appLanguage");
     if (languageSelect) languageSelect.value = this.language;
+  }
+
+  syncResponsiveUiClass() {
+    const phoneUi = isNarrowMobileViewport();
+    const tabletDesktopUi = !phoneUi && isTabletDevice();
+    this.classList.toggle("phone-ui", phoneUi);
+    this.classList.toggle("tablet-desktop-ui", tabletDesktopUi);
+    document.documentElement.classList.toggle("phone-ui", phoneUi);
+    document.documentElement.classList.toggle("tablet-desktop-ui", tabletDesktopUi);
+
+    // Do not rely only on CSS media queries: iPad portrait can be below desktop
+    // breakpoints while still needing the desktop/tablet workflow. Keep the mobile
+    // side controls disabled unless this is a phone-sized viewport.
+    const mobileSideControls = this.querySelector(".mobile-side-controls");
+    if (mobileSideControls) mobileSideControls.hidden = !phoneUi;
+    const courseTabs = this.querySelector("#courseTabs");
+    if (courseTabs) courseTabs.hidden = phoneUi;
   }
 
   async restoreCachedSession() {
@@ -712,7 +730,11 @@ export class PurplePenApp extends HTMLElement {
     window.addEventListener("keydown", event => this.handleKey(event));
     window.addEventListener("pointerdown", () => this.ensureMobileLandscapeMode(), { passive: true });
     window.addEventListener("touchstart", () => this.ensureMobileLandscapeMode(), { passive: true });
-    window.addEventListener("orientationchange", () => this.mapView.requestDraw(this.store.snapshot()));
+    window.addEventListener("resize", () => this.syncResponsiveUiClass());
+    window.addEventListener("orientationchange", () => {
+      this.syncResponsiveUiClass();
+      this.mapView.requestDraw(this.store.snapshot());
+    });
   }
 
   ensureMobileLandscapeMode() {
@@ -5749,7 +5771,46 @@ function baseName(name = "event.ppen") {
 }
 
 function isNarrowMobileViewport() {
-  return window.matchMedia?.("(max-width: 760px)")?.matches ?? window.innerWidth <= 760;
+  return isPhoneViewport();
+}
+
+function isPhoneViewport() {
+  const width = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 0);
+  const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 0);
+  const shortSide = Math.min(width, height);
+  const longSide = Math.max(width, height);
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
+
+  // iPad and Android tablets should keep the desktop UI, even when held in portrait.
+  // Some iPad models report only 744 CSS px in portrait, which was below the old
+  // 760px breakpoint and incorrectly triggered the phone/mobile layout.
+  if (isTabletDevice()) {
+    return false;
+  }
+
+  const explicitPhone = /iPhone|iPod/i.test(userAgent)
+    || (/Android/i.test(userAgent) && /Mobile/i.test(userAgent));
+  if (explicitPhone) {
+    return shortSide <= 560 || longSide <= 980;
+  }
+
+  // Browser/device detection is imperfect, so keep a geometry fallback for very
+  // small coarse-pointer screens, but do not classify tablet-sized viewports as phones.
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches ?? maxTouchPoints > 0;
+  const macTouchTablet = platform === "MacIntel" && maxTouchPoints > 1;
+  return coarsePointer && !macTouchTablet && shortSide <= 520 && longSide <= 980;
+}
+
+function isTabletDevice() {
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
+  if (/iPad/i.test(userAgent)) return true;
+  if (platform === "MacIntel" && maxTouchPoints > 1) return true;
+  if (/Android/i.test(userAgent) && !/Mobile/i.test(userAgent)) return true;
+  return false;
 }
 
 function canScrollElement(element, deltaY) {

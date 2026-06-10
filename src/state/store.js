@@ -18,6 +18,7 @@ export class Store {
         variationCode: "",
         variationAddKind: "fork",
         variationAddBranches: 2,
+        teamAddControlRole: "mandatory",
         variationAnchorCourseControl: null,
         variationBranch: null,
         relayTeam: 1,

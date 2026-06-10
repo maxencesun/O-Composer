@@ -37,7 +37,8 @@ export function addControlAt(eventModel, kind, location, selectedCourseId = null
       mapFlip: !!options.mapFlip,
       afterCourseControl: coursePlacement ? null : options.afterCourseControl,
       beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
-      placement: coursePlacement
+      placement: coursePlacement,
+      teamRole: options.teamRole
     });
   }
 
@@ -55,7 +56,8 @@ export function addExistingControlToCourse(eventModel, courseId, controlId, opti
     afterCourseControl: coursePlacement ? null : options.afterCourseControl,
     beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
     placement: coursePlacement,
-    beforeFinish: options.beforeFinish
+    beforeFinish: options.beforeFinish,
+    teamRole: options.teamRole
   });
   return courseControl ? {
     type: "control",
@@ -116,6 +118,8 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
   const newCourseControl = createCourseControl(nextId(eventModel.courseControls), controlId, null);
   newCourseControl.mapExchange = !!options.mapExchange;
   newCourseControl.mapFlip = !!options.mapFlip;
+  const control = getControl(eventModel, controlId);
+  newCourseControl.teamRole = course.kind === "team" && control?.kind === "normal" && options.teamRole === "free" ? "free" : "mandatory";
   eventModel.courseControls.push(newCourseControl);
 
   if (!course.firstCourseControl) {
@@ -562,7 +566,7 @@ export function addVariationAtCourseControl(eventModel, courseId, courseControlI
   const course = getCourse(eventModel, courseId);
   const forkCourseControl = getCourseControl(eventModel, courseControlId);
   const joinCourseControl = getCourseControl(eventModel, forkCourseControl?.nextCourseControl);
-  if (!course || course.kind === "score" || !forkCourseControl || !joinCourseControl || forkCourseControl.variation) return null;
+  if (!course || course.kind === "score" || course.kind === "team" || !forkCourseControl || !joinCourseControl || forkCourseControl.variation) return null;
 
   const forkControl = getControl(eventModel, forkCourseControl.control);
   const joinControl = getControl(eventModel, joinCourseControl.control);

@@ -381,6 +381,7 @@ function parseCourseControl(node) {
     mapExchange: boolAttr(node, "map-exchange", false),
     mapFlip: boolAttr(node, "map-flip", false),
     points: intAttr(node, "points", 0),
+    teamRole: attr(node, "team-role", "mandatory") === "free" ? "free" : "mandatory",
     numberLocation: null,
     descTextBefore: "",
     descTextAfter: ""
@@ -771,7 +772,8 @@ function writeCourseControl(lines, courseControl, level) {
   }
   if (courseControl.mapExchange) attrs["map-exchange"] = true;
   if (courseControl.mapFlip) attrs["map-flip"] = true;
-  if (courseControl.points) attrs.points = courseControl.points;
+  if (courseControl.points && courseControl.teamRole !== "free") attrs.points = courseControl.points;
+  if (courseControl.teamRole === "free") attrs["team-role"] = "free";
 
   open(lines, level, "course-control", attrs);
   if (courseControl.nextCourseControl) {

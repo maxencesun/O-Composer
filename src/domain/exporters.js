@@ -6,6 +6,7 @@ import {
   courseView,
   eventBounds,
   formatLength,
+  isTeamFreeCourseControl,
   sortedCourses
 } from "./course-service.js";
 import { allCourseVariations } from "./relay-variations.js";
@@ -61,6 +62,9 @@ export function exportIofXml3(eventModel) {
       }
       if (course.kind === "score" && row.courseControl.points) {
         lines.push(`        <Score>${row.courseControl.points}</Score>`);
+      }
+      if (course.kind === "team" && isTeamFreeCourseControl(course, row.courseControl)) {
+        lines.push(`        <MapText>${escapeText(row.label || row.control.code || "")}</MapText>`);
       }
       lines.push(`      </CourseControl>`);
     }

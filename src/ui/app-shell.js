@@ -117,6 +117,8 @@ const PAPER_MARGINS = Object.freeze([
 const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 const APP_VERSION = "0.0.0";
 const LANGUAGE_REFRESH_PARAM = "__pp_language_refresh";
+const UI_MODE_KEY = "purplePenUiMode";
+const UI_MODES = Object.freeze({ AUTO: "auto", DESKTOP: "desktop", MOBILE: "mobile" });
 const COURSE_NAMES = Object.freeze(["Course 1", "Course 2", "Course 3", "Long", "Middle", "Sprint", "Score", "Training"]);
 const TEXT_PRESETS = Object.freeze(["Text", "Water", "First Aid", "Registration", "Start", "Finish", "Danger", "Out of Bounds"]);
 const MOVE_DISTANCE_CHOICES = Object.freeze([1, 2, 5, 10, 25, 50, 100]);
@@ -292,21 +294,123 @@ export class PurplePenApp extends HTMLElement {
     if (languageSelect) languageSelect.value = this.language;
   }
 
+  uiModePreference() {
+    return readUiModePreference();
+  }
+
+  resolvedUiMode() {
+    const preference = this.uiModePreference();
+    if (preference === UI_MODES.DESKTOP || preference === UI_MODES.MOBILE) {
+      return preference;
+    }
+    return isPhoneViewport() ? UI_MODES.MOBILE : UI_MODES.DESKTOP;
+  }
+
+  toggleUiMode() {
+    const nextMode = this.resolvedUiMode() === UI_MODES.DESKTOP ? UI_MODES.MOBILE : UI_MODES.DESKTOP;
+    setUiModePreference(nextMode);
+    this.syncResponsiveUiClass();
+    this.mapView?.requestDraw?.(this.store.snapshot());
+  }
+
   syncResponsiveUiClass() {
-    const phoneUi = isNarrowMobileViewport();
-    const tabletDesktopUi = !phoneUi && isTabletDevice();
+    const mode = this.resolvedUiMode();
+    const phoneUi = mode === UI_MODES.MOBILE;
+    const tabletDesktopUi = mode === UI_MODES.DESKTOP && isTabletDevice();
     this.classList.toggle("phone-ui", phoneUi);
+    this.classList.toggle("desktop-ui", !phoneUi);
     this.classList.toggle("tablet-desktop-ui", tabletDesktopUi);
+    this.dataset.uiMode = mode;
     document.documentElement.classList.toggle("phone-ui", phoneUi);
+    document.documentElement.classList.toggle("desktop-ui", !phoneUi);
     document.documentElement.classList.toggle("tablet-desktop-ui", tabletDesktopUi);
+    document.documentElement.dataset.uiMode = mode;
 
     // Do not rely only on CSS media queries: iPad portrait can be below desktop
     // breakpoints while still needing the desktop/tablet workflow. Keep the mobile
-    // side controls disabled unless this is a phone-sized viewport.
+    // side controls disabled unless this is a phone-sized viewport or the user
+    // explicitly selected mobile UI.
     const mobileSideControls = this.querySelector(".mobile-side-controls");
     if (mobileSideControls) mobileSideControls.hidden = !phoneUi;
     const courseTabs = this.querySelector("#courseTabs");
     if (courseTabs) courseTabs.hidden = phoneUi;
+    this.applyResponsiveInlineOverrides(phoneUi);
+    this.syncUiModeToggle(phoneUi);
+  }
+
+  applyResponsiveInlineOverrides(phoneUi) {
+    const appFrame = this.querySelector(".app-frame");
+    const workspace = this.querySelector(".workspace");
+    const leftPanel = this.querySelector(".left-panel");
+    const divider = this.querySelector("#workspaceDivider");
+    const mapPanel = this.querySelector(".map-panel");
+    const canvas = this.querySelector("#mapCanvas");
+    if (phoneUi) {
+      for (const element of [appFrame, workspace, leftPanel, divider, mapPanel, canvas]) {
+        element?.removeAttribute("style");
+      }
+      return;
+    }
+    // iPad Safari can still match stylesheet mobile media queries in portrait.
+    // Inline overrides are deliberately narrow and only restore the desktop shell
+    // geometry so the map panel is not squeezed out by the phone layout.
+    if (appFrame) {
+      appFrame.style.display = "flex";
+      appFrame.style.flexDirection = "column";
+      appFrame.style.height = "100vh";
+      appFrame.style.minHeight = "0";
+      appFrame.style.overflow = "hidden";
+    }
+    if (workspace) {
+      const saved = Number(localStorage.getItem("purplePenLeftPanelWidth"));
+      const width = Number.isFinite(saved) && saved > 0 ? clamp(saved, 260, Math.max(320, window.innerWidth - 360)) : 320;
+      workspace.style.display = "grid";
+      workspace.style.gridTemplateColumns = `${width}px 6px minmax(0, 1fr)`;
+      workspace.style.gridTemplateRows = "minmax(0, 1fr)";
+      workspace.style.minHeight = "0";
+      workspace.style.minWidth = "0";
+      workspace.style.flex = "1 1 auto";
+      workspace.style.height = "100%";
+      workspace.style.overflow = "hidden";
+      workspace.style.setProperty("--left-panel-width", `${width}px`);
+    }
+    if (leftPanel) {
+      leftPanel.hidden = false;
+      leftPanel.style.display = "flex";
+      leftPanel.style.flexDirection = "column";
+      leftPanel.style.minWidth = "0";
+      leftPanel.style.minHeight = "0";
+      leftPanel.style.overflow = "auto";
+    }
+    if (divider) {
+      divider.hidden = false;
+      divider.style.display = "block";
+    }
+    if (mapPanel) {
+      mapPanel.style.display = "flex";
+      mapPanel.style.flexDirection = "column";
+      mapPanel.style.minWidth = "0";
+      mapPanel.style.minHeight = "0";
+      mapPanel.style.overflow = "hidden";
+    }
+    if (canvas) {
+      canvas.style.display = "block";
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+      canvas.style.minWidth = "0";
+      canvas.style.minHeight = "0";
+      canvas.style.flex = "1 1 auto";
+    }
+  }
+
+  syncUiModeToggle(phoneUi = this.resolvedUiMode() === UI_MODES.MOBILE) {
+    const button = this.querySelector("#uiModeToggle");
+    if (!button) return;
+    const nextLabel = phoneUi ? this.t("Desktop UI") : this.t("Mobile UI");
+    button.textContent = nextLabel;
+    button.title = this.t("Switch between desktop and mobile UI");
+    button.setAttribute("aria-label", nextLabel);
+    button.dataset.mode = phoneUi ? UI_MODES.MOBILE : UI_MODES.DESKTOP;
   }
 
   async restoreCachedSession() {
@@ -365,6 +469,7 @@ export class PurplePenApp extends HTMLElement {
         <input id="ppenInput" type="file" accept=".ppen,.xml,text/xml" hidden>
         <input id="mapInput" type="file" accept="image/*,.pdf" hidden>
         <input id="omapInput" type="file" hidden>
+        <button id="uiModeToggle" class="ui-mode-toggle" type="button" title="${escapeAttr(this.t("Switch between desktop and mobile UI"))}" aria-label="${escapeAttr(this.t("Switch between desktop and mobile UI"))}" style="position:fixed;top:8px;right:8px;z-index:2147483647;padding:6px 10px;border-radius:8px;border:1px solid #c7c7c7;background:rgba(255,255,255,.96);color:#222;font:inherit;box-shadow:0 2px 10px rgba(0,0,0,.18);"></button>
         <div class="orientation-overlay" aria-live="polite">
           <div>
             <strong>${escapeHtml(this.t("Rotate your phone"))}</strong>
@@ -527,7 +632,7 @@ export class PurplePenApp extends HTMLElement {
             <canvas id="mapCanvas" class="map-canvas"></canvas>
           </section>
         </main>
-        <dialog id="printAreaDialog" class="print-area-dialog" aria-modal="false">
+        <dialog id="printAreaDialog" class="print-area-dialog" aria-modal="false" hidden>
           <form id="printAreaForm" class="print-area-form" autocomplete="off">
             <header class="dialog-heading">
               <h2 id="printAreaTitle">${escapeHtml(this.t("Set Export Area"))}</h2>
@@ -568,7 +673,7 @@ export class PurplePenApp extends HTMLElement {
             </footer>
           </form>
         </dialog>
-        <dialog id="commandDialog" class="command-dialog">
+        <dialog id="commandDialog" class="command-dialog" hidden>
           <form id="commandForm" class="command-form">
             <header class="dialog-heading">
               <h2 id="commandTitle"></h2>
@@ -670,6 +775,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#appLanguage").addEventListener("change", event => {
       this.applyApplicationLanguage(event.target.value);
     });
+    this.querySelector("#uiModeToggle").addEventListener("click", () => this.toggleUiMode());
 
     this.querySelector("#selectionPanel").addEventListener("change", event => this.updateSelectionField(event));
     this.querySelector("#selectionPanel").addEventListener("click", event => this.handleSelectionPanelClick(event));
@@ -858,6 +964,7 @@ export class PurplePenApp extends HTMLElement {
       this.renderReport(state);
     }
     this.renderStatus(state);
+    this.syncUiModeToggle();
     this.querySelector("#zoomSlider").value = Math.round(state.ui.zoom * 100);
     this.querySelector("#intensitySlider").value = Math.round(state.ui.mapIntensity * 100);
     this.mapView.requestDraw(state);
@@ -3122,6 +3229,7 @@ export class PurplePenApp extends HTMLElement {
     message.textContent = this.t(config.message || "");
     config.onOpen?.(this.querySelector("#commandDialog"));
     const dialog = this.querySelector("#commandDialog");
+    dialog?.removeAttribute("hidden");
     if (!dialog.open) {
       if (dialog.show) {
         dialog.show();
@@ -3140,8 +3248,9 @@ export class PurplePenApp extends HTMLElement {
       dialog.close();
     }
     else {
-      dialog.removeAttribute("open");
+      dialog?.removeAttribute("open");
     }
+    dialog?.setAttribute("hidden", "");
   }
 
   applyCommandDialog() {
@@ -3347,7 +3456,11 @@ export class PurplePenApp extends HTMLElement {
     if (!workspace || !divider) return;
     const saved = Number(localStorage.getItem("purplePenLeftPanelWidth") || 0);
     if (saved > 0) {
-      workspace.style.setProperty("--left-panel-width", `${clamp(saved, 260, window.innerWidth - 360)}px`);
+      const width = clamp(saved, 260, Math.max(320, window.innerWidth - 360));
+      workspace.style.setProperty("--left-panel-width", `${width}px`);
+      if (this.resolvedUiMode() === UI_MODES.DESKTOP) {
+        workspace.style.gridTemplateColumns = `${width}px 6px minmax(0, 1fr)`;
+      }
     }
     divider.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
@@ -3358,6 +3471,9 @@ export class PurplePenApp extends HTMLElement {
       const move = moveEvent => {
         const width = clamp(moveEvent.clientX - rect.left, 260, Math.max(260, rect.width - 360));
         workspace.style.setProperty("--left-panel-width", `${width}px`);
+        if (this.resolvedUiMode() === UI_MODES.DESKTOP) {
+          workspace.style.gridTemplateColumns = `${width}px 6px minmax(0, 1fr)`;
+        }
         localStorage.setItem("purplePenLeftPanelWidth", String(Math.round(width)));
         this.mapView.requestDraw(this.store.snapshot());
       };
@@ -5499,12 +5615,12 @@ function openFloatingPalette(dialog) {
     return;
   }
   dialog.dataset.inlinePalette = "false";
+  dialog.removeAttribute("hidden");
   if (dialog.show) {
     dialog.show();
   }
   else {
     dialog.setAttribute("open", "");
-    dialog.removeAttribute("hidden");
   }
 }
 
@@ -5513,6 +5629,7 @@ function closeFloatingPalette(dialog) {
   const inline = dialog.dataset.inlinePalette === "true" || useInlineFloatingPalette();
   if (!inline && dialog.open && dialog.close) {
     dialog.close();
+    dialog.setAttribute("hidden", "");
     return true;
   }
   dialog.removeAttribute("open");
@@ -5768,6 +5885,28 @@ function downloadBlob(fileName, blob) {
 
 function baseName(name = "event.ppen") {
   return String(name).replace(/\.[^.]+$/, "") || "event";
+}
+
+function readUiModePreference() {
+  try {
+    const value = localStorage.getItem(UI_MODE_KEY);
+    return Object.values(UI_MODES).includes(value) ? value : UI_MODES.AUTO;
+  }
+  catch {
+    return UI_MODES.AUTO;
+  }
+}
+
+function setUiModePreference(mode) {
+  try {
+    if (mode === UI_MODES.AUTO) {
+      localStorage.removeItem(UI_MODE_KEY);
+    }
+    else {
+      localStorage.setItem(UI_MODE_KEY, mode);
+    }
+  }
+  catch {}
 }
 
 function isNarrowMobileViewport() {

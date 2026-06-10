@@ -509,10 +509,10 @@ export class PurplePenApp extends HTMLElement {
             <canvas id="mapCanvas" class="map-canvas"></canvas>
           </section>
         </main>
-        <dialog id="printAreaDialog" class="print-area-dialog">
-          <form id="printAreaForm" class="print-area-form">
+        <dialog id="printAreaDialog" class="print-area-dialog" aria-modal="false">
+          <form id="printAreaForm" class="print-area-form" autocomplete="off">
             <header class="dialog-heading">
-              <h2>${escapeHtml(this.t("Set Export Area"))}</h2>
+              <h2 id="printAreaTitle">${escapeHtml(this.t("Set Export Area"))}</h2>
               <button type="button" class="icon-button" data-print-area-cancel aria-label="${escapeAttr(this.t("Close"))}">x</button>
             </header>
             <div class="print-area-grid">
@@ -666,7 +666,14 @@ export class PurplePenApp extends HTMLElement {
       event.preventDefault();
       this.applyPrintAreaDialog();
     });
-    this.querySelector("#printAreaDialog").addEventListener("input", () => {
+    this.querySelector("#printAreaDialog").addEventListener("input", event => {
+      // iPad Safari can keep native select/radio controls in a stuck focus state if
+      // the floating palette redraws while the picker is still committing a value.
+      // The change handler below is enough for these controls; keep input only for
+      // future text/number inputs that should preview while typing.
+      if (event.target?.matches?.("select,input[type=radio],input[type=checkbox]")) {
+        return;
+      }
       this.renderPrintAreaDialogSummary();
       this.updatePrintAreaDialogPreview();
     });
@@ -3543,27 +3550,19 @@ export class PurplePenApp extends HTMLElement {
     this.populatePrintAreaScopeOptions(state);
     this.syncPrintAreaDialogFromScope();
     const dialog = this.querySelector("#printAreaDialog");
-    if (dialog.open) {
+    if (isFloatingDialogOpen(dialog)) {
       this.updatePrintAreaDialogPreview();
       return;
     }
-    if (dialog.show) {
-      dialog.show();
-    }
-    else {
-      dialog.setAttribute("open", "");
-    }
+    openFloatingPalette(dialog);
     this.updatePrintAreaDialogPreview();
   }
 
   closePrintAreaDialog(clearPreview = true) {
     const dialog = this.querySelector("#printAreaDialog");
     this.keepPrintAreaDialogPreview = !clearPreview;
-    if (dialog.open && dialog.close) {
-      dialog.close();
-    }
-    else {
-      dialog.removeAttribute("open");
+    const closedNatively = closeFloatingPalette(dialog);
+    if (!closedNatively) {
       if (clearPreview) {
         this.clearPrintAreaDialogPreview();
       }
@@ -3656,7 +3655,7 @@ export class PurplePenApp extends HTMLElement {
 
   updatePrintAreaDialogPreview() {
     const dialog = this.querySelector("#printAreaDialog");
-    if (!dialog.open) return;
+    if (!isFloatingDialogOpen(dialog)) return;
     const state = this.store.snapshot();
     const target = this.printAreaTargetFromDialog();
     if (!target) return;
@@ -5449,6 +5448,59 @@ function snappedControlForPlacement(state, kind, point, mapView) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+
+function isAppleTouchDevice() {
+  const nav = window.navigator || {};
+  const platform = nav.platform || "";
+  const userAgent = nav.userAgent || "";
+  return /iPad|iPhone|iPod/i.test(userAgent) || (platform === "MacIntel" && Number(nav.maxTouchPoints || 0) > 1);
+}
+
+function useInlineFloatingPalette() {
+  // iPad Safari has long-standing quirks around non-modal <dialog> plus native
+  // <select> pickers: touches can remain captured by the dialog's top-layer
+  // state after the picker closes. For the export-area palette we do not need
+  // native dialog modality, so on Apple touch devices we keep it as a normal
+  // positioned element with an open attribute.
+  return isAppleTouchDevice();
+}
+
+function openFloatingPalette(dialog) {
+  if (!dialog) return;
+  if (useInlineFloatingPalette()) {
+    dialog.dataset.inlinePalette = "true";
+    dialog.setAttribute("open", "");
+    dialog.removeAttribute("hidden");
+    dialog.style.display = "";
+    return;
+  }
+  dialog.dataset.inlinePalette = "false";
+  if (dialog.show) {
+    dialog.show();
+  }
+  else {
+    dialog.setAttribute("open", "");
+    dialog.removeAttribute("hidden");
+  }
+}
+
+function closeFloatingPalette(dialog) {
+  if (!dialog) return false;
+  const inline = dialog.dataset.inlinePalette === "true" || useInlineFloatingPalette();
+  if (!inline && dialog.open && dialog.close) {
+    dialog.close();
+    return true;
+  }
+  dialog.removeAttribute("open");
+  dialog.setAttribute("hidden", "");
+  dialog.dataset.inlinePalette = inline ? "true" : "false";
+  return false;
+}
+
+function isFloatingDialogOpen(dialog) {
+  return !!dialog && !dialog.hasAttribute("hidden") && (dialog.open || dialog.hasAttribute("open"));
 }
 
 function currentPrintAreaForTarget(eventModel, ui, target) {

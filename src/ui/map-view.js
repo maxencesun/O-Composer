@@ -729,7 +729,16 @@ export class MapView {
       : courseView(eventModel, selectedCourseId, displayOptions);
     const legs = allControls ? [] : courseLegs(eventModel, selectedCourseId, displayOptions);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), allControls);
-    const autoGaps = automaticLegGaps(legs, rows, metrics, this.scale(ui), eventModel.event.courseAppearance?.autoLegGapSize || 3.5);
+    const labelRows = mergedCourseLabelRows(rows);
+    const autoGaps = automaticLegGaps(
+      legs,
+      rows,
+      labelRows,
+      metrics,
+      this.scale(ui),
+      eventModel.event.courseAppearance?.autoLegGapSize || 3.5,
+      location => this.toScreen(location, ui)
+    );
     const autoCircleGaps = allControls ? new Map() : automaticControlCircleGaps(rows, metrics, this.scale(ui));
 
     ctx.save();
@@ -759,7 +768,6 @@ export class MapView {
       });
     }
 
-    const labelRows = mergedCourseLabelRows(rows);
     for (const row of labelRows) {
       if (row.label && row.control.kind === "normal") {
         const point = this.toScreen(row.control.location, ui);
@@ -2161,7 +2169,7 @@ function legMapPoints(leg) {
   return [leg.from.control.location, ...(leg.leg?.bends || []), leg.to.control.location];
 }
 
-function automaticLegGaps(legs, rows, metrics, pixelsPerMapUnit, gapSize) {
+function automaticLegGaps(legs, rows, labelRows, metrics, pixelsPerMapUnit, gapSize, project) {
   const result = new Map();
   const length = Math.max(0.5, Number(gapSize) || 3.5);
   const segmentSets = legs.map(leg => legSegments(legMapPoints(leg)));
@@ -2184,7 +2192,86 @@ function automaticLegGaps(legs, rows, metrics, pixelsPerMapUnit, gapSize) {
     }
   }
   addLegCircleGaps(result, legs, segmentSets, rows, metrics, pixelsPerMapUnit, length);
+  addLegLabelGaps(result, legs, segmentSets, labelRows || rows, metrics, pixelsPerMapUnit, length, project);
   return result;
+}
+
+function addLegLabelGaps(result, legs, segmentSets, rows, metrics, pixelsPerMapUnit, gapSize, project) {
+  if (typeof project !== "function") return;
+  const labelItems = (rows || [])
+    .filter(row => row?.control?.kind === "normal" && row.label)
+    .map(row => ({
+      row,
+      rect: controlNumberScreenRect(row, metrics, rows, legs, project, Math.max(2, 0.15 * metrics.unit))
+    }));
+  if (!labelItems.length) return;
+
+  for (let legIndex = 0; legIndex < legs.length; legIndex += 1) {
+    const leg = legs[legIndex];
+    const mapPoints = legMapPoints(leg);
+    const screenPoints = mapPoints.map(project);
+    let screenOffset = 0;
+    for (let segmentIndex = 0; segmentIndex < screenPoints.length - 1; segmentIndex += 1) {
+      const screenA = screenPoints[segmentIndex];
+      const screenB = screenPoints[segmentIndex + 1];
+      const screenLength = distance(screenA, screenB);
+      const mapSegment = segmentSets[legIndex]?.[segmentIndex];
+      if (!mapSegment || screenLength <= 0.001) {
+        screenOffset += screenLength;
+        continue;
+      }
+      for (const item of labelItems) {
+        const range = segmentRectIntersectionRange(screenA, screenB, item.rect);
+        if (!range) continue;
+        const centerT = (range.start + range.end) / 2;
+        const visibleScreenLength = Math.max(0, (range.end - range.start) * screenLength);
+        const extraMap = Math.max(gapSize, visibleScreenLength / Math.max(0.0001, pixelsPerMapUnit));
+        const center = mapSegment.offset + centerT * mapSegment.length;
+        const key = legKey(leg);
+        const gaps = result.get(key) || [];
+        gaps.push({
+          start: Math.max(0, center - extraMap / 2 - gapSize / 2),
+          length: extraMap + gapSize,
+          automatic: true,
+          attachedObject: "control-label"
+        });
+        result.set(key, gaps);
+      }
+      screenOffset += screenLength;
+    }
+  }
+}
+
+function segmentRectIntersectionRange(a, b, rect) {
+  const bounds = normalizedRect(rect);
+  let t0 = 0;
+  let t1 = 1;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const checks = [
+    [-dx, a.x - bounds.left],
+    [dx, bounds.right - a.x],
+    [-dy, a.y - bounds.top],
+    [dy, bounds.bottom - a.y]
+  ];
+  for (const [p, q] of checks) {
+    if (Math.abs(p) < 1e-9) {
+      if (q < 0) return null;
+      continue;
+    }
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return null;
+      if (r > t0) t0 = r;
+    }
+    else {
+      if (r < t0) return null;
+      if (r < t1) t1 = r;
+    }
+  }
+  const start = Math.max(0, Math.min(1, t0));
+  const end = Math.max(0, Math.min(1, t1));
+  return end > start ? { start, end } : null;
 }
 
 function addLegCircleGaps(result, legs, segmentSets, rows, metrics, pixelsPerMapUnit, gapSize) {

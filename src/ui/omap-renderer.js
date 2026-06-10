@@ -93,7 +93,7 @@ function drawArea(ctx, object, area, project, scale, transform, targetPriority) 
     ctx.fill("evenodd");
   }
   for (const pattern of area.patterns || []) {
-    drawPattern(ctx, pattern, screenPoints, scale, targetPriority);
+    drawPattern(ctx, patternForObject(pattern, object, transform), screenPoints, scale, targetPriority);
   }
   ctx.restore();
 }
@@ -223,10 +223,11 @@ function drawLineDashSymbols(ctx, line, parts, symbols, project, scale, depth, t
   if (!line.dashSymbol || !symbolMatchesPriority(line.dashSymbol, targetPriority)) {
     return;
   }
+  const location = line.dashSymbolLocation || (line.dashed ? "dash-points" : "corners");
   for (const part of parts) {
     const total = pathLength(part);
     if (total <= 0) continue;
-    for (const { point, distance, angle } of dashPointSamples(part)) {
+    for (const { point, distance, angle } of attachmentPointSamples(part, location)) {
       if (line.suppressDashSymbolAtEnds && (distance <= 1e-6 || Math.abs(distance - total) <= 1e-6)) {
         continue;
       }
@@ -235,20 +236,23 @@ function drawLineDashSymbols(ctx, line, parts, symbols, project, scale, depth, t
   }
 }
 
-function dashPointSamples(part) {
+function attachmentPointSamples(part, location) {
   const samples = [];
   let distance = 0;
-  for (let i = 1; i < part.length; i += 1) {
-    const previous = part[i - 1];
-    const point = part[i];
-    const segmentLength = pointDistance(previous, point);
-    distance += segmentLength;
-    if (hasFlag(point, DASH_POINT)) {
-      const angle = segmentLength > 0
-        ? Math.atan2(point.y - previous.y, point.x - previous.x)
-        : (samples[samples.length - 1]?.angle || 0);
-      samples.push({ point, distance, angle });
+  for (let i = 0; i < part.length; i += 1) {
+    if (i > 0) {
+      distance += pointDistance(part[i - 1], part[i]);
     }
+    const point = part[i];
+    const isAttachmentPoint = location === "dash-points"
+      ? isDashPoint(point)
+      : (isCornerPoint(point) || isDashPoint(point));
+    if (!isAttachmentPoint) continue;
+    samples.push({
+      point,
+      distance,
+      angle: tangentAngleAtIndex(part, i)
+    });
   }
   return samples;
 }
@@ -310,13 +314,13 @@ function drawDashedPathPart(ctx, part, dashInfo, project, closed, scale) {
 function dashIntervalsForPart(part, dashInfo, closed) {
   const length = pathLength(part);
   if (length <= 0) return [];
-  const groups = dashLayoutGroups(part);
+  const hasSecondaryGaps = hasSecondaryDashGaps(dashInfo);
+  const groups = dashLayoutGroups(part, { dashPointsAffectEndpoints: !hasSecondaryGaps });
 
   if (usesOpenMapperGroupedDashes(dashInfo)) {
     return mergeIntervals(openMapperGroupedDashIntervals(groups, dashInfo, closed, length), length);
   }
 
-  const hasSecondaryGaps = hasSecondaryDashGaps(dashInfo);
   const intervals = [];
   for (const group of groups) {
     const distances = computeDashDistancesForLength(group.length, dashInfo, {
@@ -344,21 +348,22 @@ function dashDistancesToIntervals(distances, startOffset, length) {
   return intervals;
 }
 
-function dashLayoutGroups(part) {
+function dashLayoutGroups(part, options = {}) {
   const groups = [];
   let startIndex = 0;
   let startOffset = 0;
   let offset = 0;
+  const dashPointsAffectEndpoints = options.dashPointsAffectEndpoints !== false;
 
   for (let index = 1; index < part.length; index += 1) {
     offset += pointDistance(part[index - 1], part[index]);
-    if (hasFlag(part[index], DASH_POINT) || hasFlag(part[index], HOLE_POINT)) {
+    if (isDashLayoutBreak(part[index])) {
       if (offset > startOffset) {
         groups.push({
           start: startOffset,
           length: offset - startOffset,
-          firstAtDash: startIndex > 0 && hasFlag(part[startIndex], DASH_POINT),
-          lastAtDash: hasFlag(part[index], DASH_POINT)
+          firstAtDash: dashPointsAffectEndpoints && startIndex > 0 && isDashPoint(part[startIndex]),
+          lastAtDash: dashPointsAffectEndpoints && isDashPoint(part[index])
         });
       }
       startIndex = index;
@@ -370,7 +375,7 @@ function dashLayoutGroups(part) {
     groups.push({
       start: startOffset,
       length: offset - startOffset,
-      firstAtDash: startIndex > 0 && hasFlag(part[startIndex], DASH_POINT),
+      firstAtDash: dashPointsAffectEndpoints && startIndex > 0 && isDashPoint(part[startIndex]),
       lastAtDash: false
     });
   }
@@ -386,6 +391,11 @@ function markDashLayoutGroupEnds(groups, totalLength) {
     isPartStart: index === 0 && group.start <= 1e-9,
     isPartEnd: index === groups.length - 1 && Math.abs(group.start + group.length - totalLength) <= 1e-9
   }));
+}
+
+
+function lineHasAnyDashes(line = {}) {
+  return Boolean(line.dashed || (line.borders || []).some(border => border?.dashed));
 }
 
 function usesOpenMapperGroupedDashes(dashInfo = {}) {
@@ -653,24 +663,40 @@ function interpolatePoint(from, to, ratio) {
 function dashedMidSymbolPositions(line, part, closed) {
   const length = pathLength(part);
   if (length <= 0) return [];
-  const distances = computeDashDistancesForLength(length, line.dashInfo || line, { closed });
-  const positions = [];
-  let cursor = 0;
-  if (String(line.midSymbolPlacement) === "2") {
-    cursor = distances[0] || 0;
-    for (let i = 1; i < distances.length; i += 2) {
-      positions.push(cursor + distances[i] / 2);
-      cursor += distances[i] + (distances[i + 1] || 0);
-    }
+  const placement = String(line.midSymbolPlacement);
+  if (placement === "0" && Math.max(1, Math.floor(line.dashesInGroup || 1)) > 1) {
+    return [];
   }
-  else {
-    for (let i = 0; i < distances.length; i += 2) {
-      const dash = distances[i] || 0;
-      if (dash > 0) positions.push(cursor + dash / 2);
-      cursor += dash + (distances[i + 1] || 0);
-    }
+
+  const intervals = dashIntervalsForPart(part, line.dashInfo || line, closed);
+  const centers = placement === "2"
+    ? gapCentersFromIntervals(intervals, length)
+    : intervals.map(interval => (interval.start + interval.stop) / 2);
+  const positions = [];
+  for (const center of centers) {
+    addMidSymbolGroupPositions(positions, {
+      center,
+      count: Math.max(1, Math.floor(line.midSymbolsPerSpot || 1)),
+      distance: Math.max(0, line.midSymbolDistance || 0),
+      length
+    });
   }
   return uniquePositions(positions, length);
+}
+
+function gapCentersFromIntervals(intervals, length) {
+  const centers = [];
+  let cursor = 0;
+  for (const interval of intervals) {
+    if (interval.start > cursor + 1e-9) {
+      centers.push((cursor + interval.start) / 2);
+    }
+    cursor = Math.max(cursor, interval.stop);
+  }
+  if (length > cursor + 1e-9) {
+    centers.push((cursor + length) / 2);
+  }
+  return centers;
 }
 
 function drawPointSymbol(ctx, pointSymbol, origin, rotation, symbols, project, scale, depth, targetPriority) {
@@ -735,6 +761,19 @@ function drawText(ctx, object, textStyle, project, scale, transform, targetPrior
     y += lineHeight;
   }
   ctx.restore();
+}
+
+function patternForObject(pattern, object, transform) {
+  if (!pattern) return pattern;
+  const objectPattern = object?.pattern || null;
+  const transformRotation = transform?.rotation || 0;
+  const objectPatternRotation = pattern.rotatable ? (objectPattern?.rotation || 0) : 0;
+  const objectPatternOrigin = objectPattern?.origin || { x: 0, y: 0 };
+  return {
+    ...pattern,
+    angle: (pattern.angle || 0) + objectPatternRotation + transformRotation,
+    origin: transformedPoint(objectPatternOrigin, transform) || objectPatternOrigin
+  };
 }
 
 function drawPattern(ctx, pattern, screenPoints, scale, targetPriority) {
@@ -932,12 +971,13 @@ function flattenPathParts(points) {
 
     if (hasFlag(points[i - 1], CURVE_START) && i + 2 < points.length) {
       const start = part[part.length - 1];
-      const c1 = plainPoint(points[i]);
-      const c2 = plainPoint(points[i + 1]);
+      const c1 = plainPoint(points[i], "control");
+      const c2 = plainPoint(points[i + 1], "control");
       const end = plainPoint(points[i + 2]);
-      for (let step = 1; step <= 16; step += 1) {
+      for (let step = 1; step < 16; step += 1) {
         part.push(cubicPoint(start, c1, c2, end, step / 16));
       }
+      part.push(end);
       i += 2;
     }
     else {
@@ -1060,206 +1100,120 @@ function normalizeVector(vector) {
 
 function lineSymbolPositions(line, part, closed) {
   const length = pathLength(part);
-  const segmentLength = Math.max(0, line.segmentLength || 0);
-  if (segmentLength <= 0 || length <= 0) {
-    return line.showAtLeastOneSymbol && length > 0 ? [length / 2] : [];
+  if (length <= 0) return [];
+  const baseDistance = Math.max(0.01, (line.segmentLength || 0) + (Math.max(1, Math.floor(line.midSymbolsPerSpot || 1)) - 1) * Math.max(0, line.midSymbolDistance || 0));
+  if (baseDistance <= 0) {
+    return line.showAtLeastOneSymbol ? [length / 2] : [];
   }
 
-  const groups = midSymbolGroups(part);
-  const endLength = Math.max(0, line.endLength || 0);
   const positions = [];
-
-  if (endLength === 0 && !closed) {
-    positions.push(0);
-  }
-
+  const groups = dashLayoutGroups(part, {
+    // Purple Pen converts OpenMapper dash points to corners while importing
+    // objects whose symbol has no actual dash pattern.  That means cliff tags,
+    // fence ticks, hatch marks, and other non-dashed mid symbols should be
+    // split at those nodes, but their first/last spacing must NOT be halved.
+    // Dash points keep the half-endpoint behavior only when the line symbol
+    // has real dashes (main line or dashed borders/double lines).
+    dashPointsAffectEndpoints: lineHasAnyDashes(line)
+  });
   for (const group of groups) {
-    positions.push(...lineSymbolGroupPositions(line, group.length, group.firstAtDash, group.lastAtDash).map(position => group.start + position));
+    const deltas = openMapperMidSymbolGapCenterDeltas(line, group.length, group.firstAtDash, group.lastAtDash);
+    addGlyphPositionsFromDeltas(positions, line, deltas, group.start, group.length);
   }
-
-  if (endLength === 0 && !closed) {
-    positions.push(length);
-  }
-
   return uniquePositions(positions, length);
 }
 
-function lineSymbolGroupPositions(line, length, firstAtDash = false, lastAtDash = false) {
-  const segmentLength = Math.max(0, line.segmentLength || 0);
-  if (segmentLength <= 0 || length <= 0) {
-    return line.showAtLeastOneSymbol && length > 0 ? [length / 2] : [];
-  }
-
-  const endLength = Math.max(0, line.endLength || 0);
+function openMapperMidSymbolGapCenterDeltas(line, length, firstAtDash = false, lastAtDash = false) {
   const count = Math.max(1, Math.floor(line.midSymbolsPerSpot || 1));
-  const distance = Math.max(0, line.midSymbolDistance || 0);
-  const midSymbolNumGaps = count - 1;
-  const midSymbolsLength = midSymbolNumGaps * distance;
-  const positions = [];
+  const spacing = Math.max(0, line.midSymbolDistance || 0);
+  const symbolsLength = (count - 1) * spacing;
+  const distance = Math.max(0.01, (line.segmentLength || 0) + symbolsLength);
+  const firstDistance = firstAtDash ? distance / 2 : Math.max(0, line.endLength || 0) + symbolsLength / 2;
+  const lastDistance = lastAtDash ? distance / 2 : Math.max(0, line.endLength || 0) + symbolsLength / 2;
+  return computeOpenMapperGapCenterDeltasForLength(length, {
+    distance,
+    firstDistance,
+    lastDistance,
+    minimum: line.showAtLeastOneSymbol ? 1 : 0
+  });
+}
 
-  if (firstAtDash || lastAtDash) {
-    return dashedEndpointMidSymbolPositions(line, length, firstAtDash, lastAtDash);
-  }
+function computeOpenMapperGapCenterDeltasForLength(pathLengthValue, options = {}) {
+  const pathLengthSafe = Math.max(0, pathLengthValue || 0);
+  if (pathLengthSafe <= 0) return [];
+  const dashLength = Math.max(0.000001, options.distance || 0.000001);
+  const firstDashLength = Math.max(0, options.firstDistance || 0);
+  const lastDashLength = Math.max(0, options.lastDistance || 0);
+  const minGaps = Math.max(0, Math.floor(options.minimum || 0));
+  const endLength = (firstDashLength + lastDashLength) / 2;
+  const endLengthTwice = firstDashLength + lastDashLength;
+  const segmentedLength = Math.max(0, pathLengthSafe - endLengthTwice);
+  const rawSegmentCount = Math.max(endLength === 0 ? 1 : 0, segmentedLength / dashLength);
+  const lowerSegmentCount = Math.floor(rawSegmentCount);
+  const higherSegmentCount = Math.ceil(rawSegmentCount);
+  let numGaps;
 
   if (endLength > 0) {
-    if (length <= midSymbolsLength) {
-      if (line.showAtLeastOneSymbol) {
-        addMidSymbolGroupPositions(positions, { center: 0, count, distance, length });
-        addMidSymbolGroupPositions(positions, { center: length, count, distance, length });
-      }
-      return uniquePositions(positions, length);
-    }
-
-    const segmentedLength = Math.max(0, length - 2 * endLength) - midSymbolsLength;
-    const rawSegmentCount = Math.max(0, segmentedLength / (segmentLength + midSymbolsLength));
-    const lowerSegmentCount = Math.floor(rawSegmentCount);
-    const higherSegmentCount = Math.ceil(rawSegmentCount);
-    const lowerAbsDeviation = Math.abs(length - lowerSegmentCount * segmentLength - (lowerSegmentCount + 1) * midSymbolsLength - 2 * endLength);
-    const higherAbsDeviation = Math.abs(length - higherSegmentCount * segmentLength - (higherSegmentCount + 1) * midSymbolsLength - 2 * endLength);
+    const lowerAbsDeviation = Math.abs(pathLengthSafe - lowerSegmentCount * dashLength - endLengthTwice);
+    const higherAbsDeviation = Math.abs(pathLengthSafe - higherSegmentCount * dashLength - endLengthTwice);
     const segmentCount = lowerAbsDeviation >= higherAbsDeviation ? higherSegmentCount : lowerSegmentCount;
-    const deviation = lowerAbsDeviation >= higherAbsDeviation ? -higherAbsDeviation : lowerAbsDeviation;
-    const idealLength = segmentCount * segmentLength + 2 * endLength;
-    if (idealLength <= 0) {
-      return line.showAtLeastOneSymbol ? [length / 2] : [];
-    }
-
-    const adjustedEndLength = endLength + deviation * (endLength / idealLength);
-    let adjustedSegmentLength = segmentLength + deviation * (segmentLength / idealLength);
-    const shouldDraw = adjustedSegmentLength >= 0
-      && (line.showAtLeastOneSymbol || higherSegmentCount > 0 || length > 2 * endLength - (segmentLength + midSymbolsLength) / 2);
-    if (!shouldDraw) {
-      return [];
-    }
-
-    adjustedSegmentLength += midSymbolsLength;
-    for (let i = 0; i < segmentCount + 1; i += 1) {
-      let position = adjustedEndLength + i * adjustedSegmentLength - distance;
-      for (let s = 0; s < count; s += 1) {
-        position += distance;
-        if (position >= 0 && position <= length) {
-          positions.push(position);
-        }
-      }
-    }
-    return uniquePositions(positions, length);
-  }
-
-  if (length > midSymbolsLength) {
-    const segmentedLength = Math.max(0, length - midSymbolsLength);
-    const rawSegmentCount = Math.max(1, segmentedLength / (segmentLength + midSymbolsLength));
-    const lowerSegmentCount = Math.max(1, Math.floor(rawSegmentCount));
-    const higherSegmentCount = Math.max(1, Math.ceil(rawSegmentCount));
-    const lowerSegmentDeviation = Math.abs(length - lowerSegmentCount * segmentLength - (lowerSegmentCount + 1) * midSymbolsLength) / lowerSegmentCount;
-    const higherSegmentDeviation = Math.abs(length - higherSegmentCount * segmentLength - (higherSegmentCount + 1) * midSymbolsLength) / higherSegmentCount;
-    const segmentCount = lowerSegmentDeviation > higherSegmentDeviation ? higherSegmentCount : lowerSegmentCount;
-    const adaptedSegmentLength = (length - (segmentCount + 1) * midSymbolsLength) / segmentCount + midSymbolsLength;
-
-    if (adaptedSegmentLength >= midSymbolsLength) {
-      for (let i = 0; i <= segmentCount; i += 1) {
-        let position = i * adaptedSegmentLength - distance;
-        for (let s = 0; s < count; s += 1) {
-          position += distance;
-          // The outermost symbols are handled outside this loop, matching OOM.
-          if (i === 0 && s === 0) continue;
-          if (i === segmentCount && s === midSymbolNumGaps) break;
-          if (position >= 0 && position <= length) {
-            positions.push(position);
-          }
-        }
-      }
-    }
-  }
-
-  positions.push(length);
-  return uniquePositions(positions, length);
-}
-
-function dashedEndpointMidSymbolPositions(line, length, firstAtDash, lastAtDash) {
-  const segmentLength = Math.max(0.01, line.segmentLength || 0.01);
-  const count = Math.max(1, Math.floor(line.midSymbolsPerSpot || 1));
-  const distance = Math.max(0, line.midSymbolDistance || 0);
-  const symbolsLength = (count - 1) * distance;
-  const firstLength = firstAtDash ? (segmentLength + symbolsLength) / 2 : Math.max(0, line.endLength || 0) + symbolsLength / 2;
-  const lastLength = lastAtDash ? (segmentLength + symbolsLength) / 2 : Math.max(0, line.endLength || 0) + symbolsLength / 2;
-  const combinedEndLength = firstLength + lastLength;
-  const dashLength = segmentLength + symbolsLength;
-  const averageEndLength = combinedEndLength / 2;
-  const segmentedLength = Math.max(0, length - combinedEndLength);
-  const rawCount = Math.max(averageEndLength === 0 ? 1 : 0, segmentedLength / dashLength);
-  const lowerCount = Math.floor(rawCount);
-  const higherCount = Math.ceil(rawCount);
-  let spotCount = 0;
-
-  if (averageEndLength > 0) {
-    const lowerAbs = Math.abs(length - lowerCount * dashLength - combinedEndLength);
-    const higherAbs = Math.abs(length - higherCount * dashLength - combinedEndLength);
-    const segmentCount = lowerAbs >= higherAbs ? higherCount : lowerCount;
-    spotCount = (higherCount > 0 || length > combinedEndLength - 0.5 * dashLength) ? segmentCount + 1 : 0;
+    numGaps = (higherSegmentCount > 0 || pathLengthSafe > endLengthTwice - 0.5 * dashLength) ? segmentCount + 1 : 0;
   }
   else {
-    const lowerSafe = Math.max(1, lowerCount);
-    const higherSafe = Math.max(1, higherCount);
-    const lowerDeviation = Math.abs(length - lowerSafe * dashLength) / lowerSafe;
-    const higherDeviation = Math.abs(length - higherSafe * dashLength) / higherSafe;
-    const segmentCount = lowerDeviation > higherDeviation ? higherSafe : lowerSafe;
-    spotCount = segmentCount + 1;
+    const lowerSafe = Math.max(1, lowerSegmentCount);
+    const higherSafe = Math.max(1, higherSegmentCount);
+    const lowerSegmentDeviation = Math.abs(pathLengthSafe - lowerSafe * dashLength) / lowerSafe;
+    const higherSegmentDeviation = Math.abs(pathLengthSafe - higherSafe * dashLength) / higherSafe;
+    const segmentCount = lowerSegmentDeviation > higherSegmentDeviation ? higherSafe : lowerSafe;
+    numGaps = segmentCount + 1;
   }
 
-  if (line.showAtLeastOneSymbol && spotCount < 1) {
-    spotCount = 1;
-  }
-  if (spotCount <= 0) return [];
+  numGaps = Math.max(numGaps, minGaps);
+  if (numGaps <= 0) return [];
 
-  const denominator = spotCount - 1 + firstLength / dashLength + lastLength / dashLength;
-  const actualDashLength = denominator > 0 ? length / denominator : 0;
-  const positions = [];
+  let actualDashLength;
+  let actualFirstDashLength;
+  let actualLastDashLength;
+  if (numGaps === 0) {
+    actualDashLength = actualFirstDashLength = actualLastDashLength = pathLengthSafe;
+  }
+  else if (numGaps === 1 && firstDashLength === 0 && lastDashLength === 0) {
+    actualDashLength = actualFirstDashLength = actualLastDashLength = 0;
+  }
+  else {
+    const denominator = numGaps - 1 + firstDashLength / dashLength + lastDashLength / dashLength;
+    actualDashLength = denominator > 0 ? pathLengthSafe / denominator : 0;
+    actualFirstDashLength = actualDashLength * firstDashLength / dashLength;
+    actualLastDashLength = actualDashLength * lastDashLength / dashLength;
+  }
+
   if (actualDashLength <= 0) {
-    for (const center of spotCount > 1 ? [0, length] : [length / 2]) {
-      addMidSymbolGroupPositions(positions, { center, count, distance, length });
-    }
-    return uniquePositions(positions, length);
+    return numGaps > 1 ? [0, pathLengthSafe] : [pathLengthSafe / 2];
   }
 
-  let center = actualDashLength * firstLength / dashLength;
-  for (let i = 0; i < spotCount; i += 1) {
-    addMidSymbolGroupPositions(positions, { center, count, distance, length });
-    center += actualDashLength;
+  const deltas = [actualFirstDashLength];
+  for (let i = 1; i < numGaps; i += 1) {
+    deltas.push(actualDashLength);
   }
-  return uniquePositions(positions, length);
+  return deltas;
 }
 
-function midSymbolGroups(part) {
-  const groups = [];
-  let startIndex = 0;
-  let startOffset = 0;
-  let offset = 0;
-
-  for (let index = 1; index < part.length; index += 1) {
-    offset += pointDistance(part[index - 1], part[index]);
-    if (hasFlag(part[index], DASH_POINT) || hasFlag(part[index], HOLE_POINT)) {
-      if (offset > startOffset) {
-        groups.push({
-          start: startOffset,
-          length: offset - startOffset,
-          firstAtDash: startIndex > 0 && hasFlag(part[startIndex], DASH_POINT),
-          lastAtDash: hasFlag(part[index], DASH_POINT)
-        });
+function addGlyphPositionsFromDeltas(positions, line, deltas, startOffset, length) {
+  if (!deltas?.length || length <= 0) return;
+  const count = Math.max(1, Math.floor(line.midSymbolsPerSpot || 1));
+  const spacing = Math.max(0, line.midSymbolDistance || 0);
+  const firstDistance = deltas[0];
+  for (let n = 0; n < count; n += 1) {
+    const adjusted = [...deltas];
+    adjusted[0] = firstDistance - ((count - 1 - n * 2) * (spacing / 2));
+    let cursor = 0;
+    for (const delta of adjusted) {
+      cursor += delta || 0;
+      if (cursor >= -1e-9 && cursor <= length + 1e-9) {
+        positions.push(startOffset + Math.max(0, Math.min(length, cursor)));
       }
-      startIndex = index;
-      startOffset = offset;
     }
   }
-
-  if (part.length > startIndex + 1 && offset > startOffset) {
-    groups.push({
-      start: startOffset,
-      length: offset - startOffset,
-      firstAtDash: startIndex > 0 && hasFlag(part[startIndex], DASH_POINT),
-      lastAtDash: false
-    });
-  }
-
-  return groups.length ? groups : [{ start: 0, length: pathLength(part) }];
 }
 
 function addMidSymbolGroupPositions(positions, { center, count, distance, length }) {
@@ -1291,7 +1245,11 @@ function samplePathPart(part, distance) {
     const to = part[i];
     const segmentLength = pointDistance(from, to);
     if (segmentLength <= 0) continue;
-    if (remaining <= segmentLength || i === part.length - 1) {
+    // Purple Pen's SymPath.FindPointsAlongLine advances to the next segment
+    // when a sampled distance lands exactly on an intermediate vertex
+    // (`nextLength < dist`, not <=).  That gives ticks/mid-symbols at normal
+    // vertices the outgoing segment direction instead of the incoming one.
+    if (remaining < segmentLength || i === part.length - 1) {
       const ratio = Math.max(0, Math.min(1, remaining / segmentLength));
       return {
         point: {
@@ -1324,16 +1282,69 @@ function cubicPoint(p0, p1, p2, p3, t) {
   const mt = 1 - t;
   return {
     x: mt ** 3 * p0.x + 3 * mt ** 2 * t * p1.x + 3 * mt * t ** 2 * p2.x + t ** 3 * p3.x,
-    y: mt ** 3 * p0.y + 3 * mt ** 2 * t * p1.y + 3 * mt * t ** 2 * p2.y + t ** 3 * p3.y
+    y: mt ** 3 * p0.y + 3 * mt ** 2 * t * p1.y + 3 * mt * t ** 2 * p2.y + t ** 3 * p3.y,
+    flags: 0,
+    kind: "interpolated"
   };
 }
 
-function plainPoint(point) {
+function plainPoint(point, forcedKind = null) {
   return {
     x: point.x,
     y: point.y,
-    flags: point.flags || 0
+    flags: point.flags || 0,
+    kind: forcedKind || pointKind(point)
   };
+}
+
+function pointKind(point) {
+  // Match Purple Pen's OpenMapper import: OOM coords are Normal by default.
+  // Only explicit dash points become PointKind.Dash; CurveStart marks the next
+  // two coords as Bezier controls during flattening, but the curve-start coord
+  // itself remains a normal point. This is important for patterns such as
+  // dash point - normal point - dash point: the normal point must not split
+  // tick/hatch/mid-symbol spacing.
+  if (hasFlag(point, DASH_POINT)) return "dash";
+  return "normal";
+}
+
+function isDashPoint(point) {
+  return hasFlag(point, DASH_POINT) || point?.kind === "dash";
+}
+
+function isCornerPoint(point) {
+  return point?.kind === "corner";
+}
+
+function isDashLayoutBreak(point) {
+  return isDashPoint(point) || isCornerPoint(point) || hasFlag(point, HOLE_POINT);
+}
+
+function tangentAngleAtIndex(part, index) {
+  const current = part[index];
+  const previous = nearestDifferentPoint(part, index, -1);
+  const next = nearestDifferentPoint(part, index, 1);
+  const incoming = previous ? Math.atan2(current.y - previous.y, current.x - previous.x) : null;
+  const outgoing = next ? Math.atan2(next.y - current.y, next.x - current.x) : null;
+  if (incoming == null && outgoing == null) return 0;
+  if (incoming == null) return outgoing;
+  if (outgoing == null) return incoming;
+  return averageAngles(incoming, outgoing);
+}
+
+function nearestDifferentPoint(part, index, step) {
+  for (let i = index + step; i >= 0 && i < part.length; i += step) {
+    if (!samePoint(part[index], part[i])) return part[i];
+  }
+  return null;
+}
+
+function averageAngles(a, b) {
+  let first = a;
+  let second = b;
+  if (first - Math.PI > second) first -= Math.PI * 2;
+  else if (second - Math.PI > first) second -= Math.PI * 2;
+  return (first + second) / 2;
 }
 
 function samePoint(a, b) {

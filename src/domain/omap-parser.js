@@ -51,23 +51,46 @@ function parseColors(root) {
     const id = stringAttr(element, "priority", String(index));
     const opacity = numberAttr(element, "opacity", 1);
     const rgb = firstChild(element, "rgb");
+    const name = stringAttr(element, "name", `Color ${id}`);
     let r = numberAttr(rgb, "r", null);
     let g = numberAttr(rgb, "g", null);
     let b = numberAttr(rgb, "b", null);
+    const rgbMethod = stringAttr(rgb, "method", "");
+    const c = numberAttr(element, "c", 0);
+    const m = numberAttr(element, "m", 0);
+    const y = numberAttr(element, "y", 0);
+    const k = numberAttr(element, "k", 0);
+    const cmykR = (1 - c) * (1 - k);
+    const cmykG = (1 - m) * (1 - k);
+    const cmykB = (1 - y) * (1 - k);
+    const hasRgb = r !== null && g !== null && b !== null;
+    const rgbIsBlack = hasRgb
+      && Math.abs(r) < 1e-9
+      && Math.abs(g) < 1e-9
+      && Math.abs(b) < 1e-9;
+    const cmykIsColored = cmykR > 1e-6 || cmykG > 1e-6 || cmykB > 1e-6;
+    const rgbIsBlackPlaceholder = rgbIsBlack
+      && cmykIsColored
+      && (
+        rgbMethod === "custom"
+        || stringAttr(firstChild(element, "cmyk"), "method", "") === "custom"
+        || /yellow|黄/i.test(name)
+      );
 
-    if (r === null || g === null || b === null) {
-      const c = numberAttr(element, "c", 0);
-      const m = numberAttr(element, "m", 0);
-      const y = numberAttr(element, "y", 0);
-      const k = numberAttr(element, "k", 0);
-      r = (1 - c) * (1 - k);
-      g = (1 - m) * (1 - k);
-      b = (1 - y) * (1 - k);
+    // Some OpenOrienteering Mapper files contain custom spot/CMYK colours where
+    // <rgb method="custom" r="0" g="0" b="0"/> is only a stale/placeholder RGB
+    // cache.  Symbol 9929 in the Shahe map uses such a colour for its yellow
+    // base line.  Prefer the real CMYK values in that case, but keep genuine
+    // RGB black when the CMYK components also describe black.
+    if (!hasRgb || rgbIsBlackPlaceholder) {
+      r = cmykR;
+      g = cmykG;
+      b = cmykB;
     }
 
     colors[id] = {
       id,
-      name: stringAttr(element, "name", `Color ${id}`),
+      name,
       priority: Number(id),
       css: rgba(r, g, b, opacity)
     };
@@ -223,6 +246,7 @@ function parseLineSymbol(element, colors, unitScale) {
     midSymbolPlacement: stringAttr(element, "mid_symbol_placement", "0"),
     suppressDashSymbolAtEnds: element.getAttribute("suppress_dash_symbol_at_ends") === "true",
     scaleDashSymbol: element.getAttribute("scale_dash_symbol") !== "false",
+    dashSymbolLocation: dashed || borders.some(border => border.dashed) ? "dash-points" : "corners",
     startOffset: unitAttr(element, "start_offset", 0, unitScale),
     endOffset: unitAttr(element, "end_offset", 0, unitScale),
     pointedCapLength: unitAttr(element, "pointed_cap_length", 0, unitScale),
@@ -317,6 +341,7 @@ function parsePattern(element, colors, depth, unitScale) {
   return {
     type: stringAttr(element, "type", "1"),
     angle: numberAttr(element, "angle", 0),
+    rotatable: element.getAttribute("rotatable") === "true",
     lineSpacing: unitAttr(element, "line_spacing", 1000, unitScale),
     lineOffset: unitAttr(element, "line_offset", 0, unitScale),
     pointDistance: unitAttr(element, "point_distance", 1000, unitScale),
@@ -422,6 +447,7 @@ function parseObject(element, index, symbols, unitScale = 1 / OMAP_UNIT) {
     type: stringAttr(element, "type", "1"),
     symbolId: element.getAttribute("symbol"),
     rotation: numberAttr(element, "rotation", 0),
+    pattern: parseObjectPattern(firstChild(element, "pattern"), unitScale),
     hAlign: stringAttr(element, "h_align", "0"),
     vAlign: stringAttr(element, "v_align", "0"),
     coords,
@@ -431,6 +457,20 @@ function parseObject(element, index, symbols, unitScale = 1 / OMAP_UNIT) {
   };
   object.bounds = computeObjectBounds(object, symbols?.[object.symbolId] || null, symbols || {});
   return object;
+}
+
+function parseObjectPattern(element, unitScale = 1 / OMAP_UNIT) {
+  if (!element) {
+    return { rotation: 0, origin: { x: 0, y: 0 } };
+  }
+  const coord = firstChild(element, "coord");
+  return {
+    rotation: numberAttr(element, "rotation", 0),
+    origin: {
+      x: numberAttr(coord, "x", 0) * unitScale,
+      y: -numberAttr(coord, "y", 0) * unitScale
+    }
+  };
 }
 
 function parseCoords(text, unitScale = 1 / OMAP_UNIT) {

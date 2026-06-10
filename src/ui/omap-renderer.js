@@ -98,26 +98,50 @@ function drawArea(ctx, object, area, project, scale, transform, targetPriority) 
   ctx.restore();
 }
 
+
+function canvasLineCap(capStyle) {
+  const value = String(capStyle ?? "0");
+  if (value === "1") return "round";
+  if (value === "2") return "square";
+  return "butt";
+}
+
 function drawLine(ctx, object, line, symbols, project, scale, transform, depth, targetPriority) {
   const points = object.coords.map(point => transformedPoint(point, transform)).filter(Boolean);
   if (points.length < 2) return;
-  const screenPoints = projectPoints(points, project);
-  drawLineBorders(ctx, line, points, project, scale, targetPriority, shouldClose(object));
-  if (line.color && priorityMatches(line.priority, targetPriority) && line.width > 0) {
+  const closed = shouldClose(object);
+  const fullParts = flattenPathParts(points);
+  const drawableParts = linePartsForDrawing(fullParts, line, closed, true);
+  if (!drawableParts.length && !fullParts.length) return;
+
+  drawLineBorders(ctx, line, points, project, scale, targetPriority, closed);
+  if (line.color && priorityMatches(line.priority, targetPriority) && line.width > 0 && drawableParts.length) {
     ctx.save();
     ctx.strokeStyle = line.color;
     ctx.lineWidth = Math.max(0.45, line.width * scale);
-    ctx.lineCap = line.capStyle === "1" ? "round" : "butt";
+    ctx.lineCap = canvasLineCap(line.capStyle);
     ctx.lineJoin = line.joinStyle === "2" ? "round" : "miter";
-    ctx.setLineDash(line.dashed ? [
-      Math.max(1, line.dashLength * scale),
-      Math.max(1, line.breakLength * scale)
-    ] : []);
-    makePath(ctx, screenPoints, shouldClose(object));
-    ctx.stroke();
+    ctx.setLineDash([]);
+    if (line.dashed) {
+      for (const part of drawableParts) {
+        drawDashedPathPart(ctx, part, line.dashInfo || line, project, closed, scale);
+      }
+    }
+    else if (line.startOffset > 0 || line.endOffset > 0 || line.minimumLength > 0) {
+      for (const part of drawableParts) {
+        drawPathPart(ctx, part, project, closed);
+        ctx.stroke();
+      }
+    }
+    else {
+      makePath(ctx, projectPoints(points, project), closed);
+      ctx.stroke();
+    }
     ctx.restore();
   }
-  drawLineMidSymbols(ctx, line, points, symbols, project, scale, depth, targetPriority, shouldClose(object));
+  drawLineEndpointSymbols(ctx, line, fullParts, symbols, project, scale, depth, targetPriority);
+  drawLineDashSymbols(ctx, line, fullParts, symbols, project, scale, depth, targetPriority);
+  drawLineMidSymbols(ctx, line, drawableParts, symbols, project, scale, depth, targetPriority, closed);
 }
 
 function drawLineBorders(ctx, line, points, project, scale, targetPriority, closed) {
@@ -125,21 +149,23 @@ function drawLineBorders(ctx, line, points, project, scale, targetPriority, clos
     if (!priorityMatches(border.priority, targetPriority)) {
       continue;
     }
-    const offset = border.side === "left"
-      ? -(line.width / 2 + border.shift)
-      : line.width / 2 + border.shift;
+    const offsetDistance = line.width / 2 + border.width / 4 + border.shift / 2;
+    const offset = border.side === "left" ? -offsetDistance : offsetDistance;
     const parts = flattenPathParts(points);
     ctx.save();
     ctx.strokeStyle = border.color;
     ctx.lineWidth = Math.max(0.45, border.width * scale);
-    ctx.lineCap = line.capStyle === "1" ? "round" : "butt";
+    ctx.lineCap = canvasLineCap(line.capStyle);
     ctx.lineJoin = line.joinStyle === "2" ? "round" : "miter";
-    ctx.setLineDash(border.dashed ? [
-      Math.max(1, border.dashLength * scale),
-      Math.max(1, border.breakLength * scale)
-    ] : []);
+    ctx.setLineDash([]);
     for (const part of parts) {
-      if (drawOffsetPathPart(ctx, part, offset, project, closed)) {
+      const offsetPart = offsetPathPart(part, offset, closed);
+      if (offsetPart.length < 2) continue;
+      if (line.dashed || border.dashed) {
+        drawDashedPathPart(ctx, offsetPart, line.dashed ? (line.dashInfo || line) : (border.dashInfo || border), project, closed, scale);
+      }
+      else {
+        drawPathPart(ctx, offsetPart, project, closed);
         ctx.stroke();
       }
     }
@@ -147,28 +173,504 @@ function drawLineBorders(ctx, line, points, project, scale, targetPriority, clos
   }
 }
 
-function drawLineMidSymbols(ctx, line, points, symbols, project, scale, depth, targetPriority, closed) {
+function drawLineMidSymbols(ctx, line, parts, symbols, project, scale, depth, targetPriority, closed) {
   if (!line.midSymbol || !symbolMatchesPriority(line.midSymbol, targetPriority)) {
     return;
   }
 
-  const parts = flattenPathParts(points);
   for (const part of parts) {
     const length = pathLength(part);
     if (length <= 0) continue;
-    const positions = lineSymbolPositions(line, part, closed);
+    const positions = line.dashed
+      ? dashedMidSymbolPositions(line, part, closed)
+      : lineSymbolPositions(line, part, closed);
     for (const distance of positions) {
       const sample = samplePathPart(part, distance);
       if (!sample) continue;
-      renderObject(ctx, {
-        type: "0",
-        symbolId: null,
-        rotation: sample.angle,
-        coords: [{ ...sample.point, flags: 0 }],
-        index: -1
-      }, line.midSymbol, symbols, project, scale, null, depth + 1, targetPriority);
+      renderPointLikeSymbol(ctx, line.midSymbol, sample.point, sample.angle, symbols, project, scale, depth + 1, targetPriority);
     }
   }
+}
+
+function renderPointLikeSymbol(ctx, symbol, point, rotation, symbols, project, scale, depth, targetPriority) {
+  renderObject(ctx, {
+    type: "0",
+    symbolId: null,
+    rotation,
+    coords: [{ ...point, flags: 0 }],
+    index: -1
+  }, symbol, symbols, project, scale, null, depth, targetPriority);
+}
+
+function drawLineEndpointSymbols(ctx, line, parts, symbols, project, scale, depth, targetPriority) {
+  if (line.startSymbol && symbolMatchesPriority(line.startSymbol, targetPriority)) {
+    const first = parts.find(part => pathLength(part) > 0);
+    if (first) {
+      const sample = samplePathPart(first, 0);
+      if (sample) renderPointLikeSymbol(ctx, line.startSymbol, sample.point, sample.angle, symbols, project, scale, depth + 1, targetPriority);
+    }
+  }
+  if (line.endSymbol && symbolMatchesPriority(line.endSymbol, targetPriority)) {
+    const last = [...parts].reverse().find(part => pathLength(part) > 0);
+    if (last) {
+      const sample = samplePathPart(last, pathLength(last));
+      if (sample) renderPointLikeSymbol(ctx, line.endSymbol, sample.point, sample.angle, symbols, project, scale, depth + 1, targetPriority);
+    }
+  }
+}
+
+function drawLineDashSymbols(ctx, line, parts, symbols, project, scale, depth, targetPriority) {
+  if (!line.dashSymbol || !symbolMatchesPriority(line.dashSymbol, targetPriority)) {
+    return;
+  }
+  for (const part of parts) {
+    const total = pathLength(part);
+    if (total <= 0) continue;
+    for (const { point, distance, angle } of dashPointSamples(part)) {
+      if (line.suppressDashSymbolAtEnds && (distance <= 1e-6 || Math.abs(distance - total) <= 1e-6)) {
+        continue;
+      }
+      renderPointLikeSymbol(ctx, line.dashSymbol, point, angle, symbols, project, scale, depth + 1, targetPriority);
+    }
+  }
+}
+
+function dashPointSamples(part) {
+  const samples = [];
+  let distance = 0;
+  for (let i = 1; i < part.length; i += 1) {
+    const previous = part[i - 1];
+    const point = part[i];
+    const segmentLength = pointDistance(previous, point);
+    distance += segmentLength;
+    if (hasFlag(point, DASH_POINT)) {
+      const angle = segmentLength > 0
+        ? Math.atan2(point.y - previous.y, point.x - previous.x)
+        : (samples[samples.length - 1]?.angle || 0);
+      samples.push({ point, distance, angle });
+    }
+  }
+  return samples;
+}
+
+function linePartsForDrawing(parts, line, closed, applyShortening) {
+  // OMAP/Purple Pen treats minimum_length as symbol metadata/validation, not as a
+  // rendering clip.  Filtering by it drops short but intentional end pieces such
+  // as cliff tags, wall ticks, stair steps, and other linear feature glyphs.
+  return parts
+    .map(part => applyShortening ? shortenPathPart(part, line.startOffset || 0, line.endOffset || 0, closed) : part)
+    .filter(part => part.length > 1 && pathLength(part) > 0);
+}
+
+function drawPathPart(ctx, part, project, closed = false) {
+  if (!part?.length) return false;
+  const screenPoints = projectPoints(part, project);
+  ctx.beginPath();
+  ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
+  for (let i = 1; i < screenPoints.length; i += 1) {
+    ctx.lineTo(screenPoints[i].x, screenPoints[i].y);
+  }
+  if (closed && samePoint(part[0], part[part.length - 1])) {
+    ctx.closePath();
+  }
+  return true;
+}
+
+function shortenPathPart(part, startLength, endLength, closed) {
+  if (closed || (!startLength && !endLength)) return part;
+  const length = pathLength(part);
+  if (length <= 0) return [];
+  const start = Math.max(0, Math.min(length, Number(startLength) || 0));
+  const stop = Math.max(start, Math.min(length, length - Math.max(0, Number(endLength) || 0)));
+  if (stop <= start) return [];
+  return slicePathPart(part, start, stop);
+}
+
+function drawDashedPathPart(ctx, part, dashInfo, project, closed, scale) {
+  if (!part || part.length < 2) return;
+  const gapLength = Math.max(0, dashInfo?.gapLength ?? dashInfo?.breakLength ?? 0);
+  const secondaryGap = Math.max(0, dashInfo?.secondaryMiddleLength || dashInfo?.secondaryEndLength || 0);
+  if (gapLength * scale < 0.35 && secondaryGap * scale < 0.35) {
+    drawPathPart(ctx, part, project, closed);
+    ctx.stroke();
+    return;
+  }
+  const intervals = dashIntervalsForPart(part, dashInfo, closed);
+  if (!intervals.length) return;
+  for (const interval of intervals) {
+    if (interval.stop - interval.start <= 1e-9) continue;
+    const segment = slicePathPart(part, interval.start, interval.stop);
+    if (segment.length > 1) {
+      drawPathPart(ctx, segment, project, false);
+      ctx.stroke();
+    }
+  }
+}
+
+function dashIntervalsForPart(part, dashInfo, closed) {
+  const length = pathLength(part);
+  if (length <= 0) return [];
+  const groups = dashLayoutGroups(part);
+
+  if (usesOpenMapperGroupedDashes(dashInfo)) {
+    return mergeIntervals(openMapperGroupedDashIntervals(groups, dashInfo, closed, length), length);
+  }
+
+  const hasSecondaryGaps = hasSecondaryDashGaps(dashInfo);
+  const intervals = [];
+  for (const group of groups) {
+    const distances = computeDashDistancesForLength(group.length, dashInfo, {
+      closed,
+      firstAtDash: hasSecondaryGaps ? false : group.firstAtDash,
+      lastAtDash: hasSecondaryGaps ? false : group.lastAtDash
+    });
+    intervals.push(...dashDistancesToIntervals(distances, group.start, group.length));
+  }
+  return mergeIntervals(intervals, length);
+}
+
+function dashDistancesToIntervals(distances, startOffset, length) {
+  const intervals = [];
+  let cursor = startOffset;
+  const stopOffset = startOffset + length;
+  for (let i = 0; i < distances.length; i += 1) {
+    const distance = Math.max(0, distances[i] || 0);
+    const next = Math.min(stopOffset, cursor + distance);
+    if (i % 2 === 0 && next > cursor) {
+      intervals.push({ start: cursor, stop: next });
+    }
+    cursor = next;
+  }
+  return intervals;
+}
+
+function dashLayoutGroups(part) {
+  const groups = [];
+  let startIndex = 0;
+  let startOffset = 0;
+  let offset = 0;
+
+  for (let index = 1; index < part.length; index += 1) {
+    offset += pointDistance(part[index - 1], part[index]);
+    if (hasFlag(part[index], DASH_POINT) || hasFlag(part[index], HOLE_POINT)) {
+      if (offset > startOffset) {
+        groups.push({
+          start: startOffset,
+          length: offset - startOffset,
+          firstAtDash: startIndex > 0 && hasFlag(part[startIndex], DASH_POINT),
+          lastAtDash: hasFlag(part[index], DASH_POINT)
+        });
+      }
+      startIndex = index;
+      startOffset = offset;
+    }
+  }
+
+  if (part.length > startIndex + 1 && offset > startOffset) {
+    groups.push({
+      start: startOffset,
+      length: offset - startOffset,
+      firstAtDash: startIndex > 0 && hasFlag(part[startIndex], DASH_POINT),
+      lastAtDash: false
+    });
+  }
+
+  const totalLength = pathLength(part);
+  const fallback = [{ start: 0, length: totalLength, firstAtDash: false, lastAtDash: false }];
+  return markDashLayoutGroupEnds(groups.length ? groups : fallback, totalLength);
+}
+
+function markDashLayoutGroupEnds(groups, totalLength) {
+  return groups.map((group, index) => ({
+    ...group,
+    isPartStart: index === 0 && group.start <= 1e-9,
+    isPartEnd: index === groups.length - 1 && Math.abs(group.start + group.length - totalLength) <= 1e-9
+  }));
+}
+
+function usesOpenMapperGroupedDashes(dashInfo = {}) {
+  const spacing = dashInfo.spacingMethod || "";
+  const dashesInGroup = Math.max(1, Math.floor(dashInfo.dashesInGroup || 1));
+  return spacing.startsWith("openmapper") && dashesInGroup >= 2;
+}
+
+function hasSecondaryDashGaps(dashInfo = {}) {
+  return Math.max(0, dashInfo.secondaryMiddleGaps || 0) > 0
+    || Math.max(0, dashInfo.secondaryEndGaps || 0) > 0;
+}
+
+function openMapperGroupedDashIntervals(groups, dashInfo, closed, totalLength) {
+  const intervals = [];
+  for (const group of groups) {
+    const localIntervals = openMapperGroupedDashIntervalsForLength(group.length, dashInfo, {
+      closed,
+      firstAtDash: group.firstAtDash,
+      lastAtDash: group.lastAtDash,
+      isPartStart: group.isPartStart,
+      isPartEnd: group.isPartEnd
+    });
+    for (const interval of localIntervals) {
+      intervals.push({
+        start: group.start + interval.start,
+        stop: Math.min(totalLength, group.start + interval.stop)
+      });
+    }
+  }
+  return intervals;
+}
+
+function openMapperGroupedDashIntervalsForLength(length, dashInfo = {}, options = {}) {
+  if (length <= 0) return [];
+
+  const dashesInGroup = Math.max(1, Math.floor(dashInfo.dashesInGroup || 1));
+  const inGroupBreakLength = Math.max(0, dashInfo.inGroupBreakLength ?? dashInfo.secondaryMiddleLength ?? 0);
+  const fallbackSingleDash = dashInfo.dashLength
+    ? Math.max(0.000001, (dashInfo.dashLength - Math.max(0, dashesInGroup - 1) * inGroupBreakLength) / dashesInGroup)
+    : 0.000001;
+  const singleDashLength = Math.max(0.000001, dashInfo.singleDashLength ?? dashInfo.rawDashLength ?? fallbackSingleDash);
+  const breakLength = Math.max(0, dashInfo.gapLength ?? dashInfo.breakLength ?? 0);
+  const totalInGroupBreakLength = Math.max(0, dashesInGroup - 1) * inGroupBreakLength;
+  const totalGroupLength = dashesInGroup * singleDashLength + totalInGroupBreakLength;
+  const totalGroupAndBreakLength = totalGroupLength + breakLength;
+  if (totalGroupAndBreakLength <= 0) {
+    return [{ start: 0, stop: length }];
+  }
+
+  const halfFirstGroup = options.isPartStart
+    ? Boolean(dashInfo.halfOuterDashes || options.closed)
+    : Boolean(options.firstAtDash && dashesInGroup === 1);
+  const halfLastGroup = options.isPartEnd
+    ? Boolean(dashInfo.halfOuterDashes || options.closed)
+    : Boolean(options.lastAtDash && dashesInGroup === 1);
+  const numHalfGroups = (halfFirstGroup ? 1 : 0) + (halfLastGroup ? 1 : 0);
+  const lengthPlusBreak = length + breakLength;
+  const numDashgroupsFloat = numHalfGroups
+    + (lengthPlusBreak - numHalfGroups * singleDashLength / 2) / totalGroupAndBreakLength;
+  const lowerDashgroupCount = Math.max(0, Math.floor(numDashgroupsFloat));
+  const minimumOptimumNumDashes = dashesInGroup * 2 - numHalfGroups / 2;
+  const minimumOptimumLength = 2 * totalGroupAndBreakLength;
+  const switchDeviation = 0.2 * totalGroupAndBreakLength / dashesInGroup;
+
+  if (lowerDashgroupCount <= 1 && length < minimumOptimumLength - minimumOptimumNumDashes * switchDeviation) {
+    return [{ start: 0, stop: length }];
+  }
+
+  const higherDashgroupCount = Math.max(1, Math.ceil(numDashgroupsFloat));
+  const lowerCount = Math.max(1, lowerDashgroupCount);
+  const lowerDashgroupDeviation = (lengthPlusBreak - lowerCount * totalGroupAndBreakLength) / lowerCount;
+  const higherDashgroupDeviation = (higherDashgroupCount * totalGroupAndBreakLength - lengthPlusBreak) / higherDashgroupCount;
+  const numDashgroups = Math.max(2, lowerDashgroupDeviation > higherDashgroupDeviation ? higherDashgroupCount : lowerCount);
+
+  const numHalfDashes = Math.max(1, 2 * numDashgroups * dashesInGroup - numHalfGroups);
+  const adjustedDashLength = Math.max(0, (length
+    - (numDashgroups - 1) * breakLength
+    - numDashgroups * totalInGroupBreakLength) * 2 / numHalfDashes);
+  if (!Number.isFinite(adjustedDashLength) || adjustedDashLength <= 0) {
+    return [];
+  }
+
+  const intervals = [];
+  let cursor = 0;
+  for (let dashGroup = 1; dashGroup <= numDashgroups; dashGroup += 1) {
+    for (let dash = 1; dash <= dashesInGroup; dash += 1) {
+      const isFirstDash = dashGroup === 1 && dash === 1;
+      const isLastDash = dashGroup === numDashgroups && dash === dashesInGroup;
+      const hasStart = !(isFirstDash && halfFirstGroup);
+      const hasEnd = !(isLastDash && halfLastGroup);
+      const dashLength = hasStart !== hasEnd ? adjustedDashLength / 2 : adjustedDashLength;
+      const dashStart = cursor;
+      const dashStop = Math.min(length, cursor + dashLength);
+      if (dashStop > dashStart) {
+        intervals.push({ start: dashStart, stop: dashStop });
+      }
+      cursor += dashLength;
+      if (dash < dashesInGroup) {
+        cursor += inGroupBreakLength;
+      }
+    }
+    if (dashGroup < numDashgroups) {
+      cursor += breakLength;
+    }
+  }
+  return intervals;
+}
+
+function computeDashDistancesForLength(pathLengthValue, dashInfo = {}, options = {}) {
+  const nominalDash = Math.max(0.000001, dashInfo.dashLength ?? dashInfo.rawDashLength ?? 0.000001);
+  const gapLength = Math.max(0, dashInfo.gapLength ?? dashInfo.breakLength ?? 0);
+  let firstDashLength = Math.max(0, options.firstAtDash ? nominalDash / 2 : (dashInfo.firstDashLength ?? nominalDash));
+  let lastDashLength = Math.max(0, options.lastAtDash ? nominalDash / 2 : (dashInfo.lastDashLength ?? nominalDash));
+  const minGaps = Math.max(0, Math.floor(dashInfo.minGaps || 0));
+
+  if (options.closed && dashInfo.halfEndDashLengthWhenClosed) {
+    firstDashLength /= 2;
+    lastDashLength /= 2;
+  }
+
+  let numGaps = 0;
+  if (nominalDash + gapLength > 0) {
+    const numShortDash = (firstDashLength < 0.6 * nominalDash ? 1 : 0) + (lastDashLength < 0.6 * nominalDash ? 1 : 0);
+    const numberGaps = (pathLengthValue + nominalDash - firstDashLength - lastDashLength + gapLength * numShortDash) / (nominalDash + gapLength);
+    const floorNumberGaps = Math.max(0, Math.floor(numberGaps));
+    const ceilNumberGaps = Math.max(0, Math.ceil(numberGaps));
+    const floorDenominator = Math.max(1, floorNumberGaps + 1);
+    const ceilDenominator = Math.max(1, ceilNumberGaps + 1);
+    const floorDeviation = (pathLengthValue + gapLength - (floorNumberGaps + 1) * (nominalDash + gapLength)) / floorDenominator;
+    const ceilDeviation = -(pathLengthValue + gapLength - (ceilNumberGaps + 1) * (nominalDash + gapLength)) / ceilDenominator;
+    numGaps = floorDeviation > ceilDeviation ? ceilNumberGaps : floorNumberGaps;
+
+    const secondaryMiddleGaps = Math.max(0, dashInfo.secondaryMiddleGaps || 0);
+    const minimumOptimumLength = 2 * (nominalDash + gapLength);
+    const minimumOptimumNumDashes = (secondaryMiddleGaps + 1) * 2 - numShortDash * 0.5;
+    const switchDeviation = 0.2 * (nominalDash + gapLength) / Math.max(1, secondaryMiddleGaps + 1);
+    if (floorNumberGaps === 0 && pathLengthValue < minimumOptimumLength - minimumOptimumNumDashes * switchDeviation) {
+      numGaps = 0;
+    }
+  }
+  numGaps = Math.max(numGaps, minGaps);
+
+  let actualDashLength;
+  let actualFirstDashLength;
+  let actualLastDashLength;
+  if (numGaps === 0) {
+    actualDashLength = actualFirstDashLength = actualLastDashLength = pathLengthValue;
+  }
+  else if (numGaps === 1 && firstDashLength === 0 && lastDashLength === 0) {
+    actualDashLength = actualFirstDashLength = actualLastDashLength = 0;
+  }
+  else {
+    const denominator = numGaps - 1 + firstDashLength / nominalDash + lastDashLength / nominalDash;
+    actualDashLength = denominator > 0 ? (pathLengthValue - gapLength * numGaps) / denominator : 0;
+    actualFirstDashLength = actualDashLength * firstDashLength / nominalDash;
+    actualLastDashLength = actualDashLength * lastDashLength / nominalDash;
+  }
+
+  if (actualDashLength <= 0) {
+    return [0, pathLengthValue, 0];
+  }
+
+  const distances = [];
+  if (numGaps > 0) {
+    distances.push(...dashLengthWithSecondaryGaps(actualFirstDashLength, dashInfo.secondaryEndGaps, dashInfo.secondaryEndLength, firstDashLength));
+    for (let i = 1; i < numGaps; i += 1) {
+      distances.push(gapLength);
+      distances.push(...dashLengthWithSecondaryGaps(actualDashLength, dashInfo.secondaryMiddleGaps, dashInfo.secondaryMiddleLength, nominalDash));
+    }
+    distances.push(gapLength);
+  }
+  distances.push(...dashLengthWithSecondaryGaps(actualLastDashLength, dashInfo.secondaryEndGaps, dashInfo.secondaryEndLength, lastDashLength));
+  return removeZeroGaps(distances);
+}
+
+function dashLengthWithSecondaryGaps(length, countGaps = 0, gapLength = 0, nominalLength = length) {
+  const count = Math.max(0, Math.floor(countGaps || 0));
+  const gap = Math.max(0, gapLength || 0);
+  if (count > 0 && length >= Math.max(0, nominalLength) / 2 && length > count * gap) {
+    const dash = (length - count * gap) / (count + 1);
+    const distances = [dash];
+    for (let i = 0; i < count; i += 1) {
+      distances.push(gap, dash);
+    }
+    return distances;
+  }
+  return [length];
+}
+
+function removeZeroGaps(distances) {
+  const list = [...distances];
+  for (let i = list.length - 2; i >= 1; i -= 2) {
+    if (Math.abs(list[i]) < 1e-9) {
+      list[i - 1] = (list[i - 1] || 0) + (list[i + 1] || 0);
+      list.splice(i, 2);
+    }
+  }
+  return list;
+}
+
+function mergeIntervals(intervals, length) {
+  return intervals
+    .map(interval => ({ start: Math.max(0, Math.min(length, interval.start)), stop: Math.max(0, Math.min(length, interval.stop)) }))
+    .filter(interval => interval.stop > interval.start)
+    .sort((a, b) => a.start - b.start)
+    .reduce((merged, interval) => {
+      const previous = merged[merged.length - 1];
+      if (previous && interval.start <= previous.stop + 1e-9) {
+        previous.stop = Math.max(previous.stop, interval.stop);
+      }
+      else {
+        merged.push({ ...interval });
+      }
+      return merged;
+    }, []);
+}
+
+function slicePathPart(part, startDistance, stopDistance) {
+  const total = pathLength(part);
+  const start = Math.max(0, Math.min(total, startDistance));
+  const stop = Math.max(start, Math.min(total, stopDistance));
+  if (stop <= start || part.length < 2) return [];
+
+  const result = [];
+  let offset = 0;
+  for (let i = 1; i < part.length; i += 1) {
+    const from = part[i - 1];
+    const to = part[i];
+    const segmentLength = pointDistance(from, to);
+    if (segmentLength <= 0) continue;
+    const nextOffset = offset + segmentLength;
+    if (nextOffset < start - 1e-9) {
+      offset = nextOffset;
+      continue;
+    }
+    if (offset > stop + 1e-9) break;
+
+    const localStart = Math.max(0, (start - offset) / segmentLength);
+    const localStop = Math.min(1, (stop - offset) / segmentLength);
+    if (localStop >= 0 && localStart <= 1 && localStop >= localStart) {
+      const startPoint = interpolatePoint(from, to, localStart);
+      const stopPoint = interpolatePoint(from, to, localStop);
+      if (!result.length || !samePoint(result[result.length - 1], startPoint)) {
+        result.push(startPoint);
+      }
+      if (!samePoint(result[result.length - 1], stopPoint)) {
+        result.push(stopPoint);
+      }
+    }
+    offset = nextOffset;
+  }
+  return result;
+}
+
+function interpolatePoint(from, to, ratio) {
+  const r = Math.max(0, Math.min(1, ratio));
+  return {
+    x: from.x + (to.x - from.x) * r,
+    y: from.y + (to.y - from.y) * r,
+    flags: 0
+  };
+}
+
+function dashedMidSymbolPositions(line, part, closed) {
+  const length = pathLength(part);
+  if (length <= 0) return [];
+  const distances = computeDashDistancesForLength(length, line.dashInfo || line, { closed });
+  const positions = [];
+  let cursor = 0;
+  if (String(line.midSymbolPlacement) === "2") {
+    cursor = distances[0] || 0;
+    for (let i = 1; i < distances.length; i += 2) {
+      positions.push(cursor + distances[i] / 2);
+      cursor += distances[i] + (distances[i + 1] || 0);
+    }
+  }
+  else {
+    for (let i = 0; i < distances.length; i += 2) {
+      const dash = distances[i] || 0;
+      if (dash > 0) positions.push(cursor + dash / 2);
+      cursor += dash + (distances[i + 1] || 0);
+    }
+  }
+  return uniquePositions(positions, length);
 }
 
 function drawPointSymbol(ctx, pointSymbol, origin, rotation, symbols, project, scale, depth, targetPriority) {
@@ -591,24 +1093,108 @@ function lineSymbolGroupPositions(line, length, firstAtDash = false, lastAtDash 
   const endLength = Math.max(0, line.endLength || 0);
   const count = Math.max(1, Math.floor(line.midSymbolsPerSpot || 1));
   const distance = Math.max(0, line.midSymbolDistance || 0);
-  const symbolsLength = (count - 1) * distance;
+  const midSymbolNumGaps = count - 1;
+  const midSymbolsLength = midSymbolNumGaps * distance;
   const positions = [];
-  const dashLength = Math.max(0.01, segmentLength + symbolsLength);
-  const firstLength = firstAtDash ? dashLength / 2 : endLength + symbolsLength / 2;
-  const lastLength = lastAtDash ? dashLength / 2 : endLength + symbolsLength / 2;
+
+  if (firstAtDash || lastAtDash) {
+    return dashedEndpointMidSymbolPositions(line, length, firstAtDash, lastAtDash);
+  }
+
+  if (endLength > 0) {
+    if (length <= midSymbolsLength) {
+      if (line.showAtLeastOneSymbol) {
+        addMidSymbolGroupPositions(positions, { center: 0, count, distance, length });
+        addMidSymbolGroupPositions(positions, { center: length, count, distance, length });
+      }
+      return uniquePositions(positions, length);
+    }
+
+    const segmentedLength = Math.max(0, length - 2 * endLength) - midSymbolsLength;
+    const rawSegmentCount = Math.max(0, segmentedLength / (segmentLength + midSymbolsLength));
+    const lowerSegmentCount = Math.floor(rawSegmentCount);
+    const higherSegmentCount = Math.ceil(rawSegmentCount);
+    const lowerAbsDeviation = Math.abs(length - lowerSegmentCount * segmentLength - (lowerSegmentCount + 1) * midSymbolsLength - 2 * endLength);
+    const higherAbsDeviation = Math.abs(length - higherSegmentCount * segmentLength - (higherSegmentCount + 1) * midSymbolsLength - 2 * endLength);
+    const segmentCount = lowerAbsDeviation >= higherAbsDeviation ? higherSegmentCount : lowerSegmentCount;
+    const deviation = lowerAbsDeviation >= higherAbsDeviation ? -higherAbsDeviation : lowerAbsDeviation;
+    const idealLength = segmentCount * segmentLength + 2 * endLength;
+    if (idealLength <= 0) {
+      return line.showAtLeastOneSymbol ? [length / 2] : [];
+    }
+
+    const adjustedEndLength = endLength + deviation * (endLength / idealLength);
+    let adjustedSegmentLength = segmentLength + deviation * (segmentLength / idealLength);
+    const shouldDraw = adjustedSegmentLength >= 0
+      && (line.showAtLeastOneSymbol || higherSegmentCount > 0 || length > 2 * endLength - (segmentLength + midSymbolsLength) / 2);
+    if (!shouldDraw) {
+      return [];
+    }
+
+    adjustedSegmentLength += midSymbolsLength;
+    for (let i = 0; i < segmentCount + 1; i += 1) {
+      let position = adjustedEndLength + i * adjustedSegmentLength - distance;
+      for (let s = 0; s < count; s += 1) {
+        position += distance;
+        if (position >= 0 && position <= length) {
+          positions.push(position);
+        }
+      }
+    }
+    return uniquePositions(positions, length);
+  }
+
+  if (length > midSymbolsLength) {
+    const segmentedLength = Math.max(0, length - midSymbolsLength);
+    const rawSegmentCount = Math.max(1, segmentedLength / (segmentLength + midSymbolsLength));
+    const lowerSegmentCount = Math.max(1, Math.floor(rawSegmentCount));
+    const higherSegmentCount = Math.max(1, Math.ceil(rawSegmentCount));
+    const lowerSegmentDeviation = Math.abs(length - lowerSegmentCount * segmentLength - (lowerSegmentCount + 1) * midSymbolsLength) / lowerSegmentCount;
+    const higherSegmentDeviation = Math.abs(length - higherSegmentCount * segmentLength - (higherSegmentCount + 1) * midSymbolsLength) / higherSegmentCount;
+    const segmentCount = lowerSegmentDeviation > higherSegmentDeviation ? higherSegmentCount : lowerSegmentCount;
+    const adaptedSegmentLength = (length - (segmentCount + 1) * midSymbolsLength) / segmentCount + midSymbolsLength;
+
+    if (adaptedSegmentLength >= midSymbolsLength) {
+      for (let i = 0; i <= segmentCount; i += 1) {
+        let position = i * adaptedSegmentLength - distance;
+        for (let s = 0; s < count; s += 1) {
+          position += distance;
+          // The outermost symbols are handled outside this loop, matching OOM.
+          if (i === 0 && s === 0) continue;
+          if (i === segmentCount && s === midSymbolNumGaps) break;
+          if (position >= 0 && position <= length) {
+            positions.push(position);
+          }
+        }
+      }
+    }
+  }
+
+  positions.push(length);
+  return uniquePositions(positions, length);
+}
+
+function dashedEndpointMidSymbolPositions(line, length, firstAtDash, lastAtDash) {
+  const segmentLength = Math.max(0.01, line.segmentLength || 0.01);
+  const count = Math.max(1, Math.floor(line.midSymbolsPerSpot || 1));
+  const distance = Math.max(0, line.midSymbolDistance || 0);
+  const symbolsLength = (count - 1) * distance;
+  const firstLength = firstAtDash ? (segmentLength + symbolsLength) / 2 : Math.max(0, line.endLength || 0) + symbolsLength / 2;
+  const lastLength = lastAtDash ? (segmentLength + symbolsLength) / 2 : Math.max(0, line.endLength || 0) + symbolsLength / 2;
   const combinedEndLength = firstLength + lastLength;
+  const dashLength = segmentLength + symbolsLength;
   const averageEndLength = combinedEndLength / 2;
   const segmentedLength = Math.max(0, length - combinedEndLength);
   const rawCount = Math.max(averageEndLength === 0 ? 1 : 0, segmentedLength / dashLength);
   const lowerCount = Math.floor(rawCount);
   const higherCount = Math.ceil(rawCount);
-  let gapCount = 0;
+  let spotCount = 0;
 
   if (averageEndLength > 0) {
     const lowerAbs = Math.abs(length - lowerCount * dashLength - combinedEndLength);
     const higherAbs = Math.abs(length - higherCount * dashLength - combinedEndLength);
     const segmentCount = lowerAbs >= higherAbs ? higherCount : lowerCount;
-    gapCount = (higherCount > 0 || length > combinedEndLength - 0.5 * dashLength) ? segmentCount + 1 : 0;
+    spotCount = (higherCount > 0 || length > combinedEndLength - 0.5 * dashLength) ? segmentCount + 1 : 0;
   }
   else {
     const lowerSafe = Math.max(1, lowerCount);
@@ -616,31 +1202,29 @@ function lineSymbolGroupPositions(line, length, firstAtDash = false, lastAtDash 
     const lowerDeviation = Math.abs(length - lowerSafe * dashLength) / lowerSafe;
     const higherDeviation = Math.abs(length - higherSafe * dashLength) / higherSafe;
     const segmentCount = lowerDeviation > higherDeviation ? higherSafe : lowerSafe;
-    gapCount = segmentCount + 1;
+    spotCount = segmentCount + 1;
   }
 
-  if (line.showAtLeastOneSymbol && gapCount < 1) {
-    gapCount = 1;
+  if (line.showAtLeastOneSymbol && spotCount < 1) {
+    spotCount = 1;
   }
-  if (gapCount <= 0) {
-    return [];
-  }
+  if (spotCount <= 0) return [];
 
-  const denominator = gapCount - 1 + firstLength / dashLength + lastLength / dashLength;
+  const denominator = spotCount - 1 + firstLength / dashLength + lastLength / dashLength;
   const actualDashLength = denominator > 0 ? length / denominator : 0;
+  const positions = [];
   if (actualDashLength <= 0) {
-    for (const center of gapCount > 1 ? [0, length] : [length / 2]) {
+    for (const center of spotCount > 1 ? [0, length] : [length / 2]) {
       addMidSymbolGroupPositions(positions, { center, count, distance, length });
     }
     return uniquePositions(positions, length);
   }
 
   let center = actualDashLength * firstLength / dashLength;
-  for (let i = 0; i < gapCount; i += 1) {
+  for (let i = 0; i < spotCount; i += 1) {
     addMidSymbolGroupPositions(positions, { center, count, distance, length });
     center += actualDashLength;
   }
-
   return uniquePositions(positions, length);
 }
 
@@ -882,7 +1466,7 @@ function addSymbolPriorities(symbol, priorities, symbols, depth) {
       addSymbolPriorities(partSymbol, priorities, symbols, depth + 1);
     }
   }
-  for (const nested of [symbol.line?.midSymbol, symbol.line?.startSymbol, symbol.line?.endSymbol]) {
+  for (const nested of [symbol.line?.midSymbol, symbol.line?.startSymbol, symbol.line?.endSymbol, symbol.line?.dashSymbol]) {
     addSymbolPriorities(nested, priorities, symbols, depth + 1);
   }
   for (const pattern of symbol.area?.patterns || []) {

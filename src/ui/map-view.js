@@ -34,7 +34,7 @@ const LOWER_PURPLE = "rgba(166, 38, 255, 0.46)";
 const DEFAULT_TEXT_FONT_HEIGHT = 3;
 const TEXT_MIN_WIDTH_PX = 48;
 const TEXT_MIN_HEIGHT_PX = 20;
-const ADDABLE_CONTROL_SNAP_PIXELS = 24;
+const ADDABLE_CONTROL_SNAP_PIXELS = 10;
 const MAX_ZOOM = 24;
 const SPECIAL_COLORS = Object.freeze({
   "upper-purple": PURPLE,
@@ -1124,8 +1124,9 @@ export class MapView {
     }
     const state = this.store.snapshot();
     const mapPoint = this.toMap(screen, state.ui);
-    this.callbacks.onHover?.(mapPoint);
-    this.updateToolPreview(state.ui.tool, mapPoint);
+    const previewPoint = this.previewPointForTool(state.ui.tool, mapPoint, state);
+    this.callbacks.onHover?.(previewPoint);
+    this.updateToolPreview(state.ui.tool, previewPoint);
     if (!this.drag || this.drag.pointerId !== event.pointerId) {
       return;
     }
@@ -1342,6 +1343,14 @@ export class MapView {
       point: { x: point.x, y: point.y }
     };
     this.requestDraw(this.store.snapshot());
+  }
+
+  previewPointForTool(tool, point, state = this.store.snapshot()) {
+    if (!tool?.startsWith?.("control:")) {
+      return point;
+    }
+    const snapped = this.nearestAddableControl(point, state, ADDABLE_CONTROL_SNAP_PIXELS / this.scale(state.ui));
+    return snapped?.control?.location || point;
   }
 
   clearToolPreview() {
@@ -1564,6 +1573,11 @@ export class MapView {
   }
 
   hitTestAddableControl(point, state, threshold) {
+    const nearest = this.nearestAddableControl(point, state, threshold);
+    return nearest ? { type: "control", id: nearest.control.id } : null;
+  }
+
+  nearestAddableControl(point, state, threshold) {
     if (!state.ui.tool?.startsWith("control:") || !state.ui.selectedCourseId || state.ui.selectedCourseId === "all") {
       return null;
     }
@@ -1573,7 +1587,7 @@ export class MapView {
     for (const control of addableControlsForTool(state.eventModel, state.ui.selectedCourseId, kind)) {
       const candidateDistance = distance(point, control.location);
       if (candidateDistance < threshold && candidateDistance < bestDistance) {
-        best = { type: "control", id: control.id };
+        best = { control, distance: candidateDistance };
         bestDistance = candidateDistance;
       }
     }

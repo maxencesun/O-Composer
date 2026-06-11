@@ -199,7 +199,9 @@ export class MapView {
       if (options.includeBitmapBackground) {
         this.drawBackground(ctx, width, height, exportUi);
       }
-      this.drawOmapDirect(ctx, exportUi);
+      if (options.includeOmapMap !== false) {
+        this.drawOmapDirect(ctx, exportUi);
+      }
       this.drawSpecials(ctx, eventModel, exportUi);
       this.drawCourse(ctx, eventModel, exportUi);
     }
@@ -273,12 +275,51 @@ export class MapView {
     const bottomRight = this.toScreen({ x: bounds.right, y: bounds.bottom }, ui);
     ctx.save();
     ctx.globalAlpha = ui.mapIntensity;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(this.backgroundImage, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
     ctx.restore();
   }
 
   hasBitmapBackground() {
     return !!this.backgroundImage;
+  }
+
+  backgroundExportCanvasBox(ui, area, size) {
+    if (!this.backgroundImage || !ui?.background || !area || !size) return null;
+    const previousBounds = this.bounds;
+    const exportBounds = {
+      left: Math.min(area.left, area.right),
+      right: Math.max(area.left, area.right),
+      top: Math.max(area.top, area.bottom),
+      bottom: Math.min(area.top, area.bottom),
+      width: Math.max(0.1, Math.abs(area.right - area.left)),
+      height: Math.max(0.1, Math.abs(area.top - area.bottom))
+    };
+    const exportUi = {
+      ...ui,
+      pan: { x: 0, y: 0 },
+      zoom: 1,
+      __viewport: {
+        width: Math.max(1, Math.round(size.width || 1)),
+        height: Math.max(1, Math.round(size.height || 1))
+      }
+    };
+    try {
+      this.bounds = exportBounds;
+      const bounds = backgroundMapBounds(ui.background, this.backgroundImage);
+      const topLeft = this.toScreen({ x: bounds.left, y: bounds.top }, exportUi);
+      const bottomRight = this.toScreen({ x: bounds.right, y: bounds.bottom }, exportUi);
+      return {
+        x: topLeft.x,
+        y: topLeft.y,
+        width: bottomRight.x - topLeft.x,
+        height: bottomRight.y - topLeft.y
+      };
+    }
+    finally {
+      this.bounds = previousBounds;
+    }
   }
 
   drawOmap(ctx, ui) {

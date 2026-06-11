@@ -8,10 +8,46 @@ const PDF_FONT_SOURCES = Object.freeze([
   { key: "heiti-bold", resource: "F6", name: "Heiti-Bold", url: "./assets/fonts/Heiti.ttf", cjk: true }
 ]);
 
-let pdfFontSetPromise = null;
+const PDF_LIB_CANDIDATES = Object.freeze([
+  "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm",
+  "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js"
+]);
 
-export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw }) {
+let pdfFontSetPromise = null;
+let pdfLibPromise = null;
+
+export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null }) {
   const fontSet = await loadPdfFontSet();
+  const layout = pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm, canvasWidth, canvasHeight });
+  const ctx = new PdfCanvasContext(canvasWidth, canvasHeight, layout.box, fontSet);
+
+  draw(ctx);
+
+  const overlayBytes = buildPdf({
+    pageWidthPt: layout.pageWidthPt,
+    pageHeightPt: layout.pageHeightPt,
+    content: ctx.content(),
+    fontSet
+  });
+
+  if (backgroundPdf?.sourceDataUrl && backgroundPdf?.canvasBox) {
+    return mergeVectorPdfWithPdfBasemap({
+      overlayBytes,
+      pageWidthPt: layout.pageWidthPt,
+      pageHeightPt: layout.pageHeightPt,
+      canvasBox: backgroundPdf.canvasBox,
+      canvasWidth,
+      canvasHeight,
+      contentBox: layout.box,
+      sourceDataUrl: backgroundPdf.sourceDataUrl,
+      pageNumber: backgroundPdf.pageNumber || 1
+    });
+  }
+
+  return new Blob([overlayBytes], { type: "application/pdf" });
+}
+
+function pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight }) {
   const pageWidthPt = pageWidthMm * MM_TO_PT;
   const pageHeightPt = pageHeightMm * MM_TO_PT;
   const marginPt = Math.max(0, marginMm) * MM_TO_PT;
@@ -20,24 +56,75 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
   const canvasAspect = canvasWidth / Math.max(1, canvasHeight);
   const contentAspect = contentWidth / contentHeight;
   const drawWidth = canvasAspect > contentAspect ? contentWidth : contentHeight * canvasAspect;
-  const drawHeight = canvasAspect > contentAspect ? contentWidth / canvasAspect : contentHeight;
+  const drawHeight = canvasAspect > contentAspect ? contentWidth / Math.max(0.0001, canvasAspect) : contentHeight;
   const drawX = marginPt + (contentWidth - drawWidth) / 2;
   const drawY = marginPt + (contentHeight - drawHeight) / 2;
-  const ctx = new PdfCanvasContext(canvasWidth, canvasHeight, {
-    x: drawX,
-    y: pageHeightPt - drawY - drawHeight,
-    width: drawWidth,
-    height: drawHeight
-  }, fontSet);
-
-  draw(ctx);
-
-  return new Blob([buildPdf({
+  return {
     pageWidthPt,
     pageHeightPt,
-    content: ctx.content(),
-    fontSet
-  })], { type: "application/pdf" });
+    box: {
+      x: drawX,
+      y: pageHeightPt - drawY - drawHeight,
+      width: drawWidth,
+      height: drawHeight
+    }
+  };
+}
+
+async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHeightPt, canvasBox, canvasWidth, canvasHeight, contentBox, sourceDataUrl, pageNumber }) {
+  const { PDFDocument } = await loadPdfLib();
+  const sourceBytes = dataUrlBytes(sourceDataUrl);
+  const document = await PDFDocument.create();
+  const sourceDocument = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
+  const overlayDocument = await PDFDocument.load(overlayBytes, { ignoreEncryption: true });
+  const sourcePageIndex = clamp(Math.floor(Number(pageNumber) || 1), 1, Math.max(1, sourceDocument.getPageCount())) - 1;
+  const [basePage] = await document.embedPdf(sourceBytes, [sourcePageIndex]);
+  const [overlayPage] = await document.embedPdf(overlayBytes, [0]);
+  const page = document.addPage([pageWidthPt, pageHeightPt]);
+  const box = pdfBoxForCanvasRect(canvasBox, canvasWidth, canvasHeight, contentBox);
+  page.drawPage(basePage, {
+    x: box.x,
+    y: box.y,
+    width: box.width,
+    height: box.height
+  });
+  page.drawPage(overlayPage, {
+    x: 0,
+    y: 0,
+    width: pageWidthPt,
+    height: pageHeightPt
+  });
+  const output = await document.save({ useObjectStreams: false });
+  sourceDocument?.destroy?.();
+  overlayDocument?.destroy?.();
+  return new Blob([output], { type: "application/pdf" });
+}
+
+function pdfBoxForCanvasRect(rect, canvasWidth, canvasHeight, contentBox) {
+  const sx = contentBox.width / Math.max(1, canvasWidth);
+  const sy = contentBox.height / Math.max(1, canvasHeight);
+  const x = contentBox.x + (Number(rect.x) || 0) * sx;
+  const width = Math.max(0.01, (Number(rect.width) || 0) * sx);
+  const height = Math.max(0.01, (Number(rect.height) || 0) * sy);
+  const y = contentBox.y + contentBox.height - ((Number(rect.y) || 0) + (Number(rect.height) || 0)) * sy;
+  return { x, y, width, height };
+}
+
+async function loadPdfLib() {
+  if (pdfLibPromise) return pdfLibPromise;
+  pdfLibPromise = (async () => {
+    let lastError = null;
+    for (const url of PDF_LIB_CANDIDATES) {
+      try {
+        return await import(/* @vite-ignore */ url);
+      }
+      catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error(`Could not load the PDF vector embedding library. ${lastError?.message || ""}`.trim());
+  })();
+  return pdfLibPromise;
 }
 
 export async function createRasterMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvas }) {
@@ -54,7 +141,7 @@ export async function createRasterMapPdfBlob({ pageWidthMm, pageHeightMm, margin
   const drawHeight = canvasAspect > contentAspect ? contentWidth / canvasAspect : contentHeight;
   const drawX = marginPt + (contentWidth - drawWidth) / 2;
   const drawY = marginPt + (contentHeight - drawHeight) / 2;
-  const imageBytes = dataUrlBytes(canvas.toDataURL("image/jpeg", 0.96));
+  const imageBytes = dataUrlBytes(canvas.toDataURL("image/jpeg", 1.0));
 
   return new Blob([buildImagePdf({
     pageWidthPt,

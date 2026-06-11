@@ -4,7 +4,9 @@ const PDF_FONT_SOURCES = Object.freeze([
   { key: "roboto-bold", resource: "F2", name: "Roboto-Bold", url: "./assets/fonts/Roboto-Bold.ttf" },
   { key: "roboto-italic", resource: "F3", name: "Roboto-Italic", url: "./assets/fonts/Roboto-Italic.ttf" },
   { key: "roboto-condensed", resource: "F4", name: "RobotoCondensed", url: "./assets/fonts/RobotoCondensed.ttf" },
-  { key: "roboto-condensed-bold", resource: "F5", name: "RobotoCondensed-Bold", url: "./assets/fonts/RobotoCondensed-Bold.ttf" },
+  { key: "roboto-condensed-bold", resource: "F5", name: "RobotoCondensed-Bold", url: "./assets/fonts/RobotoCondensed-Bold.ttf" }
+]);
+const PDF_CJK_FONT_SOURCES = Object.freeze([
   { key: "heiti-bold", resource: "F6", name: "Heiti-Bold", url: "./assets/fonts/Heiti.ttf", cjk: true }
 ]);
 
@@ -13,12 +15,14 @@ const PDF_LIB_CANDIDATES = Object.freeze([
   "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js"
 ]);
 
-let pdfFontSetPromise = null;
+const pdfFontPromises = new Map();
+let pdfLatinFontSetPromise = null;
+let pdfCjkFontSetPromise = null;
 let pdfLibPromise = null;
 
-export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, onProgress = async () => {} }) {
+export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, needsUnicodeFont = false, onProgress = async () => {} }) {
   await onProgress("loading-fonts");
-  const fontSet = await loadPdfFontSet();
+  const fontSet = await loadPdfFontSet({ includeCjk: needsUnicodeFont });
   const layout = pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm, canvasWidth, canvasHeight });
   const ctx = new PdfCanvasContext(canvasWidth, canvasHeight, layout.box, fontSet);
 
@@ -690,21 +694,37 @@ function fontSize(font) {
   return Number(String(font).match(/([0-9.]+)px/)?.[1]) || 12;
 }
 
-async function loadPdfFontSet() {
-  if (!pdfFontSetPromise) {
-    pdfFontSetPromise = Promise.all(PDF_FONT_SOURCES.map(async source => {
+async function loadPdfFontSet({ includeCjk = false } = {}) {
+  if (!pdfLatinFontSetPromise) {
+    pdfLatinFontSetPromise = buildPdfFontSet(PDF_FONT_SOURCES);
+  }
+  if (!includeCjk) {
+    return pdfLatinFontSetPromise;
+  }
+  if (!pdfCjkFontSetPromise) {
+    pdfCjkFontSetPromise = buildPdfFontSet([...PDF_FONT_SOURCES, ...PDF_CJK_FONT_SOURCES]);
+  }
+  return pdfCjkFontSetPromise;
+}
+
+async function buildPdfFontSet(sources) {
+  const fonts = await Promise.all(sources.map(loadPdfFont));
+  const byKey = new Map(fonts.map(font => [font.key, font]));
+  return { fonts, byKey };
+}
+
+async function loadPdfFont(source) {
+  if (!pdfFontPromises.has(source.key)) {
+    pdfFontPromises.set(source.key, (async () => {
       const response = await fetch(source.url);
       if (!response.ok) {
         throw new Error(`Could not load PDF font ${source.url}: ${response.status}`);
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
       return { ...source, bytes, metrics: parseTrueTypeFont(bytes, source.name) };
-    })).then(fonts => {
-      const byKey = new Map(fonts.map(font => [font.key, font]));
-      return { fonts, byKey };
-    });
+    })());
   }
-  return pdfFontSetPromise;
+  return pdfFontPromises.get(source.key);
 }
 
 function pdfFont(fontSet, font, text = "") {

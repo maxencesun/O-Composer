@@ -149,6 +149,47 @@ button:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.resource-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 220px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.resource-progress[hidden] {
+  display: none;
+}
+
+.resource-progress progress {
+  width: 92px;
+  height: 6px;
+  accent-color: var(--accent);
+}
+
+.resource-progress span {
+  min-width: 112px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+  .resource-progress {
+    min-width: 150px;
+    gap: 4px;
+    font-size: 11px;
+  }
+
+  .resource-progress progress {
+    width: 54px;
+  }
+
+  .resource-progress span {
+    min-width: 88px;
+  }
+}
+
 .menu {
   position: relative;
 }

@@ -129,6 +129,8 @@ const PDF_OUTPUT_MODES = Object.freeze({
 });
 
 const PDF_EXPORT_SETTINGS_KEY = "purplePenPdfExportSettings";
+const PDF_EXPORT_STEPS_PER_TARGET = 4;
+const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 const APP_VERSION = "0.0.0";
@@ -3486,45 +3488,62 @@ export class PurplePenApp extends HTMLElement {
 
     try {
       this.setPdfExportBusy(true);
-      this.setPdfExportProgress({
+      const totalSteps = targets.length * PDF_EXPORT_STEPS_PER_TARGET + (targets.length > 1 ? 1 : 0);
+      await this.showPdfExportProgress({
         current: 0,
-        total: targets.length,
+        total: totalSteps,
         message: this.t("Preparing PDF export…")
       });
       const files = [];
       const usedFileNames = new Set();
       for (let index = 0; index < targets.length; index += 1) {
         const target = targets[index];
-        this.setPdfExportProgress({
-          current: index,
-          total: targets.length,
+        const stepBase = index * PDF_EXPORT_STEPS_PER_TARGET;
+        await this.showPdfExportProgress({
+          current: stepBase,
+          total: totalSteps,
           message: this.t("Creating {name}…", { name: target.name })
         });
-        await nextFrame();
-        const blob = await this.createPdfBlobForTarget(state, target, settings);
+        const blob = await this.createPdfBlobForTarget(state, target, settings, async (phase, message) => {
+          await this.showPdfExportProgress({
+            current: stepBase + phase,
+            total: totalSteps,
+            message
+          });
+        });
         const suffix = settings.useCourseNames || targets.length > 1 ? `-${safeFilePart(target.name)}` : "";
         files.push({
           name: uniqueFileName(`${safeFilePart(settings.filePrefix)}${suffix}.pdf`, usedFileNames),
           blob
         });
-        this.setPdfExportProgress({
-          current: index + 1,
-          total: targets.length,
+        await this.showPdfExportProgress({
+          current: stepBase + PDF_EXPORT_STEPS_PER_TARGET,
+          total: totalSteps,
           message: this.t("Created {current} of {total} PDFs.", { current: index + 1, total: targets.length })
         });
-        await nextFrame();
       }
       if (files.length === 1) {
+        await this.showPdfExportProgress({
+          current: totalSteps,
+          total: totalSteps,
+          message: this.t("PDF export ready.")
+        });
+        await wait(PDF_EXPORT_DONE_HOLD_MS);
         downloadBlob(files[0].name, files[0].blob);
       }
       else {
-        this.setPdfExportProgress({
-          current: targets.length,
-          total: targets.length,
+        await this.showPdfExportProgress({
+          current: targets.length * PDF_EXPORT_STEPS_PER_TARGET,
+          total: totalSteps,
           message: this.t("Packaging {count} PDFs into ZIP…", { count: files.length })
         });
-        await nextFrame();
         const zipBlob = await createZipBlob(files);
+        await this.showPdfExportProgress({
+          current: totalSteps,
+          total: totalSteps,
+          message: this.t("PDF export ready.")
+        });
+        await wait(PDF_EXPORT_DONE_HOLD_MS);
         downloadBlob(`${safeFilePart(settings.filePrefix)}.zip`, zipBlob);
       }
       this.closePdfExportDialog();
@@ -3536,6 +3555,11 @@ export class PurplePenApp extends HTMLElement {
       this.setPdfExportBusy(false);
       this.setPdfExportProgress(null);
     }
+  }
+
+  async showPdfExportProgress(progress) {
+    this.setPdfExportProgress(progress);
+    await paintProgressFrame();
   }
 
   setPdfExportBusy(isBusy) {
@@ -3611,7 +3635,7 @@ export class PurplePenApp extends HTMLElement {
     return printAreaFromBounds(this.mapView.currentViewBounds(state.ui), sourceArea);
   }
 
-  async createPdfBlobForTarget(state, target, settings) {
+  async createPdfBlobForTarget(state, target, settings, onProgress = async () => {}) {
     const area = this.pdfAreaForTarget(state, target, settings);
     const page = pageSizeMm(area);
     const marginMm = pageMarginMm(area);
@@ -3632,18 +3656,25 @@ export class PurplePenApp extends HTMLElement {
     const forceRaster = settings.outputMode === PDF_OUTPUT_MODES.RASTER;
     const forceVector = settings.outputMode === PDF_OUTPUT_MODES.VECTOR;
     if (forceRaster || hasRasterMap) {
-      return createRasterMapPdfBlob({
+      await onProgress(1, this.t("Drawing {name}…", { name: target.name }));
+      const canvas = this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
+        includeBitmapBackground: settings.includeBaseMap,
+        includeOmapMap: settings.includeBaseMap,
+        includePageBackground: false
+      });
+      await onProgress(2, this.t("Writing {name} PDF…", { name: target.name }));
+      const blob = await createRasterMapPdfBlob({
         pageWidthMm: page.width,
         pageHeightMm: page.height,
         marginMm,
-        canvas: this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
-          includeBitmapBackground: settings.includeBaseMap,
-          includeOmapMap: settings.includeBaseMap,
-          includePageBackground: false
-        })
+        canvas
       });
+      await onProgress(3, this.t("Finalizing {name}…", { name: target.name }));
+      return blob;
     }
-    return createVectorMapPdfBlob({
+    await onProgress(1, this.t("Drawing {name}…", { name: target.name }));
+    await onProgress(2, this.t("Writing {name} PDF…", { name: target.name }));
+    const blob = await createVectorMapPdfBlob({
       pageWidthMm: page.width,
       pageHeightMm: page.height,
       marginMm,
@@ -3656,6 +3687,8 @@ export class PurplePenApp extends HTMLElement {
         includePageBackground: false
       })
     });
+    await onProgress(3, this.t("Finalizing {name}…", { name: target.name }));
+    return blob;
   }
 
 
@@ -6600,6 +6633,15 @@ function uniqueFileName(fileName, usedNames) {
 
 function nextFrame() {
   return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function paintProgressFrame() {
+  await nextFrame();
+  await wait(30);
 }
 
 async function createZipBlob(files) {

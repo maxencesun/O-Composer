@@ -259,6 +259,7 @@ const ZH = Object.freeze({
   "Files": "文件",
   "File name prefix": "文件名前缀",
   "Add course names to exported files": "导出文件名包含路线名",
+  "Only export used relay variation codes": "只导出已使用的接力字母编号",
   "Create": "创建",
   "Current course": "当前路线",
   "Current view": "当前视图",

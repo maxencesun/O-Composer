@@ -3817,58 +3817,28 @@ export class PurplePenApp extends HTMLElement {
       return blob;
     }
     await onProgress(1, this.t("Preparing {name} page…", { name: target.name }));
-    try {
-      const blob = await createVectorMapPdfBlob({
-        pageWidthMm: page.width,
-        pageHeightMm: page.height,
-        marginMm,
-        canvasWidth: size.width,
-        canvasHeight: size.height,
-        backgroundPdf: pdfBackground,
-        onProgress: async stage => {
-          const phase = vectorPdfProgressPhase(stage);
-          const message = vectorPdfProgressMessage(stage, target.name, this.t.bind(this));
-          if (phase && message) {
-            await onProgress(phase, message);
-          }
-        },
-        draw: ctx => this.mapView.renderAreaToContext(ctx, eventModel, exportUi, area, size, {
-          includeBitmapBackground: false,
-          includeOmapMap: settings.includeBaseMap,
-          includePageBackground: false
-        })
-      });
-      await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
-      return blob;
-    }
-    catch (error) {
-      if (pdfBackground) {
-        await onProgress(2, this.t("Drawing {name} map…", { name: target.name }));
-        const canvas = this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
-          includeBitmapBackground: settings.includeBaseMap,
-          includeOmapMap: settings.includeBaseMap,
-          includePageBackground: false
-        });
-        await onProgress(4, this.t("Encoding {name} image…", { name: target.name }));
-        const blob = await createRasterMapPdfBlob({
-          pageWidthMm: page.width,
-          pageHeightMm: page.height,
-          marginMm,
-          canvas,
-          onProgress: async stage => {
-            if (stage === "encoding-image") {
-              await onProgress(5, this.t("Encoding {name} image…", { name: target.name }));
-            }
-            else if (stage === "building") {
-              await onProgress(6, this.t("Writing {name} PDF…", { name: target.name }));
-            }
-          }
-        });
-        await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
-        return blob;
-      }
-      throw error;
-    }
+    const blob = await createVectorMapPdfBlob({
+      pageWidthMm: page.width,
+      pageHeightMm: page.height,
+      marginMm,
+      canvasWidth: size.width,
+      canvasHeight: size.height,
+      backgroundPdf: pdfBackground,
+      onProgress: async stage => {
+        const phase = vectorPdfProgressPhase(stage);
+        const message = vectorPdfProgressMessage(stage, target.name, this.t.bind(this));
+        if (phase && message) {
+          await onProgress(phase, message);
+        }
+      },
+      draw: ctx => this.mapView.renderAreaToContext(ctx, eventModel, exportUi, area, size, {
+        includeBitmapBackground: false,
+        includeOmapMap: settings.includeBaseMap,
+        includePageBackground: false
+      })
+    });
+    await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
+    return blob;
   }
 
 
@@ -3876,7 +3846,6 @@ export class PurplePenApp extends HTMLElement {
     if (!settings.includeBaseMap) return null;
     const background = state.ui.background;
     if (background?.sourceKind !== "pdf" || !background.pdf?.sourceDataUrl) return null;
-    if (!pdfDataUrlLooksLikePdf(background.pdf.sourceDataUrl)) return null;
     const canvasBox = this.mapView.backgroundExportCanvasBox(state.ui, area, size);
     if (!canvasBox || !(Math.abs(canvasBox.width) > 0) || !(Math.abs(canvasBox.height) > 0)) return null;
     return {
@@ -6844,22 +6813,6 @@ function applyRelayInputToSettings(relay, relayField, relayLegName) {
     relay.legNames[index] = String(relayLegName.value || "").trim();
   }
   relay.legNames = (relay.legNames || []).slice(0, Math.max(1, relay.legs || 1));
-}
-
-function pdfDataUrlLooksLikePdf(dataUrl) {
-  const text = String(dataUrl || "");
-  const comma = text.indexOf(",");
-  if (comma < 0) return false;
-  const header = text.slice(0, comma).toLowerCase();
-  if (!header.includes("application/pdf") && !header.includes(";base64")) return false;
-  try {
-    const sample = text.slice(comma + 1, comma + 1 + 256);
-    const binary = header.includes(";base64") ? atob(sample) : decodeURIComponent(sample);
-    return binary.includes("%PDF-");
-  }
-  catch {
-    return false;
-  }
 }
 
 function vectorPdfProgressPhase(stage) {

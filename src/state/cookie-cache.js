@@ -4,8 +4,9 @@ const LEGACY_CHUNK_PREFIX = "purplePenSessionCache.";
 const LEGACY_STORAGE_KEY = "purplePenSessionCachePayload";
 const COOKIE_DAYS = 180;
 const DB_NAME = "purplePenWebCache";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "sessions";
+const PDF_STORE_NAME = "pdfBasemaps";
 const SESSION_KEY = "latest";
 
 export function hasCookieConsent() {
@@ -25,7 +26,7 @@ export async function saveCachedSession(payload) {
   };
 
   try {
-    await idbPut(SESSION_KEY, record);
+    await idbPut(STORE_NAME, SESSION_KEY, record);
     clearLegacyCache();
     setCacheMeta({ version: 2, storage: "indexedDB", dbName: DB_NAME, storeName: STORE_NAME });
     return { saved: true, storage: "indexedDB" };
@@ -38,7 +39,7 @@ export async function saveCachedSession(payload) {
 export async function loadCachedSession() {
   if (!hasCookieConsent()) return null;
   try {
-    const record = await idbGet(SESSION_KEY);
+    const record = await idbGet(STORE_NAME, SESSION_KEY);
     if (record?.payload) return record.payload;
   }
   catch {
@@ -51,10 +52,36 @@ export async function clearCachedSession() {
   clearLegacyCache();
   deleteCookie(CACHE_META_COOKIE);
   try {
-    await idbDelete(SESSION_KEY);
+    await idbDelete(STORE_NAME, SESSION_KEY);
   }
   catch {
     // Cache clearing should never block the app.
+  }
+}
+
+export async function saveCachedPdfBasemap(key, sourceDataUrl) {
+  if (!hasCookieConsent() || !key || !sourceDataUrl) return { saved: false, reason: "no-consent" };
+  try {
+    await idbPut(PDF_STORE_NAME, key, {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      sourceDataUrl
+    });
+    return { saved: true, storage: "indexedDB" };
+  }
+  catch {
+    return { saved: false, reason: "indexeddb-unavailable" };
+  }
+}
+
+export async function loadCachedPdfBasemap(key) {
+  if (!hasCookieConsent() || !key) return null;
+  try {
+    const record = await idbGet(PDF_STORE_NAME, key);
+    return record?.sourceDataUrl || null;
+  }
+  catch {
+    return null;
   }
 }
 
@@ -70,17 +97,20 @@ function openDatabase() {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME);
       }
+      if (!db.objectStoreNames.contains(PDF_STORE_NAME)) {
+        db.createObjectStore(PDF_STORE_NAME);
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error || new Error("IndexedDB open failed"));
   });
 }
 
-async function idbPut(key, value) {
+async function idbPut(storeName, key, value) {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    transaction.objectStore(STORE_NAME).put(value, key);
+    const transaction = db.transaction(storeName, "readwrite");
+    transaction.objectStore(storeName).put(value, key);
     transaction.oncomplete = () => {
       db.close();
       resolve();
@@ -92,11 +122,11 @@ async function idbPut(key, value) {
   });
 }
 
-async function idbGet(key) {
+async function idbGet(storeName, key) {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readonly");
-    const request = transaction.objectStore(STORE_NAME).get(key);
+    const transaction = db.transaction(storeName, "readonly");
+    const request = transaction.objectStore(storeName).get(key);
     request.onsuccess = () => resolve(request.result || null);
     transaction.oncomplete = () => db.close();
     transaction.onerror = () => {
@@ -106,11 +136,11 @@ async function idbGet(key) {
   });
 }
 
-async function idbDelete(key) {
+async function idbDelete(storeName, key) {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    transaction.objectStore(STORE_NAME).delete(key);
+    const transaction = db.transaction(storeName, "readwrite");
+    transaction.objectStore(storeName).delete(key);
     transaction.oncomplete = () => {
       db.close();
       resolve();

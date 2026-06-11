@@ -2,7 +2,9 @@ import { Store } from "../state/store.js";
 import {
   acceptCookieConsent,
   hasCookieConsent,
+  loadCachedPdfBasemap,
   loadCachedSession,
+  saveCachedPdfBasemap,
   saveCachedSession
 } from "../state/cookie-cache.js";
 import { parseOmap } from "../domain/omap-parser.js";
@@ -532,6 +534,8 @@ export class PurplePenApp extends HTMLElement {
   }
 
   saveSessionCache(state) {
+    const background = ensurePdfBasemapCacheKey(state.ui.background);
+    void cachePdfBasemapSource(background);
     void saveCachedSession({
       eventModel: state.eventModel,
       ui: {
@@ -543,7 +547,7 @@ export class PurplePenApp extends HTMLElement {
         showPrintArea: state.ui.showPrintArea,
         showAllControls: state.ui.showAllControls
       },
-      background: state.ui.background || null,
+      background: backgroundForSessionCache(background),
       omap: state.ui.omap || null,
       omapMap: this.mapView?.omapMap || null
     });
@@ -3427,6 +3431,7 @@ export class PurplePenApp extends HTMLElement {
       this.mapView.setBackground(rendered.url);
       this.mapView.setOmap(null);
       const metadata = backgroundMetadataForPdf(file, rendered, image, this.store.snapshot().eventModel);
+      await cachePdfBasemapSource(metadata);
       this.store.updateUi(ui => {
         ui.background = metadata;
         ui.omap = null;
@@ -3783,7 +3788,7 @@ export class PurplePenApp extends HTMLElement {
       selectedCourseId: target.uiCourseId,
       showAllControls: target.type === "all-controls"
     };
-    const pdfBackground = this.vectorPdfBackgroundForExport(state, area, size, settings);
+    const pdfBackground = await this.vectorPdfBackgroundForExport(state, area, size, settings);
     const hasRasterMap = settings.includeBaseMap
       && this.mapView.hasBitmapBackground()
       && !this.mapView.omapMap
@@ -3843,14 +3848,22 @@ export class PurplePenApp extends HTMLElement {
   }
 
 
-  vectorPdfBackgroundForExport(state, area, size, settings) {
+  async vectorPdfBackgroundForExport(state, area, size, settings) {
     if (!settings.includeBaseMap) return null;
     const background = state.ui.background;
-    if (background?.sourceKind !== "pdf" || !background.pdf?.sourceDataUrl) return null;
+    if (background?.sourceKind !== "pdf") return null;
+    if (settings.outputMode === PDF_OUTPUT_MODES.RASTER) return null;
+    let sourceDataUrl = background.pdf?.sourceDataUrl || null;
+    if (!pdfDataUrlLooksLikePdf(sourceDataUrl) && background.pdf?.cacheKey) {
+      sourceDataUrl = await loadCachedPdfBasemap(background.pdf.cacheKey);
+    }
+    if (!pdfDataUrlLooksLikePdf(sourceDataUrl)) {
+      throw new Error(this.t("The original PDF base map data is missing or incomplete. Re-import the PDF base map, then export again."));
+    }
     const canvasBox = this.mapView.backgroundExportCanvasBox(state.ui, area, size);
     if (!canvasBox || !(Math.abs(canvasBox.width) > 0) || !(Math.abs(canvasBox.height) > 0)) return null;
     return {
-      sourceDataUrl: background.pdf.sourceDataUrl,
+      sourceDataUrl,
       pageNumber: background.pdf.pageNumber || 1,
       canvasBox
     };
@@ -5981,9 +5994,49 @@ function backgroundMetadataForPdf(file, rendered, image, eventModel) {
     renderScale: rendered.renderScale,
     sourceWidthPt: rendered.sourceWidthPt,
     sourceHeightPt: rendered.sourceHeightPt,
+    cacheKey: pdfBasemapCacheKey(file, rendered),
     sourceDataUrl: rendered.sourceDataUrl || null
   };
   return metadata;
+}
+
+function pdfBasemapCacheKey(file, rendered) {
+  const name = safeFilePart(file?.name || "map");
+  const size = Number(file?.size || 0);
+  const modified = Number(file?.lastModified || 0);
+  const page = Number(rendered?.pageNumber || 1);
+  return `pdf:${name}:${size}:${modified}:p${page}`;
+}
+
+async function cachePdfBasemapSource(background) {
+  const key = background?.pdf?.cacheKey;
+  const sourceDataUrl = background?.pdf?.sourceDataUrl;
+  if (!key || !pdfDataUrlLooksLikePdf(sourceDataUrl)) return;
+  await saveCachedPdfBasemap(key, sourceDataUrl);
+}
+
+function ensurePdfBasemapCacheKey(background) {
+  if (background?.sourceKind !== "pdf" || !background.pdf || background.pdf.cacheKey) return background || null;
+  if (!pdfDataUrlLooksLikePdf(background.pdf.sourceDataUrl)) return background;
+  const page = Number(background.pdf.pageNumber || 1);
+  return {
+    ...background,
+    pdf: {
+      ...background.pdf,
+      cacheKey: `pdf:${safeFilePart(background.name || "map")}:${background.pdf.sourceDataUrl.length}:p${page}`
+    }
+  };
+}
+
+function backgroundForSessionCache(background) {
+  if (!background?.pdf?.cacheKey) return background || null;
+  return {
+    ...background,
+    pdf: {
+      ...background.pdf,
+      sourceDataUrl: null
+    }
+  };
 }
 
 function loadImage(url) {
@@ -7056,6 +7109,25 @@ function containsUnicodeText(value, seen = new Set(), key = "") {
     return value.some(item => containsUnicodeText(item, seen));
   }
   return Object.entries(value).some(([entryKey, entryValue]) => containsUnicodeText(entryValue, seen, entryKey));
+}
+
+function pdfDataUrlLooksLikePdf(value) {
+  const text = String(value || "");
+  if (!text) return false;
+  const comma = text.indexOf(",");
+  const header = comma >= 0 ? text.slice(0, comma).toLowerCase() : "";
+  const encoded = comma >= 0 ? text.slice(comma + 1) : text;
+  try {
+    const cleanBase64 = encoded.replace(/\s/g, "").slice(0, 1600);
+    const paddedBase64 = `${cleanBase64}${"=".repeat((4 - cleanBase64.length % 4) % 4)}`;
+    const sample = header.includes(";base64")
+      ? atob(paddedBase64)
+      : decodeURIComponent(encoded.slice(0, 1200));
+    return sample.slice(0, 1024).includes("%PDF-");
+  }
+  catch {
+    return false;
+  }
 }
 
 function escapeHtml(value) {

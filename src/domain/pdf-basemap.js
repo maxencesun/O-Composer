@@ -27,8 +27,9 @@ export async function renderPdfBasemap(file, options = {}) {
   }
   const pdfjsLib = await loadPdfJs();
   const bytes = new Uint8Array(await file.arrayBuffer());
+  const sourceDataUrl = bytesToDataUrl(bytes, "application/pdf");
   const loadingTask = pdfjsLib.getDocument({
-    data: bytes,
+    data: new Uint8Array(bytes),
     useSystemFonts: true,
     disableFontFace: false,
     verbosity: 0
@@ -70,7 +71,7 @@ export async function renderPdfBasemap(file, options = {}) {
     renderDpi: renderScale * 72,
     sourceWidthPt: viewportAtOne.width,
     sourceHeightPt: viewportAtOne.height,
-    sourceDataUrl: bytesToDataUrl(bytes, "application/pdf")
+    sourceDataUrl
   };
 }
 

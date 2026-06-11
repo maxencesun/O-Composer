@@ -945,10 +945,17 @@ export class PurplePenApp extends HTMLElement {
                 <label class="dialog-check"><input id="pdfUseCourseNames" type="checkbox" checked> ${escapeHtml(this.t("Add course names to exported files"))}</label>
               </fieldset>
               <div id="pdfExportSummary" class="command-message pdf-export-summary"></div>
+              <div id="pdfExportProgress" class="pdf-export-progress" hidden>
+                <div class="pdf-export-progress-row">
+                  <span id="pdfExportProgressText"></span>
+                  <span id="pdfExportProgressPercent"></span>
+                </div>
+                <progress id="pdfExportProgressBar" value="0" max="100"></progress>
+              </div>
             </div>
             <footer class="dialog-actions">
               <button type="button" data-pdf-export-cancel>${escapeHtml(this.t("Cancel"))}</button>
-              <button type="submit" class="primary-button">${escapeHtml(this.t("Create"))}</button>
+              <button type="submit" class="primary-button" id="pdfExportCreateButton">${escapeHtml(this.t("Create"))}</button>
             </footer>
           </form>
         </dialog>
@@ -3383,6 +3390,7 @@ export class PurplePenApp extends HTMLElement {
   openPdfExportDialog() {
     const dialog = this.querySelector("#pdfExportDialog");
     this.populatePdfExportDialog();
+    this.setPdfExportProgress(null);
     openFloatingPalette(dialog);
     this.updatePdfExportDialogSummary();
   }
@@ -3477,20 +3485,91 @@ export class PurplePenApp extends HTMLElement {
     }
 
     try {
+      this.setPdfExportBusy(true);
+      this.setPdfExportProgress({
+        current: 0,
+        total: targets.length,
+        message: this.t("Preparing PDF export…")
+      });
+      const files = [];
+      const usedFileNames = new Set();
       for (let index = 0; index < targets.length; index += 1) {
         const target = targets[index];
+        this.setPdfExportProgress({
+          current: index,
+          total: targets.length,
+          message: this.t("Creating {name}…", { name: target.name })
+        });
+        await nextFrame();
         const blob = await this.createPdfBlobForTarget(state, target, settings);
         const suffix = settings.useCourseNames || targets.length > 1 ? `-${safeFilePart(target.name)}` : "";
-        downloadBlob(`${safeFilePart(settings.filePrefix)}${suffix}.pdf`, blob);
-        if (targets.length > 1) {
-          await delay(180);
-        }
+        files.push({
+          name: uniqueFileName(`${safeFilePart(settings.filePrefix)}${suffix}.pdf`, usedFileNames),
+          blob
+        });
+        this.setPdfExportProgress({
+          current: index + 1,
+          total: targets.length,
+          message: this.t("Created {current} of {total} PDFs.", { current: index + 1, total: targets.length })
+        });
+        await nextFrame();
+      }
+      if (files.length === 1) {
+        downloadBlob(files[0].name, files[0].blob);
+      }
+      else {
+        this.setPdfExportProgress({
+          current: targets.length,
+          total: targets.length,
+          message: this.t("Packaging {count} PDFs into ZIP…", { count: files.length })
+        });
+        await nextFrame();
+        const zipBlob = await createZipBlob(files);
+        downloadBlob(`${safeFilePart(settings.filePrefix)}.zip`, zipBlob);
       }
       this.closePdfExportDialog();
     }
     catch (error) {
       alert(error.message || String(error));
     }
+    finally {
+      this.setPdfExportBusy(false);
+      this.setPdfExportProgress(null);
+    }
+  }
+
+  setPdfExportBusy(isBusy) {
+    const dialog = this.querySelector("#pdfExportDialog");
+    dialog?.querySelectorAll("input, select, button").forEach(control => {
+      if (control.matches("[data-pdf-export-cancel]")) {
+        control.disabled = false;
+      }
+      else {
+        control.disabled = !!isBusy;
+      }
+    });
+  }
+
+  setPdfExportProgress(progress) {
+    const box = this.querySelector("#pdfExportProgress");
+    const bar = this.querySelector("#pdfExportProgressBar");
+    const text = this.querySelector("#pdfExportProgressText");
+    const percent = this.querySelector("#pdfExportProgressPercent");
+    if (!box || !bar || !text || !percent) return;
+    if (!progress) {
+      box.hidden = true;
+      bar.value = 0;
+      text.textContent = "";
+      percent.textContent = "";
+      return;
+    }
+    const total = Math.max(1, Number(progress.total) || 1);
+    const current = clamp(Number(progress.current) || 0, 0, total);
+    const value = Math.round(current / total * 100);
+    box.hidden = false;
+    bar.value = value;
+    text.textContent = progress.message || "";
+    percent.textContent = `${value}%`;
   }
 
   pdfExportTargets(state, settings) {
@@ -6500,8 +6579,123 @@ function safeFilePart(value) {
   return cleaned || "event";
 }
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function uniqueFileName(fileName, usedNames) {
+  const normalized = fileName || "event.pdf";
+  if (!usedNames.has(normalized)) {
+    usedNames.add(normalized);
+    return normalized;
+  }
+  const dotIndex = normalized.lastIndexOf(".");
+  const stem = dotIndex > 0 ? normalized.slice(0, dotIndex) : normalized;
+  const extension = dotIndex > 0 ? normalized.slice(dotIndex) : "";
+  let index = 2;
+  let candidate = `${stem}-${index}${extension}`;
+  while (usedNames.has(candidate)) {
+    index += 1;
+    candidate = `${stem}-${index}${extension}`;
+  }
+  usedNames.add(candidate);
+  return candidate;
+}
+
+function nextFrame() {
+  return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
+async function createZipBlob(files) {
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const timestamp = zipDosDateTime(new Date());
+  for (const file of files) {
+    const nameBytes = encoder.encode(file.name);
+    const bytes = new Uint8Array(await file.blob.arrayBuffer());
+    const crc = crc32(bytes);
+    const localHeader = zipLocalHeader(nameBytes, bytes.length, crc, timestamp);
+    const centralHeader = zipCentralHeader(nameBytes, bytes.length, crc, offset, timestamp);
+    localParts.push(localHeader, bytes);
+    centralParts.push(centralHeader);
+    offset += localHeader.length + bytes.length;
+  }
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const endRecord = zipEndRecord(files.length, centralSize, offset);
+  return new Blob([...localParts, ...centralParts, endRecord], { type: "application/zip" });
+}
+
+function zipLocalHeader(nameBytes, size, crc, timestamp) {
+  const header = new Uint8Array(30 + nameBytes.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 0x0800, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, timestamp.time, true);
+  view.setUint16(12, timestamp.date, true);
+  view.setUint32(14, crc, true);
+  view.setUint32(18, size, true);
+  view.setUint32(22, size, true);
+  view.setUint16(26, nameBytes.length, true);
+  header.set(nameBytes, 30);
+  return header;
+}
+
+function zipCentralHeader(nameBytes, size, crc, offset, timestamp) {
+  const header = new Uint8Array(46 + nameBytes.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
+  view.setUint16(8, 0x0800, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, timestamp.time, true);
+  view.setUint16(14, timestamp.date, true);
+  view.setUint32(16, crc, true);
+  view.setUint32(20, size, true);
+  view.setUint32(24, size, true);
+  view.setUint16(28, nameBytes.length, true);
+  view.setUint32(42, offset, true);
+  header.set(nameBytes, 46);
+  return header;
+}
+
+function zipEndRecord(count, centralSize, centralOffset) {
+  const header = new Uint8Array(22);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(8, count, true);
+  view.setUint16(10, count, true);
+  view.setUint32(12, centralSize, true);
+  view.setUint32(16, centralOffset, true);
+  return header;
+}
+
+function zipDosDateTime(date) {
+  const year = Math.max(1980, date.getFullYear());
+  return {
+    date: ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate(),
+    time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2)
+  };
+}
+
+let crc32Table = null;
+
+function crc32(bytes) {
+  if (!crc32Table) {
+    crc32Table = new Uint32Array(256);
+    for (let index = 0; index < 256; index += 1) {
+      let value = index;
+      for (let bit = 0; bit < 8; bit += 1) {
+        value = (value & 1) ? (0xedb88320 ^ (value >>> 1)) : (value >>> 1);
+      }
+      crc32Table[index] = value >>> 0;
+    }
+  }
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = crc32Table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 function download(fileName, content, type) {

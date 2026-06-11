@@ -1002,6 +1002,7 @@ export class PurplePenApp extends HTMLElement {
                   <input id="pdfFilePrefix" type="text">
                 </label>
                 <label class="dialog-check"><input id="pdfUseCourseNames" type="checkbox" checked> ${escapeHtml(this.t("Add course names to exported files"))}</label>
+                <label class="dialog-check"><input id="pdfRelayUsedOnly" type="checkbox" checked> ${escapeHtml(this.t("Only export used relay variation codes"))}</label>
               </fieldset>
               <div id="pdfExportSummary" class="command-message pdf-export-summary"></div>
               <div id="pdfExportProgress" class="pdf-export-progress" hidden>
@@ -3599,6 +3600,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#pdfOutputMode").value = settings.outputMode || PDF_OUTPUT_MODES.AUTO;
     this.querySelector("#pdfFilePrefix").value = settings.filePrefix || baseName(state.eventModel.sourceName);
     this.querySelector("#pdfUseCourseNames").checked = settings.useCourseNames !== false;
+    this.querySelector("#pdfRelayUsedOnly").checked = settings.relayUsedOnly !== false;
   }
 
   populatePdfCourseOptions(state, preferredValue) {
@@ -3631,7 +3633,8 @@ export class PurplePenApp extends HTMLElement {
       pageBackground: false,
       outputMode: this.querySelector("#pdfOutputMode").value,
       filePrefix: this.querySelector("#pdfFilePrefix").value.trim() || baseName(this.store.snapshot().eventModel.sourceName),
-      useCourseNames: this.querySelector("#pdfUseCourseNames").checked
+      useCourseNames: this.querySelector("#pdfUseCourseNames").checked,
+      relayUsedOnly: this.querySelector("#pdfRelayUsedOnly").checked
     };
   }
 
@@ -3700,8 +3703,9 @@ export class PurplePenApp extends HTMLElement {
           });
         });
         const suffix = settings.useCourseNames || targets.length > 1 ? `-${safeFilePart(target.name)}` : "";
+        const fileName = target.fileName || `${safeFilePart(settings.filePrefix)}${suffix}.pdf`;
         files.push({
-          name: uniqueFileName(`${safeFilePart(settings.filePrefix)}${suffix}.pdf`, usedFileNames),
+          name: uniqueFileName(fileName, usedFileNames),
           blob
         });
         await this.showPdfExportProgress({
@@ -3710,7 +3714,8 @@ export class PurplePenApp extends HTMLElement {
           message: this.t("Created {current} of {total} PDFs.", { current: index + 1, total: targets.length })
         });
       }
-      if (files.length === 1) {
+      const needsZipPackage = files.length > 1 || files.some(file => file.name.includes("/"));
+      if (!needsZipPackage) {
         await this.showPdfExportProgress({
           current: totalSteps,
           total: totalSteps,
@@ -3791,12 +3796,7 @@ export class PurplePenApp extends HTMLElement {
     const scope = settings.courseScope || PDF_COURSE_SCOPES.CURRENT;
     const currentCourse = state.ui.selectedCourseId === "all" ? null : getCourse(state.eventModel, state.ui.selectedCourseId);
     if (scope === PDF_COURSE_SCOPES.ALL_COURSES) {
-      return sortedCourses(state.eventModel).map(course => ({
-        type: "course",
-        courseId: course.id,
-        uiCourseId: course.id,
-        name: course.name || `course-${course.id}`
-      }));
+      return sortedCourses(state.eventModel).flatMap(course => this.pdfCourseTargets(state, course, settings));
     }
     if (scope === PDF_COURSE_SCOPES.ALL_CONTROLS) {
       return [{ type: "all-controls", uiCourseId: "all", name: this.t("All Controls") }];
@@ -3804,12 +3804,79 @@ export class PurplePenApp extends HTMLElement {
     if (scope.startsWith(PDF_COURSE_SCOPES.COURSE_PREFIX)) {
       const courseId = Number(scope.slice(PDF_COURSE_SCOPES.COURSE_PREFIX.length));
       const course = getCourse(state.eventModel, courseId);
-      return course ? [{ type: "course", courseId, uiCourseId: courseId, name: course.name || `course-${courseId}` }] : [];
+      return course ? this.pdfCourseTargets(state, course, settings) : [];
     }
     if (currentCourse) {
-      return [{ type: "course", courseId: currentCourse.id, uiCourseId: currentCourse.id, name: currentCourse.name || `course-${currentCourse.id}` }];
+      return this.pdfCourseTargets(state, currentCourse, settings);
     }
     return [{ type: "all-controls", uiCourseId: "all", name: this.t("All Controls") }];
+  }
+
+  pdfCourseTargets(state, course, settings = {}) {
+    const baseNameText = course?.name || `course-${course?.id || "unknown"}`;
+    const baseTarget = {
+      type: "course",
+      courseId: course.id,
+      uiCourseId: course.id,
+      name: baseNameText
+    };
+    if (!courseHasVariations(state.eventModel, course.id)) {
+      return [baseTarget];
+    }
+
+    const variations = allCourseVariations(state.eventModel, course.id);
+    if (!variations.length) {
+      return [baseTarget];
+    }
+
+    const folder = safeFilePart(baseNameText);
+    const relay = relayAssignments(state.eventModel, course.id);
+    const relayEntries = relay.entries.filter(entry => entry.variation?.code);
+    const targets = relayEntries.map(entry => this.pdfRelayVariationTarget(course, folder, entry));
+    if (settings.relayUsedOnly !== false && targets.length) {
+      return targets;
+    }
+
+    const usedCodes = new Set(relayEntries.map(entry => String(entry.variation.code)));
+    const variationTargets = variations
+      .filter(variation => !targets.length || !usedCodes.has(String(variation.code)))
+      .map(variation => this.pdfVariationTarget(course, folder, variation));
+    return targets.length ? [...targets, ...variationTargets] : variationTargets;
+  }
+
+  pdfRelayVariationTarget(course, folder, entry) {
+    const label = relayEntryLabel(course.relay || {}, entry.team, entry.leg);
+    const code = entry.variation.code;
+    const fileStem = `${safeFilePart(label)}-${safeFilePart(code)}`;
+    return {
+      type: "course",
+      courseId: course.id,
+      uiCourseId: course.id,
+      name: `${course.name || `course-${course.id}`} / ${label}-${code}`,
+      fileName: `${folder}/${fileStem}.pdf`,
+      exportUi: {
+        variationMode: "relay",
+        variationCode: code,
+        relayTeam: entry.team,
+        relayLeg: entry.leg
+      }
+    };
+  }
+
+  pdfVariationTarget(course, folder, variation) {
+    const code = variation.code;
+    const fileStem = `${safeFilePart(this.t("Variation"))}-${safeFilePart(code)}`;
+    return {
+      type: "course",
+      courseId: course.id,
+      uiCourseId: course.id,
+      name: `${course.name || `course-${course.id}`} / ${code}`,
+      fileName: `${folder}/${fileStem}.pdf`,
+      exportUi: {
+        variationMode: "variation",
+        variationCode: code
+      }
+    };
   }
 
   sourcePrintAreaForPdfTarget(state, target) {
@@ -3837,7 +3904,8 @@ export class PurplePenApp extends HTMLElement {
     const exportUi = {
       ...state.ui,
       selectedCourseId: target.uiCourseId,
-      showAllControls: target.type === "all-controls"
+      showAllControls: target.type === "all-controls",
+      ...(target.exportUi || {})
     };
     const pdfBackground = await this.vectorPdfBackgroundForExport(state, area, size, settings);
     const hasRasterMap = settings.includeBaseMap
@@ -6830,7 +6898,8 @@ function defaultPdfExportSettings() {
     pageBackground: false,
     outputMode: PDF_OUTPUT_MODES.AUTO,
     filePrefix: "",
-    useCourseNames: true
+    useCourseNames: true,
+    relayUsedOnly: true
   };
 }
 

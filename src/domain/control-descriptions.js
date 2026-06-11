@@ -353,7 +353,8 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
   const normalControls = view.filter(row => row.control.kind === "normal");
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
-  if (course?.secondaryTitle) rows.push(...titleRows("subtitle", course.secondaryTitle));
+  if (displayOptions.relayLabel) rows.push(...titleRows("subtitle", displayOptions.relayLabel));
+  else if (course?.secondaryTitle) rows.push(...titleRows("subtitle", course.secondaryTitle));
   rows.push(course ? courseHeaderRow(eventModel, course, normalControls.length, language) : allControlsHeaderRow(normalControls.length, language));
   for (let index = 0; index < view.length; index += 1) {
     const row = view[index];

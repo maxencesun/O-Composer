@@ -353,6 +353,11 @@ function parseCourse(node) {
         course.relay.firstTeam = intAttr(child, "first-team", 1);
         course.relay.teams = intAttr(child, "teams", 0);
         course.relay.legs = intAttr(child, "legs", 1);
+        course.relay.teamPrefix = attr(child, "team-prefix", "");
+        course.relay.teamDigits = intAttr(child, "team-digits", 0);
+        course.relay.legNames = attr(child, "leg-names", "")
+          .split("|")
+          .map(value => value.trim());
         break;
       case "relay-branch":
         course.relay.branches.push({
@@ -745,11 +750,18 @@ function writeCourse(lines, course, level) {
     "score-finish-control": course.kind === "score" ? options.scoreFinishControl || undefined : undefined,
     "description-kind": options.descriptionKind || "symbols"
   });
-  if ((course.relay?.teams || 0) > 0 || (course.relay?.legs || 1) > 1) {
+  if ((course.relay?.teams || 0) > 0
+    || (course.relay?.legs || 1) > 1
+    || course.relay?.teamPrefix
+    || (course.relay?.teamDigits || 0) > 0
+    || (course.relay?.legNames || []).some(Boolean)) {
     empty(lines, level + 1, "relay", {
       "first-team": course.relay.firstTeam || 1,
       teams: course.relay.teams || 0,
-      legs: course.relay.legs || 1
+      legs: course.relay.legs || 1,
+      "team-prefix": course.relay.teamPrefix || "",
+      "team-digits": course.relay.teamDigits || 0,
+      "leg-names": (course.relay.legNames || []).join("|")
     });
   }
   for (const branch of course.relay?.branches || []) {

@@ -510,6 +510,37 @@ button:hover {
   gap: 5px;
 }
 
+.relay-auto-panel {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.relay-auto-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.relay-auto-grid label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.relay-auto-grid input,
+.relay-auto-grid select {
+  width: 100%;
+  min-width: 0;
+}
+
+.relay-assignment-list {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
 .description-table,
 .report-table {
   width: 100%;

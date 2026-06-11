@@ -87,7 +87,7 @@ async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHei
   await onProgress("reading-base-map");
   const sourceBytes = dataUrlBytes(sourceDataUrl);
   if (!bytesLookLikePdf(sourceBytes)) {
-    throw new Error("The original PDF base map data is not available. Export again as a raster PDF.");
+    throw new Error("The original PDF base map data is missing or incomplete. Re-import the PDF base map, then export again.");
   }
   if (!bytesLookLikePdf(overlayBytes)) {
     throw new Error("The generated course overlay is not a valid PDF.");

@@ -273,6 +273,7 @@ const ZH = Object.freeze({
   "Writing {name} PDF…": "正在写入 {name} PDF…",
   "Merging {name} base map…": "正在合并 {name} 底图…",
   "Finalizing {name}…": "正在完成 {name}…",
+  "The original PDF base map data is missing or incomplete. Re-import the PDF base map, then export again.": "原始 PDF 底图数据缺失或不完整。请重新导入 PDF 底图后再导出。",
   "Created {current} of {total} PDFs.": "已生成 {current}/{total} 个 PDF。",
   "Packaging {count} PDFs into ZIP…": "正在将 {count} 个 PDF 打包为 ZIP…",
   "PDF export ready.": "PDF 导出完成。",

@@ -55,6 +55,7 @@ import {
   setPrintArea
 } from "../domain/print-area.js";
 import { createRasterMapPdfBlob, createVectorMapPdfBlob } from "../domain/pdf-exporter.js";
+import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js";
 import {
   allControlsView,
   controlKindLabel,
@@ -113,6 +114,21 @@ const PAPER_MARGINS = Object.freeze([
   { id: "10mm", label: "10 mm", value: 39.37 },
   { id: "15mm", label: "15 mm", value: 59.055 }
 ]);
+
+const PDF_COURSE_SCOPES = Object.freeze({
+  CURRENT: "current",
+  ALL_CONTROLS: "all-controls",
+  ALL_COURSES: "all-courses",
+  COURSE_PREFIX: "course:"
+});
+
+const PDF_OUTPUT_MODES = Object.freeze({
+  AUTO: "auto",
+  VECTOR: "vector",
+  RASTER: "raster"
+});
+
+const PDF_EXPORT_SETTINGS_KEY = "purplePenPdfExportSettings";
 
 const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 const APP_VERSION = "0.0.0";
@@ -256,6 +272,7 @@ export class PurplePenApp extends HTMLElement {
       onHover: point => this.updateMouseStatus(point)
     });
     this.bindEvents();
+    this.deferMapLayoutRefresh();
     this.restoreCachedSession();
     this.store.subscribe(state => this.render(state));
     this.store.subscribe(state => this.scheduleSessionCache(state));
@@ -310,7 +327,7 @@ export class PurplePenApp extends HTMLElement {
     const nextMode = this.resolvedUiMode() === UI_MODES.DESKTOP ? UI_MODES.MOBILE : UI_MODES.DESKTOP;
     setUiModePreference(nextMode);
     this.syncResponsiveUiClass();
-    this.mapView?.requestDraw?.(this.store.snapshot());
+    this.deferMapLayoutRefresh();
   }
 
   syncResponsiveUiClass() {
@@ -336,62 +353,116 @@ export class PurplePenApp extends HTMLElement {
     if (courseTabs) courseTabs.hidden = phoneUi;
     this.applyResponsiveInlineOverrides(phoneUi);
     this.syncUiModeToggle(phoneUi);
+    this.deferMapLayoutRefresh();
   }
 
   applyResponsiveInlineOverrides(phoneUi) {
     const appFrame = this.querySelector(".app-frame");
+    const menubar = this.querySelector(".menubar");
+    const toolbar = this.querySelector(".toolbar");
+    const courseTabs = this.querySelector("#courseTabs");
     const workspace = this.querySelector(".workspace");
     const leftPanel = this.querySelector(".left-panel");
     const divider = this.querySelector("#workspaceDivider");
     const mapPanel = this.querySelector(".map-panel");
+    const courseBanner = this.querySelector("#courseBanner");
     const canvas = this.querySelector("#mapCanvas");
+    const statusbar = this.querySelector(".statusbar");
     if (phoneUi) {
-      for (const element of [appFrame, workspace, leftPanel, divider, mapPanel, canvas]) {
+      for (const element of [this, appFrame, menubar, toolbar, courseTabs, workspace, leftPanel, divider, mapPanel, courseBanner, canvas, statusbar]) {
         element?.removeAttribute("style");
       }
       return;
     }
+
     // iPad Safari can still match stylesheet mobile media queries in portrait.
-    // Inline overrides are deliberately narrow and only restore the desktop shell
-    // geometry so the map panel is not squeezed out by the phone layout.
+    // Force the whole shell back to a desktop grid from the host down to the
+    // canvas. This avoids the map grid track collapsing to a one-pixel slit.
+    const viewportWidth = Math.max(1, window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0);
+    const saved = Number(localStorage.getItem("purplePenLeftPanelWidth"));
+    const maxPanelWidth = Math.max(180, Math.min(340, Math.floor(viewportWidth * 0.42)));
+    const defaultPanelWidth = Math.max(200, Math.min(320, Math.floor(viewportWidth * 0.34)));
+    const width = Number.isFinite(saved) && saved > 0
+      ? clamp(saved, 180, maxPanelWidth)
+      : defaultPanelWidth;
+
+    this.style.display = "block";
+    this.style.width = "100vw";
+    this.style.maxWidth = "100vw";
+    this.style.height = "100dvh";
+    this.style.minWidth = "0";
+    this.style.minHeight = "0";
+    this.style.overflow = "hidden";
+
     if (appFrame) {
       appFrame.style.display = "flex";
       appFrame.style.flexDirection = "column";
-      appFrame.style.height = "100vh";
+      appFrame.style.width = "100%";
+      appFrame.style.height = "100%";
+      appFrame.style.minWidth = "0";
       appFrame.style.minHeight = "0";
+      appFrame.style.maxWidth = "100%";
       appFrame.style.overflow = "hidden";
     }
+    for (const fixed of [menubar, toolbar, courseTabs, statusbar]) {
+      if (!fixed) continue;
+      fixed.style.flex = "0 0 auto";
+      fixed.style.minWidth = "0";
+      fixed.style.maxWidth = "100%";
+    }
+    if (courseTabs) {
+      courseTabs.hidden = false;
+      courseTabs.style.display = "flex";
+    }
     if (workspace) {
-      const saved = Number(localStorage.getItem("purplePenLeftPanelWidth"));
-      const width = Number.isFinite(saved) && saved > 0 ? clamp(saved, 260, Math.max(320, window.innerWidth - 360)) : 320;
       workspace.style.display = "grid";
       workspace.style.gridTemplateColumns = `${width}px 6px minmax(0, 1fr)`;
       workspace.style.gridTemplateRows = "minmax(0, 1fr)";
-      workspace.style.minHeight = "0";
+      workspace.style.width = "100%";
+      workspace.style.maxWidth = "100%";
       workspace.style.minWidth = "0";
-      workspace.style.flex = "1 1 auto";
-      workspace.style.height = "100%";
+      workspace.style.minHeight = "0";
+      workspace.style.flex = "1 1 0";
+      workspace.style.height = "auto";
       workspace.style.overflow = "hidden";
       workspace.style.setProperty("--left-panel-width", `${width}px`);
     }
     if (leftPanel) {
       leftPanel.hidden = false;
+      leftPanel.style.gridColumn = "1";
+      leftPanel.style.gridRow = "1";
       leftPanel.style.display = "flex";
       leftPanel.style.flexDirection = "column";
+      leftPanel.style.width = `${width}px`;
+      leftPanel.style.maxWidth = `${width}px`;
       leftPanel.style.minWidth = "0";
       leftPanel.style.minHeight = "0";
       leftPanel.style.overflow = "auto";
     }
     if (divider) {
       divider.hidden = false;
+      divider.style.gridColumn = "2";
+      divider.style.gridRow = "1";
       divider.style.display = "block";
+      divider.style.width = "6px";
+      divider.style.minWidth = "6px";
     }
     if (mapPanel) {
+      mapPanel.style.gridColumn = "3";
+      mapPanel.style.gridRow = "1";
       mapPanel.style.display = "flex";
       mapPanel.style.flexDirection = "column";
+      mapPanel.style.width = "auto";
+      mapPanel.style.height = "100%";
       mapPanel.style.minWidth = "0";
       mapPanel.style.minHeight = "0";
+      mapPanel.style.flex = "1 1 0";
       mapPanel.style.overflow = "hidden";
+    }
+    if (courseBanner) {
+      courseBanner.style.flex = "0 0 auto";
+      courseBanner.style.minWidth = "0";
+      courseBanner.style.maxWidth = "100%";
     }
     if (canvas) {
       canvas.style.display = "block";
@@ -399,7 +470,9 @@ export class PurplePenApp extends HTMLElement {
       canvas.style.height = "100%";
       canvas.style.minWidth = "0";
       canvas.style.minHeight = "0";
-      canvas.style.flex = "1 1 auto";
+      canvas.style.flex = "1 1 0";
+      canvas.style.maxWidth = "100%";
+      canvas.style.touchAction = "none";
     }
   }
 
@@ -411,6 +484,15 @@ export class PurplePenApp extends HTMLElement {
     button.title = this.t("Switch between desktop and mobile UI");
     button.setAttribute("aria-label", nextLabel);
     button.dataset.mode = phoneUi ? UI_MODES.MOBILE : UI_MODES.DESKTOP;
+  }
+
+  deferMapLayoutRefresh() {
+    if (!this.mapView) return;
+    const redraw = () => {
+      this.mapView.invalidateOmapLayer?.();
+      this.mapView.requestDraw?.(this.store.snapshot());
+    };
+    requestAnimationFrame(() => requestAnimationFrame(redraw));
   }
 
   async restoreCachedSession() {
@@ -465,11 +547,167 @@ export class PurplePenApp extends HTMLElement {
 
   template() {
     return `
+      <style id="tabletDesktopLayoutFix">
+        purple-pen-app.desktop-ui {
+          display: block !important;
+          width: 100vw !important;
+          max-width: 100vw !important;
+          height: 100dvh !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          overflow: hidden !important;
+        }
+        purple-pen-app.desktop-ui .app-frame {
+          display: flex !important;
+          flex-direction: column !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          height: 100% !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          overflow: hidden !important;
+        }
+        purple-pen-app.desktop-ui .menubar,
+        purple-pen-app.desktop-ui .toolbar,
+        purple-pen-app.desktop-ui .course-tabs,
+        purple-pen-app.desktop-ui .statusbar {
+          flex: 0 0 auto !important;
+          max-width: 100% !important;
+          min-width: 0 !important;
+        }
+        purple-pen-app.desktop-ui .workspace {
+          display: grid !important;
+          grid-template-columns: var(--left-panel-width, 300px) 6px minmax(0, 1fr) !important;
+          grid-template-rows: minmax(0, 1fr) !important;
+          flex: 1 1 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          height: auto !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          overflow: hidden !important;
+        }
+        purple-pen-app.desktop-ui .left-panel {
+          grid-column: 1 !important;
+          grid-row: 1 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          overflow: auto !important;
+        }
+        purple-pen-app.desktop-ui .workspace-divider {
+          grid-column: 2 !important;
+          grid-row: 1 !important;
+          display: block !important;
+          width: 6px !important;
+          min-width: 6px !important;
+        }
+        purple-pen-app.desktop-ui .map-panel {
+          grid-column: 3 !important;
+          grid-row: 1 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          width: auto !important;
+          height: 100% !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          flex: 1 1 0 !important;
+          overflow: hidden !important;
+        }
+        purple-pen-app.desktop-ui .course-banner {
+          flex: 0 0 auto !important;
+          min-width: 0 !important;
+          max-width: 100% !important;
+        }
+        purple-pen-app.desktop-ui .map-canvas {
+          display: block !important;
+          width: 100% !important;
+          height: 100% !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          flex: 1 1 0 !important;
+          max-width: 100% !important;
+          touch-action: none !important;
+        }
+        purple-pen-app .ui-mode-toggle {
+          flex: 0 0 auto;
+          margin-left: auto;
+          padding: 4px 9px;
+          border-radius: 7px;
+          border: 1px solid #c7c7c7;
+          background: rgba(255,255,255,.96);
+          color: #222;
+          font: inherit;
+          line-height: 1.2;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        purple-pen-app .ui-mode-toggle:hover,
+        purple-pen-app .ui-mode-toggle:focus-visible {
+          background: #fff;
+          border-color: #8e8e8e;
+          outline: none;
+        }
+        purple-pen-app .ui-mode-toggle + .feedback-link {
+          margin-left: 6px !important;
+        }
+        purple-pen-app .pdf-export-dialog {
+          width: min(760px, calc(100vw - 28px));
+          max-width: calc(100vw - 28px);
+        }
+        purple-pen-app .pdf-export-form {
+          min-width: min(720px, calc(100vw - 56px));
+        }
+        purple-pen-app .pdf-export-layout {
+          display: grid;
+          grid-template-columns: minmax(230px, .9fr) minmax(260px, 1.1fr);
+          gap: 10px 14px;
+          align-items: start;
+        }
+        purple-pen-app .pdf-export-layout fieldset {
+          border: 1px solid #d6d6d6;
+          border-radius: 8px;
+          padding: 8px 10px 10px;
+          margin: 0;
+        }
+        purple-pen-app .pdf-export-layout legend {
+          font-weight: 600;
+          padding: 0 4px;
+        }
+        purple-pen-app .pdf-export-layout label {
+          display: grid;
+          gap: 3px;
+          margin: 6px 0;
+        }
+        purple-pen-app .pdf-export-layout .dialog-check {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin: 7px 0;
+        }
+        purple-pen-app .pdf-export-layout select,
+        purple-pen-app .pdf-export-layout input[type="text"] {
+          width: 100%;
+          box-sizing: border-box;
+        }
+        purple-pen-app .pdf-export-summary {
+          grid-column: 1 / -1;
+          min-height: 1.2em;
+        }
+        @media (max-width: 700px) {
+          purple-pen-app .pdf-export-layout {
+            grid-template-columns: 1fr;
+          }
+          purple-pen-app .pdf-export-summary {
+            grid-column: auto;
+          }
+        }
+      </style>
       <div class="app-frame">
         <input id="ppenInput" type="file" accept=".ppen,.xml,text/xml" hidden>
-        <input id="mapInput" type="file" accept="image/*,.pdf" hidden>
+        <input id="mapInput" type="file" accept="image/*,application/pdf,.pdf" hidden>
         <input id="omapInput" type="file" hidden>
-        <button id="uiModeToggle" class="ui-mode-toggle" type="button" title="${escapeAttr(this.t("Switch between desktop and mobile UI"))}" aria-label="${escapeAttr(this.t("Switch between desktop and mobile UI"))}" style="position:fixed;top:8px;right:8px;z-index:2147483647;padding:6px 10px;border-radius:8px;border:1px solid #c7c7c7;background:rgba(255,255,255,.96);color:#222;font:inherit;box-shadow:0 2px 10px rgba(0,0,0,.18);"></button>
         <div class="orientation-overlay" aria-live="polite">
           <div>
             <strong>${escapeHtml(this.t("Rotate your phone"))}</strong>
@@ -483,7 +721,7 @@ export class PurplePenApp extends HTMLElement {
             ["open", "Open .ppen"],
             ["save", "Save .ppen"],
             ["save-as", "Save As"],
-            ["map-image", "Choose Map Image"],
+            ["map-image", "Choose Map Image/PDF"],
             ["omap-import", "Import OMAP Map"],
             ["omap-clear", "Clear OMAP Map"],
             ["export-png", "Create Image File"],
@@ -560,6 +798,7 @@ export class PurplePenApp extends HTMLElement {
             ["about", "About O-Composer"],
             ["help", "Frontend Limitations"]
           ])}
+          <button id="uiModeToggle" class="ui-mode-toggle" type="button" title="${escapeAttr(this.t("Switch between desktop and mobile UI"))}" aria-label="${escapeAttr(this.t("Switch between desktop and mobile UI"))}"></button>
           <a class="feedback-link" href="https://365.kdocs.cn/l/cmBYi18akxdM" target="_blank" rel="noopener noreferrer">${escapeHtml(this.t("Feedback"))}</a>
           <div class="app-brand" aria-label="${escapeAttr(`O-Composer ${APP_VERSION}`)}">
             <strong>O-Composer</strong>
@@ -670,6 +909,46 @@ export class PurplePenApp extends HTMLElement {
             <footer class="dialog-actions">
               <button type="button" data-print-area-cancel>${escapeHtml(this.t("Cancel"))}</button>
               <button type="submit" class="primary-button">${escapeHtml(this.t("Apply"))}</button>
+            </footer>
+          </form>
+        </dialog>
+        <dialog id="pdfExportDialog" class="command-dialog pdf-export-dialog" aria-modal="false" hidden>
+          <form id="pdfExportForm" class="command-form pdf-export-form" autocomplete="off">
+            <header class="dialog-heading">
+              <h2>${escapeHtml(this.t("Create PDF"))}</h2>
+              <button type="button" class="icon-button" data-pdf-export-cancel aria-label="${escapeAttr(this.t("Close"))}">x</button>
+            </header>
+            <div class="pdf-export-layout">
+              <fieldset>
+                <legend>${escapeHtml(this.t("Courses"))}</legend>
+                <label>${escapeHtml(this.t("Export"))}
+                  <select id="pdfCourseScope"></select>
+                </label>
+              </fieldset>
+              <fieldset>
+                <legend>${escapeHtml(this.t("Appearance"))}</legend>
+                <label class="dialog-check"><input id="pdfIncludeBaseMap" type="checkbox" checked> ${escapeHtml(this.t("Include base map"))}</label>
+                <label class="dialog-check"><input id="pdfIncludeDescriptions" type="checkbox" checked> ${escapeHtml(this.t("Include control descriptions"))}</label>
+                <label>${escapeHtml(this.t("Rendering"))}
+                  <select id="pdfOutputMode">
+                    <option value="auto">${escapeHtml(this.t("Automatic"))}</option>
+                    <option value="vector">${escapeHtml(this.t("Vector PDF"))}</option>
+                    <option value="raster">${escapeHtml(this.t("Raster PDF"))}</option>
+                  </select>
+                </label>
+              </fieldset>
+              <fieldset>
+                <legend>${escapeHtml(this.t("Files"))}</legend>
+                <label>${escapeHtml(this.t("File name prefix"))}
+                  <input id="pdfFilePrefix" type="text">
+                </label>
+                <label class="dialog-check"><input id="pdfUseCourseNames" type="checkbox" checked> ${escapeHtml(this.t("Add course names to exported files"))}</label>
+              </fieldset>
+              <div id="pdfExportSummary" class="command-message pdf-export-summary"></div>
+            </div>
+            <footer class="dialog-actions">
+              <button type="button" data-pdf-export-cancel>${escapeHtml(this.t("Cancel"))}</button>
+              <button type="submit" class="primary-button">${escapeHtml(this.t("Create"))}</button>
             </footer>
           </form>
         </dialog>
@@ -822,6 +1101,13 @@ export class PurplePenApp extends HTMLElement {
       }
       this.clearPrintAreaDialogPreview();
     });
+    this.querySelector("#pdfExportForm").addEventListener("submit", event => {
+      event.preventDefault();
+      void this.createPdfFromDialog();
+    });
+    this.querySelector("#pdfExportDialog").addEventListener("click", event => this.handlePdfExportDialogClick(event));
+    this.querySelector("#pdfExportDialog").addEventListener("input", () => this.updatePdfExportDialogSummary());
+    this.querySelector("#pdfExportDialog").addEventListener("change", () => this.updatePdfExportDialogSummary());
     this.querySelector("#commandForm").addEventListener("submit", event => {
       event.preventDefault();
       this.applyCommandDialog();
@@ -832,14 +1118,18 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#commandDialog").addEventListener("pointerover", event => this.scheduleSymbolTooltip(event));
     this.querySelector("#commandDialog").addEventListener("pointerout", event => this.hideSymbolTooltip(event));
     this.enablePanelDrag(this.querySelector("#printAreaDialog"));
+    this.enablePanelDrag(this.querySelector("#pdfExportDialog"));
     this.enablePanelDrag(this.querySelector("#commandDialog"));
     window.addEventListener("keydown", event => this.handleKey(event));
     window.addEventListener("pointerdown", () => this.ensureMobileLandscapeMode(), { passive: true });
     window.addEventListener("touchstart", () => this.ensureMobileLandscapeMode(), { passive: true });
-    window.addEventListener("resize", () => this.syncResponsiveUiClass());
+    window.addEventListener("resize", () => {
+      this.syncResponsiveUiClass();
+      this.deferMapLayoutRefresh();
+    });
     window.addEventListener("orientationchange", () => {
       this.syncResponsiveUiClass();
-      this.mapView.requestDraw(this.store.snapshot());
+      this.deferMapLayoutRefresh();
     });
   }
 
@@ -917,6 +1207,7 @@ export class PurplePenApp extends HTMLElement {
 
   render(state) {
     const keys = renderKeysFor(state);
+    const preserveSelectionPanelInput = this.shouldPreserveSelectionPanelInput();
     const shouldRenderCourse = !this.renderKeys
       || this.renderKeys.eventModel !== keys.eventModel
       || this.renderKeys.selectedCourseId !== keys.selectedCourseId
@@ -925,9 +1216,9 @@ export class PurplePenApp extends HTMLElement {
       || this.renderKeys.variationCode !== keys.variationCode
       || this.renderKeys.relayTeam !== keys.relayTeam
       || this.renderKeys.relayLeg !== keys.relayLeg;
-    const shouldRenderSelection = shouldRenderCourse
+    const shouldRenderSelection = !preserveSelectionPanelInput && (shouldRenderCourse
       || !this.renderKeys
-      || this.renderKeys.selection !== keys.selection;
+      || this.renderKeys.selection !== keys.selection);
     const shouldRenderReport = !this.renderKeys
       || this.renderKeys.reportTitle !== keys.reportTitle
       || this.renderKeys.reportKind !== keys.reportKind
@@ -960,6 +1251,10 @@ export class PurplePenApp extends HTMLElement {
     if (shouldRenderSelection) {
       this.renderSelection(state);
     }
+    else if (preserveSelectionPanelInput) {
+      this.syncBackgroundFields(document.activeElement);
+      this.syncBackgroundMeasurement();
+    }
     if (shouldRenderReport) {
       this.renderReport(state);
     }
@@ -969,6 +1264,13 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#intensitySlider").value = Math.round(state.ui.mapIntensity * 100);
     this.mapView.requestDraw(state);
     this.renderKeys = keys;
+  }
+
+  shouldPreserveSelectionPanelInput() {
+    const active = document.activeElement;
+    return !!active
+      && active.closest?.("#selectionPanel")
+      && active.dataset?.backgroundField !== undefined;
   }
 
   renderTabs({ eventModel, ui }) {
@@ -1780,6 +2082,8 @@ export class PurplePenApp extends HTMLElement {
         <h2>${escapeHtml(this.t("Map"))}</h2>
         <div class="readonly-field"><span>${escapeHtml(this.t("File"))}</span><strong>${escapeHtml(background.name || "")}</strong></div>
         <div class="readonly-field"><span>${escapeHtml(this.t("Image size"))}</span><strong>${Math.round(background.naturalWidth || 0)} x ${Math.round(background.naturalHeight || 0)} px</strong></div>
+        ${background.sourceKind === "pdf" ? `<div class="readonly-field"><span>${escapeHtml(this.t("PDF page"))}</span><strong>${escapeHtml(String(background.pdf?.pageNumber || 1))} / ${escapeHtml(String(background.pdf?.pageCount || 1))}</strong></div>` : ""}
+        ${background.sourceKind === "pdf" ? `<div class="readonly-field"><span>${escapeHtml(this.t("PDF render resolution"))}</span><strong>${Math.round(background.pdf?.renderDpi || 0)} dpi</strong></div>` : ""}
         <div class="readonly-field"><span>${escapeHtml(this.t("Map scale"))}</span><strong>1:${escapeHtml(String(mapScale))}</strong></div>
         <div class="form-grid">
           <label>${escapeHtml(this.t("Map width (m)"))} <input data-background-field="widthMeters" type="number" min="0.1" step="0.1" value="${formatInputNumber(width)}"></label>
@@ -2328,7 +2632,7 @@ export class PurplePenApp extends HTMLElement {
         alert(this.t("O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.", { version: APP_VERSION }));
         break;
       case "help":
-        alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ppen files, render uncompressed .omap/.xmap XML maps, and export browser-generated files. Native OCAD/PDF map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));
+        alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));
         break;
       default:
         if (command.startsWith("tool-")) {
@@ -2668,8 +2972,9 @@ export class PurplePenApp extends HTMLElement {
     const state = this.store.snapshot();
     const selection = state.ui.selection;
     if (target.dataset.backgroundField !== undefined) {
-      this.renderKeys = null;
       this.updateBackgroundField(target.dataset.backgroundField, target.value);
+      this.syncBackgroundFields(target);
+      this.syncBackgroundMeasurement();
       return;
     }
     if (target.dataset.eventField !== undefined) {
@@ -2943,8 +3248,12 @@ export class PurplePenApp extends HTMLElement {
     }
   }
 
-  openMapFile(file) {
+  async openMapFile(file) {
     if (!file) return;
+    if (isPdfFile(file)) {
+      await this.openPdfMapFile(file);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const url = String(reader.result || "");
@@ -2961,13 +3270,52 @@ export class PurplePenApp extends HTMLElement {
         }, "Map image loaded");
       };
       image.onerror = () => {
-        alert(this.t("Could not import map image {name}. Convert PDF maps to an image if your browser cannot preview them directly.", {
+        alert(this.t("Could not import map image {name}.", {
           name: file.name || this.t("Unknown file")
         }));
       };
       image.src = url;
     };
     reader.readAsDataURL(file);
+  }
+
+  async openPdfMapFile(file) {
+    this.store.updateUi(ui => {
+      ui.status = this.t("Rendering PDF map…");
+    }, "PDF map import started");
+    try {
+      const rendered = await renderPdfBasemap(file, {
+        dpi: 300,
+        choosePageNumber: pageCount => this.choosePdfMapPage(file, pageCount)
+      });
+      const image = await loadImage(rendered.url);
+      this.mapView.setBackground(rendered.url);
+      this.mapView.setOmap(null);
+      const metadata = backgroundMetadataForPdf(file, rendered, image, this.store.snapshot().eventModel);
+      this.store.updateUi(ui => {
+        ui.background = metadata;
+        ui.omap = null;
+        ui.pan = { x: 0, y: 0 };
+        ui.zoom = 1;
+        ui.status = this.t("PDF map imported at {dpi} dpi.", { dpi: Math.round(rendered.renderDpi) });
+      }, "PDF map loaded");
+    }
+    catch (error) {
+      this.store.updateUi(ui => { ui.status = "Ready"; }, "PDF map import failed");
+      alert(this.t("Could not import PDF map {name}: {message}", {
+        name: file.name || this.t("Unknown file"),
+        message: error.message || String(error)
+      }));
+    }
+  }
+
+  choosePdfMapPage(file, pageCount) {
+    const answer = window.prompt(this.t("PDF {name} has {count} pages. Import page:", {
+      name: file.name || this.t("Unknown file"),
+      count: pageCount
+    }), "1");
+    const value = Number(answer);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
   }
 
   openOmapFile(file) {
@@ -3028,44 +3376,221 @@ export class PurplePenApp extends HTMLElement {
     }, "image/png");
   }
 
-  async exportPdf() {
-    const state = this.store.snapshot();
-    const area = normalizePrintArea(state.ui.printAreaEdit?.preview || effectivePrintArea(state.eventModel, state.ui.selectedCourseId));
-    if (area.automatic) {
-      this.promptPrintArea();
-      alert(this.t("Choose an export area first, then run Create PDF again."));
+  exportPdf() {
+    this.openPdfExportDialog();
+  }
+
+  openPdfExportDialog() {
+    const dialog = this.querySelector("#pdfExportDialog");
+    this.populatePdfExportDialog();
+    openFloatingPalette(dialog);
+    this.updatePdfExportDialogSummary();
+  }
+
+  closePdfExportDialog() {
+    closeFloatingPalette(this.querySelector("#pdfExportDialog"));
+  }
+
+  handlePdfExportDialogClick(event) {
+    if (event.target.closest("[data-pdf-export-cancel]")) {
+      this.closePdfExportDialog();
       return;
     }
+  }
+
+  populatePdfExportDialog() {
+    const state = this.store.snapshot();
+    const settings = readPdfExportSettings(effectivePrintArea(state.eventModel, state.ui.selectedCourseId));
+    this.populatePdfCourseOptions(state, settings.courseScope);
+    this.querySelector("#pdfIncludeBaseMap").checked = settings.includeBaseMap !== false;
+    this.querySelector("#pdfIncludeDescriptions").checked = settings.includeDescriptions !== false;
+    this.querySelector("#pdfOutputMode").value = settings.outputMode || PDF_OUTPUT_MODES.AUTO;
+    this.querySelector("#pdfFilePrefix").value = settings.filePrefix || baseName(state.eventModel.sourceName);
+    this.querySelector("#pdfUseCourseNames").checked = settings.useCourseNames !== false;
+  }
+
+  populatePdfCourseOptions(state, preferredValue) {
+    const select = this.querySelector("#pdfCourseScope");
+    const selectedCourse = state.ui.selectedCourseId === "all" ? null : getCourse(state.eventModel, state.ui.selectedCourseId);
+    const options = [];
+    if (selectedCourse) {
+      options.push(`<option value="${PDF_COURSE_SCOPES.CURRENT}">${escapeHtml(this.t("Current course"))}: ${escapeHtml(selectedCourse.name)}</option>`);
+    }
+    else {
+      options.push(`<option value="${PDF_COURSE_SCOPES.CURRENT}">${escapeHtml(this.t("Current view"))}</option>`);
+    }
+    options.push(`<option value="${PDF_COURSE_SCOPES.ALL_CONTROLS}">${escapeHtml(this.t("All Controls"))}</option>`);
+    if (state.eventModel.courses.length) {
+      options.push(`<option value="${PDF_COURSE_SCOPES.ALL_COURSES}">${escapeHtml(this.t("All courses, separate PDFs"))}</option>`);
+    }
+    for (const course of sortedCourses(state.eventModel)) {
+      options.push(`<option value="${PDF_COURSE_SCOPES.COURSE_PREFIX}${course.id}">${escapeHtml(this.t("Course"))}: ${escapeHtml(course.name)}</option>`);
+    }
+    select.innerHTML = options.join("");
+    const values = new Set(Array.from(select.options).map(option => option.value));
+    select.value = values.has(preferredValue) ? preferredValue : PDF_COURSE_SCOPES.CURRENT;
+  }
+
+  pdfSettingsFromDialog() {
+    return {
+      courseScope: this.querySelector("#pdfCourseScope").value,
+      includeBaseMap: this.querySelector("#pdfIncludeBaseMap").checked,
+      includeDescriptions: this.querySelector("#pdfIncludeDescriptions").checked,
+      pageBackground: false,
+      outputMode: this.querySelector("#pdfOutputMode").value,
+      filePrefix: this.querySelector("#pdfFilePrefix").value.trim() || baseName(this.store.snapshot().eventModel.sourceName),
+      useCourseNames: this.querySelector("#pdfUseCourseNames").checked
+    };
+  }
+
+  updatePdfExportDialogSummary() {
+    const state = this.store.snapshot();
+    const summary = this.querySelector("#pdfExportSummary");
+    if (!summary) return;
+    const settings = this.pdfSettingsFromDialog();
+    const targets = this.pdfExportTargets(state, settings);
+    const bitmapBaseMap = settings.includeBaseMap && this.mapView.hasBitmapBackground() && !this.mapView.omapMap;
+    const renderingLabel = bitmapBaseMap
+      ? "Raster PDF (bitmap base map)."
+      : settings.outputMode === PDF_OUTPUT_MODES.RASTER
+        ? "Raster PDF."
+        : settings.outputMode === PDF_OUTPUT_MODES.VECTOR
+          ? "Vector PDF."
+          : "Automatic rendering.";
+    const parts = [
+      this.t(targets.length === 1 ? "1 PDF will be created." : "{count} PDFs will be created.", { count: targets.length }),
+      this.t(settings.includeBaseMap ? "Base map included." : "Course overlay only."),
+      this.t(renderingLabel)
+    ];
+    summary.hidden = false;
+    summary.textContent = parts.join(" ");
+  }
+
+  async createPdfFromDialog() {
+    const state = this.store.snapshot();
+    const settings = this.pdfSettingsFromDialog();
+    writePdfExportSettings(settings);
+    const targets = this.pdfExportTargets(state, settings);
+    if (!targets.length) {
+      alert(this.t("No courses are available to export."));
+      return;
+    }
+
     try {
-      const page = pageSizeMm(area);
-      const marginMm = pageMarginMm(area);
-      const size = pdfPixelSize(page, marginMm);
-      const hasRasterMap = this.mapView.hasBitmapBackground() && !this.mapView.omapMap;
-      const blob = hasRasterMap
-        ? await createRasterMapPdfBlob({
-            pageWidthMm: page.width,
-            pageHeightMm: page.height,
-            marginMm,
-            canvas: this.mapView.renderAreaToCanvas(state.eventModel, state.ui, area, size, {
-              includeBitmapBackground: true,
-              includePageBackground: false
-            })
-          })
-        : await createVectorMapPdfBlob({
-            pageWidthMm: page.width,
-            pageHeightMm: page.height,
-            marginMm,
-            canvasWidth: size.width,
-            canvasHeight: size.height,
-            draw: ctx => this.mapView.renderAreaToContext(ctx, state.eventModel, state.ui, area, size, {
-              includePageBackground: false
-            })
-          });
-      downloadBlob(`${baseName(state.eventModel.sourceName)}.pdf`, blob);
+      for (let index = 0; index < targets.length; index += 1) {
+        const target = targets[index];
+        const blob = await this.createPdfBlobForTarget(state, target, settings);
+        const suffix = settings.useCourseNames || targets.length > 1 ? `-${safeFilePart(target.name)}` : "";
+        downloadBlob(`${safeFilePart(settings.filePrefix)}${suffix}.pdf`, blob);
+        if (targets.length > 1) {
+          await delay(180);
+        }
+      }
+      this.closePdfExportDialog();
     }
     catch (error) {
       alert(error.message || String(error));
     }
+  }
+
+  pdfExportTargets(state, settings) {
+    const scope = settings.courseScope || PDF_COURSE_SCOPES.CURRENT;
+    const currentCourse = state.ui.selectedCourseId === "all" ? null : getCourse(state.eventModel, state.ui.selectedCourseId);
+    if (scope === PDF_COURSE_SCOPES.ALL_COURSES) {
+      return sortedCourses(state.eventModel).map(course => ({
+        type: "course",
+        courseId: course.id,
+        uiCourseId: course.id,
+        name: course.name || `course-${course.id}`
+      }));
+    }
+    if (scope === PDF_COURSE_SCOPES.ALL_CONTROLS) {
+      return [{ type: "all-controls", uiCourseId: "all", name: this.t("All Controls") }];
+    }
+    if (scope.startsWith(PDF_COURSE_SCOPES.COURSE_PREFIX)) {
+      const courseId = Number(scope.slice(PDF_COURSE_SCOPES.COURSE_PREFIX.length));
+      const course = getCourse(state.eventModel, courseId);
+      return course ? [{ type: "course", courseId, uiCourseId: courseId, name: course.name || `course-${courseId}` }] : [];
+    }
+    if (currentCourse) {
+      return [{ type: "course", courseId: currentCourse.id, uiCourseId: currentCourse.id, name: currentCourse.name || `course-${currentCourse.id}` }];
+    }
+    return [{ type: "all-controls", uiCourseId: "all", name: this.t("All Controls") }];
+  }
+
+  sourcePrintAreaForPdfTarget(state, target) {
+    return target.type === "course"
+      ? effectivePrintArea(state.eventModel, target.courseId)
+      : effectivePrintArea(state.eventModel, "all");
+  }
+
+  pdfAreaForTarget(state, target, settings) {
+    const sourceArea = normalizePrintArea(this.sourcePrintAreaForPdfTarget(state, target));
+    if (!sourceArea.automatic) {
+      return sourceArea;
+    }
+    return printAreaFromBounds(this.mapView.currentViewBounds(state.ui), sourceArea);
+  }
+
+  async createPdfBlobForTarget(state, target, settings) {
+    const area = this.pdfAreaForTarget(state, target, settings);
+    const page = pageSizeMm(area);
+    const marginMm = pageMarginMm(area);
+    const size = pdfPixelSize(page, marginMm);
+    const eventModel = settings.includeDescriptions
+      ? state.eventModel
+      : { ...cloneEvent(state.eventModel), specials: (state.eventModel.specials || []).filter(special => special.kind !== "descriptions") };
+    const exportUi = {
+      ...state.ui,
+      selectedCourseId: target.uiCourseId,
+      showAllControls: target.type === "all-controls"
+    };
+    const pdfBackground = this.vectorPdfBackgroundForExport(state, area, size, settings);
+    const hasRasterMap = settings.includeBaseMap
+      && this.mapView.hasBitmapBackground()
+      && !this.mapView.omapMap
+      && !pdfBackground;
+    const forceRaster = settings.outputMode === PDF_OUTPUT_MODES.RASTER;
+    const forceVector = settings.outputMode === PDF_OUTPUT_MODES.VECTOR;
+    if (forceRaster || hasRasterMap) {
+      return createRasterMapPdfBlob({
+        pageWidthMm: page.width,
+        pageHeightMm: page.height,
+        marginMm,
+        canvas: this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
+          includeBitmapBackground: settings.includeBaseMap,
+          includeOmapMap: settings.includeBaseMap,
+          includePageBackground: false
+        })
+      });
+    }
+    return createVectorMapPdfBlob({
+      pageWidthMm: page.width,
+      pageHeightMm: page.height,
+      marginMm,
+      canvasWidth: size.width,
+      canvasHeight: size.height,
+      backgroundPdf: pdfBackground,
+      draw: ctx => this.mapView.renderAreaToContext(ctx, eventModel, exportUi, area, size, {
+        includeBitmapBackground: false,
+        includeOmapMap: settings.includeBaseMap,
+        includePageBackground: false
+      })
+    });
+  }
+
+
+  vectorPdfBackgroundForExport(state, area, size, settings) {
+    if (!settings.includeBaseMap) return null;
+    const background = state.ui.background;
+    if (background?.sourceKind !== "pdf" || !background.pdf?.sourceDataUrl) return null;
+    const canvasBox = this.mapView.backgroundExportCanvasBox(state.ui, area, size);
+    if (!canvasBox || !(Math.abs(canvasBox.width) > 0) || !(Math.abs(canvasBox.height) > 0)) return null;
+    return {
+      sourceDataUrl: background.pdf.sourceDataUrl,
+      pageNumber: background.pdf.pageNumber || 1,
+      canvasBox
+    };
   }
 
   showReport(command) {
@@ -3388,6 +3913,7 @@ export class PurplePenApp extends HTMLElement {
     const target = event.target;
     if (target.dataset.backgroundField !== undefined) {
       this.updateBackgroundField(target.dataset.backgroundField, target.value);
+      this.syncBackgroundFields(target);
       this.syncBackgroundMeasurement();
       return;
     }
@@ -3412,6 +3938,30 @@ export class PurplePenApp extends HTMLElement {
     output.textContent = measured
       ? `${this.t("Selected line")}: ${formatDecimal(measured)} m`
       : this.t("Click two points on the map, then enter their real distance.");
+  }
+
+  syncBackgroundFields(activeTarget = null) {
+    const background = this.store.snapshot().ui.background;
+    if (!background) return;
+    const eventModel = this.store.snapshot().eventModel;
+    const mapScale = positiveScale(eventModel.event?.map?.scale) || 15000;
+    const width = positiveNumber(background.widthMeters, 0);
+    const aspect = backgroundAspect(background);
+    const values = {
+      widthMeters: formatInputNumber(width),
+      heightMeters: formatInputNumber(positiveNumber(background.heightMeters, width * aspect)),
+      printedWidthCm: formatInputNumber(background.printedWidthCm || (width ? width / mapScale * 100 : 0)),
+      mapScale: String(mapScale),
+      calibrationDistanceMeters: formatInputNumber(background.calibrationDistanceMeters || ""),
+      calibrationPrintedCm: formatInputNumber(background.calibrationPrintedCm || "")
+    };
+    this.querySelectorAll("#selectionPanel [data-background-field]").forEach(input => {
+      if (input === activeTarget) return;
+      const nextValue = values[input.dataset.backgroundField];
+      if (nextValue !== undefined && input.value !== nextValue) {
+        input.value = nextValue;
+      }
+    });
   }
 
   handleCommandDialogInput(event) {
@@ -5139,6 +5689,7 @@ function backgroundMetadataForImage(file, url, image, eventModel) {
     name: file.name,
     url,
     type: file.type,
+    sourceKind: "image",
     naturalWidth,
     naturalHeight,
     centerX: 0,
@@ -5148,6 +5699,33 @@ function backgroundMetadataForImage(file, url, image, eventModel) {
     printedWidthCm: widthMeters / mapScale * 100,
     calibration: { imagePoints: [] }
   };
+}
+
+function backgroundMetadataForPdf(file, rendered, image, eventModel) {
+  const metadata = backgroundMetadataForImage({
+    name: file.name,
+    type: "application/pdf"
+  }, rendered.url, image, eventModel);
+  metadata.sourceKind = "pdf";
+  metadata.pdf = {
+    pageNumber: rendered.pageNumber,
+    pageCount: rendered.pageCount,
+    renderDpi: rendered.renderDpi,
+    renderScale: rendered.renderScale,
+    sourceWidthPt: rendered.sourceWidthPt,
+    sourceHeightPt: rendered.sourceHeightPt,
+    sourceDataUrl: rendered.sourceDataUrl || null
+  };
+  return metadata;
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Could not load rendered PDF image."));
+    image.src = url;
+  });
 }
 
 function backgroundAspect(background) {
@@ -5690,7 +6268,8 @@ function pageMarginMm(area) {
 function pdfPixelSize(page, marginMm) {
   const contentWidth = Math.max(10, page.width - marginMm * 2);
   const contentHeight = Math.max(10, page.height - marginMm * 2);
-  const pixelsPerMm = 5;
+  // 12 px/mm is about 305 dpi. This keeps PDF/bitmap basemaps sharp in raster PDF exports.
+  const pixelsPerMm = 12;
   return {
     width: Math.max(600, Math.round(contentWidth * pixelsPerMm)),
     height: Math.max(600, Math.round(contentHeight * pixelsPerMm))
@@ -5865,6 +6444,64 @@ function tableHtml(title, headers, rows) {
       }).join("")}</tr>`).join("")}</tbody>
     </table>
   `;
+}
+
+
+function defaultPdfExportSettings() {
+  return {
+    courseScope: PDF_COURSE_SCOPES.CURRENT,
+    pageWidth: 827,
+    pageHeight: 1169,
+    pageMargins: 11.811,
+    pageLandscape: false,
+    includeBaseMap: true,
+    includeDescriptions: true,
+    pageBackground: false,
+    outputMode: PDF_OUTPUT_MODES.AUTO,
+    filePrefix: "",
+    useCourseNames: true
+  };
+}
+
+function readPdfExportSettings(fallbackArea = null) {
+  const defaults = { ...defaultPdfExportSettings() };
+  if (fallbackArea) {
+    defaults.pageWidth = fallbackArea.pageWidth;
+    defaults.pageHeight = fallbackArea.pageHeight;
+    defaults.pageMargins = fallbackArea.pageMargins;
+    defaults.pageLandscape = fallbackArea.pageLandscape;
+  }
+  try {
+    const raw = localStorage.getItem(PDF_EXPORT_SETTINGS_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    return { ...defaults, ...(parsed || {}) };
+  }
+  catch {
+    return defaults;
+  }
+}
+
+function writePdfExportSettings(settings) {
+  try {
+    localStorage.setItem(PDF_EXPORT_SETTINGS_KEY, JSON.stringify(settings));
+  }
+  catch {
+    // Ignore quota/private-mode failures; export still works with this run's settings.
+  }
+}
+
+function safeFilePart(value) {
+  const cleaned = String(value || "event")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/^-+|-+$/g, "");
+  return cleaned || "event";
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function download(fileName, content, type) {

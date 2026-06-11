@@ -3824,6 +3824,7 @@ export class PurplePenApp extends HTMLElement {
       canvasWidth: size.width,
       canvasHeight: size.height,
       backgroundPdf: pdfBackground,
+      needsUnicodeFont: containsUnicodeText(eventModel) || containsUnicodeText(target.name),
       onProgress: async stage => {
         const phase = vectorPdfProgressPhase(stage);
         const message = vectorPdfProgressMessage(stage, target.name, this.t.bind(this));
@@ -7036,6 +7037,25 @@ function canScrollElement(element, deltaY) {
   if (!(maxScrollTop > 0)) return false;
   if (deltaY < 0) return element.scrollTop > 0;
   return element.scrollTop < maxScrollTop - 1;
+}
+
+function containsUnicodeText(value, seen = new Set(), key = "") {
+  if (value == null) return false;
+  if (typeof value === "string") {
+    if (key && /(?:data|url|source|content)/i.test(key) && value.length > 256) return false;
+    if (value.length > 10000) return false;
+    for (const char of value) {
+      if (char.codePointAt(0) > 255) return true;
+    }
+    return false;
+  }
+  if (typeof value !== "object") return false;
+  if (seen.has(value)) return false;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.some(item => containsUnicodeText(item, seen));
+  }
+  return Object.entries(value).some(([entryKey, entryValue]) => containsUnicodeText(entryValue, seen, entryKey));
 }
 
 function escapeHtml(value) {

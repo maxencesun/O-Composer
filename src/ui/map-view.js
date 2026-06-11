@@ -16,7 +16,7 @@ import {
   specialVisibleForCourse
 } from "../domain/control-descriptions.js";
 import { effectivePrintArea } from "../domain/print-area.js";
-import { relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import {
   createCourseSymbolMetrics,
   defaultControlLabelPoint,
@@ -2164,7 +2164,11 @@ function mapCourseDisplayOptions(eventModel, ui = {}) {
   }
   if (ui.variationMode === "relay") {
     const variation = relayVariationForLeg(eventModel, courseId, ui.relayTeam, ui.relayLeg);
-    return variation ? { variationChoices: variation.choices } : {};
+    const course = getCourse(eventModel, courseId);
+    return variation ? {
+      variationChoices: variation.choices,
+      relayLabel: relayEntryLabel(course?.relay || {}, ui.relayTeam, ui.relayLeg)
+    } : {};
   }
   return {};
 }

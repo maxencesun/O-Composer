@@ -88,6 +88,8 @@ import {
   allCourseVariations,
   courseHasVariations,
   relayAssignments,
+  relayEntryLabel,
+  relayTeamSizeOptions,
   relayVariationForLeg,
   variationBranchCodeMap,
   variationDisplayLabel,
@@ -1076,6 +1078,7 @@ export class PurplePenApp extends HTMLElement {
     this.querySelector("#descriptionPanel").addEventListener("pointerover", event => this.scheduleSymbolTooltip(event));
     this.querySelector("#descriptionPanel").addEventListener("pointerout", event => this.hideSymbolTooltip(event));
     this.querySelector("#variationPanel").addEventListener("click", event => this.handleVariationPanelClick(event));
+    this.querySelector("#variationPanel").addEventListener("input", event => this.handleVariationPanelInput(event));
     this.querySelector("#variationPanel").addEventListener("change", event => this.handleVariationPanelChange(event));
     this.querySelector("#printAreaForm").addEventListener("submit", event => {
       event.preventDefault();
@@ -1567,6 +1570,67 @@ export class PurplePenApp extends HTMLElement {
         <h3>${escapeHtml(this.t("All variations"))}</h3>
         <div class="variation-code-list">${variations.map(variation => `<button type="button" data-course-variation-code-select="${escapeAttr(variation.code)}">${escapeHtml(variation.code)}</button>`).join("")}</div>
       ` : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`}
+      ${this.relayAutoAssignmentPanel(eventModel, course, variations)}
+    `;
+  }
+
+  relayAutoAssignmentPanel(eventModel, course, variations) {
+    const relay = normalizedRelaySettings(course.relay);
+    const recommendedSizeOptions = relayTeamSizeOptions(eventModel, course.id);
+    const sizeOptions = uniqueNumbers([relay.legs, ...recommendedSizeOptions]).sort((a, b) => a - b);
+    const selectedLegs = relay.legs;
+    const assignments = relayAssignments(eventModel, course.id);
+    const legNameInputs = Array.from({ length: selectedLegs }, (_, index) => `
+      <label>${escapeHtml(this.t("Leg {number} name", { number: index + 1 }))}
+        <input data-relay-leg-name="${index}" value="${escapeAttr(relay.legNames[index] || "")}" placeholder="${escapeAttr(String(index + 1))}">
+      </label>
+    `).join("");
+    return `
+      <section class="relay-auto-panel">
+        <h3>${escapeHtml(this.t("Relay auto assignment"))}</h3>
+        ${variations.length ? `
+          <div class="relay-auto-grid">
+            <label>${escapeHtml(this.t("Total teams"))}
+              <input data-relay-settings-field="teams" type="number" min="0" value="${relay.teams}">
+            </label>
+            <label>${escapeHtml(this.t("Participants per team"))}
+              <select data-relay-settings-field="legs">
+                ${sizeOptions.map(value => `<option value="${value}" ${value === selectedLegs ? "selected" : ""}>${value}</option>`).join("")}
+              </select>
+            </label>
+            <label>${escapeHtml(this.t("First team"))}
+              <input data-relay-settings-field="firstTeam" type="number" min="1" value="${relay.firstTeam}">
+            </label>
+            <label>${escapeHtml(this.t("Team prefix"))}
+              <input data-relay-settings-field="teamPrefix" value="${escapeAttr(relay.teamPrefix)}">
+            </label>
+            <label>${escapeHtml(this.t("Team digits"))}
+              <input data-relay-settings-field="teamDigits" type="number" min="0" max="8" value="${relay.teamDigits}">
+            </label>
+            ${legNameInputs}
+          </div>
+          <p class="muted">${escapeHtml(this.t("Recommended participants per team: {options}.", { options: recommendedSizeOptions.join(", ") }))}</p>
+          <div class="relay-assignment-preview">${this.relayAssignmentListTable(assignments)}</div>
+        ` : `<p class="muted">${escapeHtml(this.t("Add a fork or loop to this course to create relay variations."))}</p>`}
+      </section>
+    `;
+  }
+
+  relayAssignmentListTable(assignments) {
+    if (!assignments.entries?.length) {
+      return `<p class="muted">${escapeHtml(this.t("Enter total teams to create relay assignments."))}</p>`;
+    }
+    const rows = assignments.entries.map(entry => `
+      <tr>
+        <td>${escapeHtml(entry.label)}</td>
+        <td>${escapeHtml(entry.variation?.code || "")}</td>
+      </tr>
+    `).join("");
+    return `
+      <table class="report-table relay-assignment-table relay-assignment-list">
+        <thead><tr><th>${escapeHtml(this.t("Team-leg"))}</th><th>${escapeHtml(this.t("Variation"))}</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
     `;
   }
 
@@ -1813,10 +1877,25 @@ export class PurplePenApp extends HTMLElement {
     }
   }
 
+  handleVariationPanelInput(event) {
+    const relayField = event.target.closest("[data-relay-settings-field]");
+    const relayLegName = event.target.closest("[data-relay-leg-name]");
+    if (!relayField && !relayLegName) return;
+    // Keep typing stable: update the in-memory relay settings and refresh only
+    // the assignment table. The change event still records the undo step.
+    this.previewRelaySettingsFromVariationPanel(relayField, relayLegName);
+  }
+
   handleVariationPanelChange(event) {
     const kindSelect = event.target.closest("[data-variation-add-kind]");
     const branchesInput = event.target.closest("[data-variation-add-branches]");
-    if (!kindSelect && !branchesInput) return;
+    const relayField = event.target.closest("[data-relay-settings-field]");
+    const relayLegName = event.target.closest("[data-relay-leg-name]");
+    if (!kindSelect && !branchesInput && !relayField && !relayLegName) return;
+    if (relayField || relayLegName) {
+      this.updateRelaySettingsFromVariationPanel(relayField, relayLegName);
+      return;
+    }
     this.store.updateUi(ui => {
       if (kindSelect) {
         ui.variationAddKind = kindSelect.value === "loop" ? "loop" : "fork";
@@ -1825,6 +1904,50 @@ export class PurplePenApp extends HTMLElement {
         ui.variationAddBranches = Math.max(2, Math.min(6, Math.round(Number(branchesInput.value) || 2)));
       }
     }, "Variation options");
+  }
+
+  updateRelaySettingsFromVariationPanel(relayField, relayLegName) {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    if (!courseId || courseId === "all") return;
+    if (!relayField || relayField.dataset.relaySettingsField !== "legs") {
+      this.previewRelaySettingsFromVariationPanel(relayField, relayLegName);
+      this.store.pushHistory("Change relay assignment");
+      this.store.redoStack = [];
+      return;
+    }
+    let nextRelay = null;
+    this.store.updateEvent(model => {
+      const course = getCourse(model, courseId);
+      if (!course) return;
+      course.relay = normalizedRelaySettings(course.relay);
+      applyRelayInputToSettings(course.relay, relayField, relayLegName);
+      nextRelay = { ...course.relay, legNames: [...(course.relay.legNames || [])] };
+    }, "Change relay assignment");
+    if (nextRelay) {
+      this.store.updateUi(ui => {
+        ui.relayTeam = clamp(Number(ui.relayTeam) || nextRelay.firstTeam || 1, nextRelay.firstTeam || 1, (nextRelay.firstTeam || 1) + Math.max(0, (nextRelay.teams || 1) - 1));
+        ui.relayLeg = clamp(Number(ui.relayLeg) || 1, 1, Math.max(1, nextRelay.legs || 1));
+      }, "Select relay leg");
+    }
+  }
+
+  previewRelaySettingsFromVariationPanel(relayField, relayLegName) {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    if (!courseId || courseId === "all") return;
+    const course = getCourse(state.eventModel, courseId);
+    if (!course) return;
+    course.relay = normalizedRelaySettings(course.relay);
+    applyRelayInputToSettings(course.relay, relayField, relayLegName);
+    state.eventModel.dirty = true;
+    this.refreshRelayAssignmentPreview(state.eventModel, course.id);
+  }
+
+  refreshRelayAssignmentPreview(eventModel, courseId) {
+    const container = this.querySelector(".relay-assignment-preview");
+    if (!container) return;
+    container.innerHTML = this.relayAssignmentListTable(relayAssignments(eventModel, courseId));
   }
 
   addVariationFromPanel() {
@@ -3694,28 +3817,58 @@ export class PurplePenApp extends HTMLElement {
       return blob;
     }
     await onProgress(1, this.t("Preparing {name} page…", { name: target.name }));
-    const blob = await createVectorMapPdfBlob({
-      pageWidthMm: page.width,
-      pageHeightMm: page.height,
-      marginMm,
-      canvasWidth: size.width,
-      canvasHeight: size.height,
-      backgroundPdf: pdfBackground,
-      onProgress: async stage => {
-        const phase = vectorPdfProgressPhase(stage);
-        const message = vectorPdfProgressMessage(stage, target.name, this.t.bind(this));
-        if (phase && message) {
-          await onProgress(phase, message);
-        }
-      },
-      draw: ctx => this.mapView.renderAreaToContext(ctx, eventModel, exportUi, area, size, {
-        includeBitmapBackground: false,
-        includeOmapMap: settings.includeBaseMap,
-        includePageBackground: false
-      })
-    });
-    await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
-    return blob;
+    try {
+      const blob = await createVectorMapPdfBlob({
+        pageWidthMm: page.width,
+        pageHeightMm: page.height,
+        marginMm,
+        canvasWidth: size.width,
+        canvasHeight: size.height,
+        backgroundPdf: pdfBackground,
+        onProgress: async stage => {
+          const phase = vectorPdfProgressPhase(stage);
+          const message = vectorPdfProgressMessage(stage, target.name, this.t.bind(this));
+          if (phase && message) {
+            await onProgress(phase, message);
+          }
+        },
+        draw: ctx => this.mapView.renderAreaToContext(ctx, eventModel, exportUi, area, size, {
+          includeBitmapBackground: false,
+          includeOmapMap: settings.includeBaseMap,
+          includePageBackground: false
+        })
+      });
+      await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
+      return blob;
+    }
+    catch (error) {
+      if (pdfBackground) {
+        await onProgress(2, this.t("Drawing {name} map…", { name: target.name }));
+        const canvas = this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
+          includeBitmapBackground: settings.includeBaseMap,
+          includeOmapMap: settings.includeBaseMap,
+          includePageBackground: false
+        });
+        await onProgress(4, this.t("Encoding {name} image…", { name: target.name }));
+        const blob = await createRasterMapPdfBlob({
+          pageWidthMm: page.width,
+          pageHeightMm: page.height,
+          marginMm,
+          canvas,
+          onProgress: async stage => {
+            if (stage === "encoding-image") {
+              await onProgress(5, this.t("Encoding {name} image…", { name: target.name }));
+            }
+            else if (stage === "building") {
+              await onProgress(6, this.t("Writing {name} PDF…", { name: target.name }));
+            }
+          }
+        });
+        await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
+        return blob;
+      }
+      throw error;
+    }
   }
 
 
@@ -3723,6 +3876,7 @@ export class PurplePenApp extends HTMLElement {
     if (!settings.includeBaseMap) return null;
     const background = state.ui.background;
     if (background?.sourceKind !== "pdf" || !background.pdf?.sourceDataUrl) return null;
+    if (!pdfDataUrlLooksLikePdf(background.pdf.sourceDataUrl)) return null;
     const canvasBox = this.mapView.backgroundExportCanvasBox(state.ui, area, size);
     if (!canvasBox || !(Math.abs(canvasBox.width) > 0) || !(Math.abs(canvasBox.height) > 0)) return null;
     return {
@@ -5018,7 +5172,11 @@ function courseDisplayOptions(eventModel, ui = {}) {
   }
   if (ui.variationMode === "relay") {
     const variation = relayVariationForLeg(eventModel, courseId, ui.relayTeam, ui.relayLeg);
-    return variation ? { variationChoices: variation.choices } : {};
+    const course = getCourse(eventModel, courseId);
+    return variation ? {
+      variationChoices: variation.choices,
+      relayLabel: relayEntryLabel(course?.relay || {}, ui.relayTeam, ui.relayLeg)
+    } : {};
   }
   return {};
 }
@@ -6656,6 +6814,52 @@ function uniqueFileName(fileName, usedNames) {
   }
   usedNames.add(candidate);
   return candidate;
+}
+
+function normalizedRelaySettings(relay = {}) {
+  const legs = Math.max(1, Math.round(Number(relay.legs) || 1));
+  return {
+    firstTeam: Math.max(1, Math.round(Number(relay.firstTeam) || 1)),
+    teams: Math.max(0, Math.round(Number(relay.teams) || 0)),
+    legs,
+    branches: Array.isArray(relay.branches) ? relay.branches : [],
+    teamPrefix: String(relay.teamPrefix || ""),
+    teamDigits: Math.max(0, Math.min(8, Math.round(Number(relay.teamDigits) || 0))),
+    legNames: Array.isArray(relay.legNames) ? relay.legNames.slice(0, legs).map(name => String(name || "")) : []
+  };
+}
+
+function applyRelayInputToSettings(relay, relayField, relayLegName) {
+  if (relayField) {
+    const field = relayField.dataset.relaySettingsField;
+    if (field === "teams") relay.teams = Math.max(0, Math.round(Number(relayField.value) || 0));
+    else if (field === "legs") relay.legs = Math.max(1, Math.round(Number(relayField.value) || 1));
+    else if (field === "firstTeam") relay.firstTeam = Math.max(1, Math.round(Number(relayField.value) || 1));
+    else if (field === "teamDigits") relay.teamDigits = Math.max(0, Math.min(8, Math.round(Number(relayField.value) || 0)));
+    else if (field === "teamPrefix") relay.teamPrefix = String(relayField.value || "");
+  }
+  if (relayLegName) {
+    const index = Math.max(0, Number(relayLegName.dataset.relayLegName) || 0);
+    relay.legNames ||= [];
+    relay.legNames[index] = String(relayLegName.value || "").trim();
+  }
+  relay.legNames = (relay.legNames || []).slice(0, Math.max(1, relay.legs || 1));
+}
+
+function pdfDataUrlLooksLikePdf(dataUrl) {
+  const text = String(dataUrl || "");
+  const comma = text.indexOf(",");
+  if (comma < 0) return false;
+  const header = text.slice(0, comma).toLowerCase();
+  if (!header.includes("application/pdf") && !header.includes(";base64")) return false;
+  try {
+    const sample = text.slice(comma + 1, comma + 1 + 256);
+    const binary = header.includes(";base64") ? atob(sample) : decodeURIComponent(sample);
+    return binary.includes("%PDF-");
+  }
+  catch {
+    return false;
+  }
 }
 
 function vectorPdfProgressPhase(stage) {

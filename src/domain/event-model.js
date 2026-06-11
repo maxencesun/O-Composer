@@ -166,7 +166,10 @@ export function createCourse(id, name = `Course ${id}`, kind = "normal", order =
       firstTeam: 1,
       teams: 0,
       legs: 1,
-      branches: []
+      branches: [],
+      teamPrefix: "",
+      teamDigits: 0,
+      legNames: []
     }
   };
 }

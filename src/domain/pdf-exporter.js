@@ -81,6 +81,12 @@ async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHei
   const { PDFDocument } = await loadPdfLib();
   await onProgress("reading-base-map");
   const sourceBytes = dataUrlBytes(sourceDataUrl);
+  if (!bytesLookLikePdf(sourceBytes)) {
+    throw new Error("The original PDF base map data is not available. Export again as a raster PDF.");
+  }
+  if (!bytesLookLikePdf(overlayBytes)) {
+    throw new Error("The generated course overlay is not a valid PDF.");
+  }
   const document = await PDFDocument.create();
   const sourceDocument = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
   const overlayDocument = await PDFDocument.load(overlayBytes, { ignoreEncryption: true });
@@ -941,13 +947,33 @@ function pdfName(value) {
 }
 
 function dataUrlBytes(dataUrl) {
-  const encoded = String(dataUrl || "").split(",")[1] || "";
-  const binary = atob(encoded);
+  const text = String(dataUrl || "");
+  const comma = text.indexOf(",");
+  const header = comma >= 0 ? text.slice(0, comma).toLowerCase() : "";
+  const encoded = comma >= 0 ? text.slice(comma + 1) : text;
+  const binary = header.includes(";base64")
+    ? atob(encoded)
+    : decodeURIComponent(encoded);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }
   return bytes;
+}
+
+function bytesLookLikePdf(bytes) {
+  if (!bytes || bytes.length < 5) return false;
+  const maxOffset = Math.min(1024, bytes.length - 5);
+  for (let offset = 0; offset <= maxOffset; offset += 1) {
+    if (bytes[offset] === 0x25
+      && bytes[offset + 1] === 0x50
+      && bytes[offset + 2] === 0x44
+      && bytes[offset + 3] === 0x46
+      && bytes[offset + 4] === 0x2d) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function canvasJpegBytes(canvas) {

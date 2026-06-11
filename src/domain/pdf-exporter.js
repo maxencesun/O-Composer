@@ -16,13 +16,16 @@ const PDF_LIB_CANDIDATES = Object.freeze([
 let pdfFontSetPromise = null;
 let pdfLibPromise = null;
 
-export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null }) {
+export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, onProgress = async () => {} }) {
+  await onProgress("loading-fonts");
   const fontSet = await loadPdfFontSet();
   const layout = pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm, canvasWidth, canvasHeight });
   const ctx = new PdfCanvasContext(canvasWidth, canvasHeight, layout.box, fontSet);
 
+  await onProgress("drawing");
   draw(ctx);
 
+  await onProgress("building");
   const overlayBytes = buildPdf({
     pageWidthPt: layout.pageWidthPt,
     pageHeightPt: layout.pageHeightPt,
@@ -40,10 +43,12 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
       canvasHeight,
       contentBox: layout.box,
       sourceDataUrl: backgroundPdf.sourceDataUrl,
-      pageNumber: backgroundPdf.pageNumber || 1
+      pageNumber: backgroundPdf.pageNumber || 1,
+      onProgress
     });
   }
 
+  await onProgress("done");
   return new Blob([overlayBytes], { type: "application/pdf" });
 }
 
@@ -71,8 +76,10 @@ function pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, c
   };
 }
 
-async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHeightPt, canvasBox, canvasWidth, canvasHeight, contentBox, sourceDataUrl, pageNumber }) {
+async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHeightPt, canvasBox, canvasWidth, canvasHeight, contentBox, sourceDataUrl, pageNumber, onProgress = async () => {} }) {
+  await onProgress("loading-pdf-lib");
   const { PDFDocument } = await loadPdfLib();
+  await onProgress("reading-base-map");
   const sourceBytes = dataUrlBytes(sourceDataUrl);
   const document = await PDFDocument.create();
   const sourceDocument = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
@@ -94,6 +101,7 @@ async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHei
     width: pageWidthPt,
     height: pageHeightPt
   });
+  await onProgress("saving");
   const output = await document.save({ useObjectStreams: false });
   sourceDocument?.destroy?.();
   overlayDocument?.destroy?.();
@@ -127,7 +135,7 @@ async function loadPdfLib() {
   return pdfLibPromise;
 }
 
-export async function createRasterMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvas }) {
+export async function createRasterMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvas, onProgress = async () => {} }) {
   const pageWidthPt = pageWidthMm * MM_TO_PT;
   const pageHeightPt = pageHeightMm * MM_TO_PT;
   const marginPt = Math.max(0, marginMm) * MM_TO_PT;
@@ -141,8 +149,10 @@ export async function createRasterMapPdfBlob({ pageWidthMm, pageHeightMm, margin
   const drawHeight = canvasAspect > contentAspect ? contentWidth / canvasAspect : contentHeight;
   const drawX = marginPt + (contentWidth - drawWidth) / 2;
   const drawY = marginPt + (contentHeight - drawHeight) / 2;
-  const imageBytes = dataUrlBytes(canvas.toDataURL("image/jpeg", 1.0));
+  await onProgress("encoding-image");
+  const imageBytes = await canvasJpegBytes(canvas);
 
+  await onProgress("building");
   return new Blob([buildImagePdf({
     pageWidthPt,
     pageHeightPt,
@@ -938,6 +948,23 @@ function dataUrlBytes(dataUrl) {
     bytes[index] = binary.charCodeAt(index);
   }
   return bytes;
+}
+
+async function canvasJpegBytes(canvas) {
+  if (canvas?.toBlob) {
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(result => {
+        if (result) {
+          resolve(result);
+        }
+        else {
+          reject(new Error("Could not encode PDF map image."));
+        }
+      }, "image/jpeg", 1.0);
+    });
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+  return dataUrlBytes(canvas.toDataURL("image/jpeg", 1.0));
 }
 
 function ascii(text) {

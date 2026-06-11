@@ -129,7 +129,7 @@ const PDF_OUTPUT_MODES = Object.freeze({
 });
 
 const PDF_EXPORT_SETTINGS_KEY = "purplePenPdfExportSettings";
-const PDF_EXPORT_STEPS_PER_TARGET = 4;
+const PDF_EXPORT_STEPS_PER_TARGET = 8;
 const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
@@ -953,6 +953,9 @@ export class PurplePenApp extends HTMLElement {
                   <span id="pdfExportProgressPercent"></span>
                 </div>
                 <progress id="pdfExportProgressBar" value="0" max="100"></progress>
+                <div class="pdf-export-meter" role="presentation">
+                  <div id="pdfExportProgressFill" class="pdf-export-meter-fill"></div>
+                </div>
               </div>
             </div>
             <footer class="dialog-actions">
@@ -3477,17 +3480,23 @@ export class PurplePenApp extends HTMLElement {
   }
 
   async createPdfFromDialog() {
-    const state = this.store.snapshot();
-    const settings = this.pdfSettingsFromDialog();
-    writePdfExportSettings(settings);
-    const targets = this.pdfExportTargets(state, settings);
-    if (!targets.length) {
-      alert(this.t("No courses are available to export."));
-      return;
-    }
-
     try {
       this.setPdfExportBusy(true);
+      await this.showPdfExportProgress({
+        current: 0,
+        total: 1,
+        message: this.t("Preparing PDF export…")
+      });
+
+      const state = this.store.snapshot();
+      const settings = this.pdfSettingsFromDialog();
+      writePdfExportSettings(settings);
+      const targets = this.pdfExportTargets(state, settings);
+      if (!targets.length) {
+        alert(this.t("No courses are available to export."));
+        return;
+      }
+
       const totalSteps = targets.length * PDF_EXPORT_STEPS_PER_TARGET + (targets.length > 1 ? 1 : 0);
       await this.showPdfExportProgress({
         current: 0,
@@ -3577,12 +3586,14 @@ export class PurplePenApp extends HTMLElement {
   setPdfExportProgress(progress) {
     const box = this.querySelector("#pdfExportProgress");
     const bar = this.querySelector("#pdfExportProgressBar");
+    const fill = this.querySelector("#pdfExportProgressFill");
     const text = this.querySelector("#pdfExportProgressText");
     const percent = this.querySelector("#pdfExportProgressPercent");
     if (!box || !bar || !text || !percent) return;
     if (!progress) {
       box.hidden = true;
       bar.value = 0;
+      if (fill) fill.style.transform = "scaleX(0)";
       text.textContent = "";
       percent.textContent = "";
       return;
@@ -3592,6 +3603,7 @@ export class PurplePenApp extends HTMLElement {
     const value = Math.round(current / total * 100);
     box.hidden = false;
     bar.value = value;
+    if (fill) fill.style.transform = `scaleX(${value / 100})`;
     text.textContent = progress.message || "";
     percent.textContent = `${value}%`;
   }
@@ -3656,24 +3668,32 @@ export class PurplePenApp extends HTMLElement {
     const forceRaster = settings.outputMode === PDF_OUTPUT_MODES.RASTER;
     const forceVector = settings.outputMode === PDF_OUTPUT_MODES.VECTOR;
     if (forceRaster || hasRasterMap) {
-      await onProgress(1, this.t("Drawing {name}…", { name: target.name }));
+      await onProgress(1, this.t("Preparing {name} page…", { name: target.name }));
+      await onProgress(2, this.t("Drawing {name} map…", { name: target.name }));
       const canvas = this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
         includeBitmapBackground: settings.includeBaseMap,
         includeOmapMap: settings.includeBaseMap,
         includePageBackground: false
       });
-      await onProgress(2, this.t("Writing {name} PDF…", { name: target.name }));
+      await onProgress(4, this.t("Encoding {name} image…", { name: target.name }));
       const blob = await createRasterMapPdfBlob({
         pageWidthMm: page.width,
         pageHeightMm: page.height,
         marginMm,
-        canvas
+        canvas,
+        onProgress: async stage => {
+          if (stage === "encoding-image") {
+            await onProgress(5, this.t("Encoding {name} image…", { name: target.name }));
+          }
+          else if (stage === "building") {
+            await onProgress(6, this.t("Writing {name} PDF…", { name: target.name }));
+          }
+        }
       });
-      await onProgress(3, this.t("Finalizing {name}…", { name: target.name }));
+      await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
       return blob;
     }
-    await onProgress(1, this.t("Drawing {name}…", { name: target.name }));
-    await onProgress(2, this.t("Writing {name} PDF…", { name: target.name }));
+    await onProgress(1, this.t("Preparing {name} page…", { name: target.name }));
     const blob = await createVectorMapPdfBlob({
       pageWidthMm: page.width,
       pageHeightMm: page.height,
@@ -3681,13 +3701,20 @@ export class PurplePenApp extends HTMLElement {
       canvasWidth: size.width,
       canvasHeight: size.height,
       backgroundPdf: pdfBackground,
+      onProgress: async stage => {
+        const phase = vectorPdfProgressPhase(stage);
+        const message = vectorPdfProgressMessage(stage, target.name, this.t.bind(this));
+        if (phase && message) {
+          await onProgress(phase, message);
+        }
+      },
       draw: ctx => this.mapView.renderAreaToContext(ctx, eventModel, exportUi, area, size, {
         includeBitmapBackground: false,
         includeOmapMap: settings.includeBaseMap,
         includePageBackground: false
       })
     });
-    await onProgress(3, this.t("Finalizing {name}…", { name: target.name }));
+    await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
     return blob;
   }
 
@@ -6629,6 +6656,27 @@ function uniqueFileName(fileName, usedNames) {
   }
   usedNames.add(candidate);
   return candidate;
+}
+
+function vectorPdfProgressPhase(stage) {
+  return {
+    "loading-fonts": 2,
+    drawing: 3,
+    building: 5,
+    "loading-pdf-lib": 6,
+    "reading-base-map": 6,
+    saving: 7,
+    done: 7
+  }[stage] || 0;
+}
+
+function vectorPdfProgressMessage(stage, name, translate) {
+  if (stage === "loading-fonts") return translate("Loading PDF fonts…");
+  if (stage === "drawing") return translate("Drawing {name} map…", { name });
+  if (stage === "building") return translate("Writing {name} PDF…", { name });
+  if (stage === "loading-pdf-lib" || stage === "reading-base-map") return translate("Merging {name} base map…", { name });
+  if (stage === "saving" || stage === "done") return translate("Finalizing {name}…", { name });
+  return "";
 }
 
 function nextFrame() {

@@ -3903,6 +3903,13 @@ export class PurplePenApp extends HTMLElement {
       : { ...cloneEvent(state.eventModel), specials: (state.eventModel.specials || []).filter(special => special.kind !== "descriptions") };
     const exportUi = {
       ...state.ui,
+      // The on-screen map intensity slider is applied to the cached OMAP layer as
+      // one grouped bitmap.  Vector PDF export draws OMAP objects one by one; if
+      // we reused the slider value there, every base-map object would become
+      // independently transparent and overlapping lower objects would show
+      // through.  Printed/exported base maps should stay opaque; course purple
+      // overprint/transparency is handled by the course drawing colours below.
+      mapIntensity: 1,
       selectedCourseId: target.uiCourseId,
       showAllControls: target.type === "all-controls",
       ...(target.exportUi || {})

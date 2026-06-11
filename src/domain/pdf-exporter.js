@@ -30,7 +30,8 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
     pageWidthPt: layout.pageWidthPt,
     pageHeightPt: layout.pageHeightPt,
     content: ctx.content(),
-    fontSet
+    fontSet,
+    alphaResources: ctx.alphaResources()
   });
 
   if (backgroundPdf?.sourceDataUrl && backgroundPdf?.canvasBox) {
@@ -87,31 +88,44 @@ async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHei
   if (!bytesLookLikePdf(overlayBytes)) {
     throw new Error("The generated course overlay is not a valid PDF.");
   }
-  const document = await PDFDocument.create();
   const sourceDocument = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
   const overlayDocument = await PDFDocument.load(overlayBytes, { ignoreEncryption: true });
   const sourcePageIndex = clamp(Math.floor(Number(pageNumber) || 1), 1, Math.max(1, sourceDocument.getPageCount())) - 1;
-  const [basePage] = await document.embedPdf(sourceBytes, [sourcePageIndex]);
+  const document = await PDFDocument.create();
+  const [page] = await document.copyPages(sourceDocument, [sourcePageIndex]);
   const [overlayPage] = await document.embedPdf(overlayBytes, [0]);
-  const page = document.addPage([pageWidthPt, pageHeightPt]);
+  document.addPage(page);
   const box = pdfBoxForCanvasRect(canvasBox, canvasWidth, canvasHeight, contentBox);
-  page.drawPage(basePage, {
-    x: box.x,
-    y: box.y,
-    width: box.width,
-    height: box.height
+  const sourceSize = page.getSize();
+  const overlayBox = overlayBoxForCopiedPdfPage({
+    pageWidthPt,
+    pageHeightPt,
+    baseBox: box,
+    sourceWidthPt: sourceSize.width,
+    sourceHeightPt: sourceSize.height
   });
   page.drawPage(overlayPage, {
-    x: 0,
-    y: 0,
-    width: pageWidthPt,
-    height: pageHeightPt
+    x: overlayBox.x,
+    y: overlayBox.y,
+    width: overlayBox.width,
+    height: overlayBox.height
   });
   await onProgress("saving");
   const output = await document.save({ useObjectStreams: false });
   sourceDocument?.destroy?.();
   overlayDocument?.destroy?.();
   return new Blob([output], { type: "application/pdf" });
+}
+
+function overlayBoxForCopiedPdfPage({ pageWidthPt, pageHeightPt, baseBox, sourceWidthPt, sourceHeightPt }) {
+  const scaleX = sourceWidthPt / Math.max(0.01, baseBox.width);
+  const scaleY = sourceHeightPt / Math.max(0.01, baseBox.height);
+  return {
+    x: -baseBox.x * scaleX,
+    y: -baseBox.y * scaleY,
+    width: pageWidthPt * scaleX,
+    height: pageHeightPt * scaleY
+  };
 }
 
 function pdfBoxForCanvasRect(rect, canvasWidth, canvasHeight, contentBox) {
@@ -186,6 +200,7 @@ class PdfCanvasContext {
     this.stack = [];
     this.currentPoint = { x: 0, y: 0 };
     this.currentTransform = identity();
+    this.alphaStates = new Map();
     this.parts.push("q");
     this.rect(0, 0, width, height);
     this.clip();
@@ -194,6 +209,15 @@ class PdfCanvasContext {
 
   content() {
     return `${this.parts.join("\n")}\nQ\n`;
+  }
+
+  alphaResources() {
+    return [...this.alphaStates.entries()]
+      .map(([key, name]) => {
+        const [strokeAlpha, fillAlpha] = key.split("|").map(Number);
+        return `/${name} << /Type /ExtGState /CA ${n(strokeAlpha)} /ca ${n(fillAlpha)} >>`;
+      })
+      .join(" ");
   }
 
   save() {
@@ -380,6 +404,7 @@ class PdfCanvasContext {
     const fitScale = maxWidthPt > 0 && estimated > maxWidthPt ? maxWidthPt / estimated : 1;
     const offsetX = textOffsetX(this.state.textAlign, estimated * fitScale);
     const offsetY = textOffsetY(this.state.textBaseline, size);
+    this.parts.push(`/${this.alphaStateName(rgb.a, rgb.a)} gs`);
     this.parts.push("BT");
     this.parts.push(`${n(rgb.r)} ${n(rgb.g)} ${n(rgb.b)} rg`);
     if (font.syntheticBold) {
@@ -432,20 +457,31 @@ class PdfCanvasContext {
   graphicsState(stroke, fill) {
     const commands = [];
     const scaleFactor = transformScale(this.outputTransform());
+    const strokeColor = stroke ? parseColor(this.state.strokeStyle, this.state.globalAlpha) : null;
+    const fillColor = fill ? parseColor(this.state.fillStyle, this.state.globalAlpha) : null;
     commands.push(`${n(this.state.lineWidth * scaleFactor)} w`);
     commands.push(`${lineCap(this.state.lineCap)} J`);
     commands.push(`${lineJoin(this.state.lineJoin)} j`);
     commands.push(`${n(this.state.miterLimit)} M`);
     commands.push(`[${this.state.lineDash.map(value => n(value * scaleFactor)).join(" ")}] 0 d`);
+    commands.push(`/${this.alphaStateName(strokeColor?.a ?? 1, fillColor?.a ?? 1)} gs`);
     if (stroke) {
-      const color = parseColor(this.state.strokeStyle, this.state.globalAlpha);
-      commands.push(`${n(color.r)} ${n(color.g)} ${n(color.b)} RG`);
+      commands.push(`${n(strokeColor.r)} ${n(strokeColor.g)} ${n(strokeColor.b)} RG`);
     }
     if (fill) {
-      const color = parseColor(this.state.fillStyle, this.state.globalAlpha);
-      commands.push(`${n(color.r)} ${n(color.g)} ${n(color.b)} rg`);
+      commands.push(`${n(fillColor.r)} ${n(fillColor.g)} ${n(fillColor.b)} rg`);
     }
     return commands;
+  }
+
+  alphaStateName(strokeAlpha, fillAlpha) {
+    const roundedStroke = alphaKey(strokeAlpha);
+    const roundedFill = alphaKey(fillAlpha);
+    const key = `${roundedStroke}|${roundedFill}`;
+    if (!this.alphaStates.has(key)) {
+      this.alphaStates.set(key, `GS${this.alphaStates.size + 1}`);
+    }
+    return this.alphaStates.get(key);
   }
 
   apply(x, y) {
@@ -461,7 +497,7 @@ class PdfCanvasContext {
   }
 }
 
-function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet }) {
+function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources = "" }) {
   const chunks = [];
   const offsets = [0];
   let length = 0;
@@ -486,7 +522,7 @@ function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet }) {
   add("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
   object(1, "<< /Type /Catalog /Pages 2 0 R >>");
   object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-  object(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pageWidthPt)} ${n(pageHeightPt)}] /Resources << /Font << ${fontObjects.resources} >> >> /Contents 4 0 R >>`);
+  object(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pageWidthPt)} ${n(pageHeightPt)}] /Resources << /Font << ${fontObjects.resources} >>${alphaResources ? ` /ExtGState << ${alphaResources} >>` : ""} >> /Contents 4 0 R >>`);
   streamObject(4, "<<", ascii(content));
   object(5, "<< /Producer (O-Composer) >>");
   for (const item of fontObjects.objects) {
@@ -644,6 +680,10 @@ function lineCap(value) {
 
 function lineJoin(value) {
   return value === "round" ? 1 : value === "bevel" ? 2 : 0;
+}
+
+function alphaKey(value) {
+  return Number(clamp(Number(value), 0, 1).toFixed(3));
 }
 
 function fontSize(font) {

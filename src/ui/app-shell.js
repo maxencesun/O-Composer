@@ -138,6 +138,17 @@ const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 const APP_VERSION = "0.0.0";
+const APP_RESOURCE_CACHE_PREFIX = "o-composer-resources-";
+const APP_RESOURCE_CACHE_NAME = `${APP_RESOURCE_CACHE_PREFIX}${APP_VERSION}`;
+const APP_RESOURCE_URLS = Object.freeze([
+  "./assets/purple-pen-symbols.xml",
+  "./assets/fonts/Roboto.ttf",
+  "./assets/fonts/Roboto-Bold.ttf",
+  "./assets/fonts/Roboto-Italic.ttf",
+  "./assets/fonts/RobotoCondensed.ttf",
+  "./assets/fonts/RobotoCondensed-Bold.ttf",
+  "./assets/fonts/Heiti.ttf"
+]);
 const LANGUAGE_REFRESH_PARAM = "__pp_language_refresh";
 const UI_MODE_KEY = "purplePenUiMode";
 const UI_MODES = Object.freeze({ AUTO: "auto", DESKTOP: "desktop", MOBILE: "mobile" });
@@ -278,6 +289,8 @@ export class PurplePenApp extends HTMLElement {
       onHover: point => this.updateMouseStatus(point)
     });
     this.bindEvents();
+    installAppResourceFetchCache(APP_RESOURCE_CACHE_NAME, APP_RESOURCE_URLS);
+    this.startResourcePrecache();
     this.deferMapLayoutRefresh();
     this.restoreCachedSession();
     this.store.subscribe(state => this.render(state));
@@ -301,6 +314,40 @@ export class PurplePenApp extends HTMLElement {
         this.render(this.store.snapshot());
       })
       .catch(() => {});
+  }
+
+  startResourcePrecache() {
+    void precacheAppResources({
+      cacheName: APP_RESOURCE_CACHE_NAME,
+      cachePrefix: APP_RESOURCE_CACHE_PREFIX,
+      urls: APP_RESOURCE_URLS,
+      onProgress: progress => this.updateResourcePrecacheProgress(progress)
+    }).catch(error => {
+      console.warn(error);
+      this.updateResourcePrecacheProgress(null);
+    });
+  }
+
+  updateResourcePrecacheProgress(progress) {
+    const box = this.querySelector("#resourceProgress");
+    const bar = this.querySelector("#resourceProgressBar");
+    const text = this.querySelector("#resourceProgressText");
+    if (!box || !bar || !text) return;
+    if (!progress || progress.done) {
+      box.hidden = true;
+      bar.value = 0;
+      text.textContent = "";
+      return;
+    }
+    const total = Math.max(0, Number(progress.totalBytes) || 0);
+    const downloaded = Math.max(0, Number(progress.downloadedBytes) || 0);
+    const percent = total > 0 ? clamp(Math.round(downloaded / total * 100), 0, 100) : 0;
+    box.hidden = false;
+    bar.value = percent;
+    text.textContent = this.t("Resources {downloaded} / {total}", {
+      downloaded: formatBytes(downloaded),
+      total: total > 0 ? formatBytes(total) : this.t("calculating")
+    });
   }
 
   t(key, replacements = {}) {
@@ -811,6 +858,10 @@ export class PurplePenApp extends HTMLElement {
           <div class="app-brand" aria-label="${escapeAttr(`O-Composer ${APP_VERSION}`)}">
             <strong>O-Composer</strong>
             <span>${escapeHtml(APP_VERSION)}</span>
+            <div id="resourceProgress" class="resource-progress" hidden aria-live="polite">
+              <progress id="resourceProgressBar" max="100" value="0"></progress>
+              <span id="resourceProgressText"></span>
+            </div>
           </div>
         </header>
         <section class="toolbar" aria-label="${escapeAttr(this.t("Toolbar"))}">
@@ -7128,6 +7179,155 @@ function pdfDataUrlLooksLikePdf(value) {
   catch {
     return false;
   }
+}
+
+let appResourceFetchCacheInstalled = false;
+
+function installAppResourceFetchCache(cacheName, urls) {
+  if (appResourceFetchCacheInstalled || !("caches" in window)) return;
+  appResourceFetchCacheInstalled = true;
+  const originalFetch = window.fetch.bind(window);
+  const resourceUrls = new Set(urls.map(url => new URL(url, window.location.href).href));
+  window.fetch = async (input, init = {}) => {
+    const request = input instanceof Request ? input : new Request(input, init);
+    const method = String(init.method || request.method || "GET").toUpperCase();
+    const url = new URL(request.url, window.location.href).href;
+    if (method !== "GET" || !resourceUrls.has(url)) {
+      return originalFetch(input, init);
+    }
+    try {
+      const cached = await caches.open(cacheName).then(cache => cache.match(url));
+      if (cached) return cached;
+    }
+    catch {}
+    return originalFetch(input, init);
+  };
+}
+
+async function precacheAppResources({ cacheName, cachePrefix, urls, onProgress }) {
+  if (!("caches" in window)) return;
+  await deleteOldResourceCaches(cachePrefix, cacheName);
+  const cache = await caches.open(cacheName);
+  const entries = await Promise.all(urls.map(async url => {
+    const request = new Request(url, { cache: "reload" });
+    const cached = await cache.match(request);
+    if (cached) {
+      return {
+        url,
+        request,
+        cached: true,
+        size: await responseByteSize(cached)
+      };
+    }
+    return {
+      url,
+      request,
+      cached: false,
+      size: await resourceContentLength(url)
+    };
+  }));
+  let totalBytes = entries.reduce((sum, entry) => sum + (entry.size || 0), 0);
+  let downloadedBytes = entries.reduce((sum, entry) => sum + (entry.cached ? entry.size || 0 : 0), 0);
+  const uncached = entries.filter(entry => !entry.cached);
+  if (!uncached.length) {
+    onProgress?.({ downloadedBytes, totalBytes, done: true });
+    return;
+  }
+  onProgress?.({ downloadedBytes, totalBytes, done: false });
+  for (const entry of uncached) {
+    const result = await cacheResourceWithProgress(cache, entry.request, bytes => {
+      downloadedBytes += bytes;
+      if (entry.size <= 0) totalBytes += bytes;
+      onProgress?.({ downloadedBytes, totalBytes, done: false });
+    });
+    if (entry.size > 0 && result.size > entry.size) {
+      totalBytes += result.size - entry.size;
+    }
+    if (entry.size <= 0 && result.size <= 0) {
+      const cached = await cache.match(entry.request);
+      const size = cached ? await responseByteSize(cached) : 0;
+      if (size > 0) {
+        totalBytes += size;
+        downloadedBytes += size;
+      }
+    }
+    onProgress?.({ downloadedBytes, totalBytes, done: false });
+  }
+  onProgress?.({ downloadedBytes: totalBytes || downloadedBytes, totalBytes: totalBytes || downloadedBytes, done: true });
+}
+
+async function deleteOldResourceCaches(prefix, keepName) {
+  const names = await caches.keys();
+  await Promise.all(names
+    .filter(name => name.startsWith(prefix) && name !== keepName)
+    .map(name => caches.delete(name)));
+}
+
+async function resourceContentLength(url) {
+  try {
+    const response = await fetch(url, { method: "HEAD", cache: "reload" });
+    if (!response.ok) return 0;
+    return Number(response.headers.get("content-length")) || 0;
+  }
+  catch {
+    return 0;
+  }
+}
+
+async function cacheResourceWithProgress(cache, request, onChunk) {
+  const response = await fetch(request);
+  if (!response.ok) {
+    throw new Error(`Could not download ${request.url}: ${response.status}`);
+  }
+  if (!response.body?.getReader) {
+    const blob = await response.blob();
+    onChunk?.(blob.size || 0);
+    await cache.put(request, cachedResourceResponse(blob, response));
+    return { size: blob.size || 0 };
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    chunks.push(value);
+    size += value.byteLength;
+    onChunk?.(value.byteLength);
+  }
+  const body = new Blob(chunks);
+  await cache.put(request, cachedResourceResponse(body, response));
+  return { size };
+}
+
+function cachedResourceResponse(body, sourceResponse) {
+  const headers = new Headers();
+  for (const name of ["content-type", "cache-control", "etag", "last-modified"]) {
+    const value = sourceResponse.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  return new Response(body, {
+    status: sourceResponse.status,
+    statusText: sourceResponse.statusText,
+    headers
+  });
+}
+
+async function responseByteSize(response) {
+  try {
+    return (await response.clone().blob()).size || 0;
+  }
+  catch {
+    return Number(response.headers.get("content-length")) || 0;
+  }
+}
+
+function formatBytes(bytes) {
+  const value = Math.max(0, Number(bytes) || 0);
+  if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  if (value >= 1024) return `${Math.round(value / 1024)} KB`;
+  return `${Math.round(value)} B`;
 }
 
 function escapeHtml(value) {

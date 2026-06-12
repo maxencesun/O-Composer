@@ -63,6 +63,16 @@ export function createCourseSymbolMetrics(eventModel, course, appearance, pixels
   };
 }
 
+export function courseSymbolMmToMapDistance(mm, metrics, pixelsPerMapUnit) {
+  const sizeMm = Math.max(0, Number(mm) || 0);
+  const unit = Math.max(0, Number(metrics?.unit) || 0);
+  const scale = Math.max(0, Number(pixelsPerMapUnit) || 0);
+  if (sizeMm > 0 && unit > 0 && scale > 0) {
+    return sizeMm * unit / scale;
+  }
+  return sizeMm;
+}
+
 export function drawCourseLeg(ctx, screenPoints, fromControl, toControl, metrics, flagged = false, options = {}) {
   if (!screenPoints || screenPoints.length < 2) {
     return;

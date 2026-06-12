@@ -87,6 +87,10 @@ import {
   exportRouteGadgetXml
 } from "../domain/exporters.js";
 import {
+  createCourseSymbolMetrics,
+  courseSymbolMmToMapDistance
+} from "./course-symbols.js";
+import {
   allCourseVariations,
   courseHasVariations,
   relayAssignments,
@@ -3023,7 +3027,10 @@ export class PurplePenApp extends HTMLElement {
       this.store.updateUi(ui => { ui.status = "Click a purple course line to cut it."; }, "Cut line");
       return;
     }
-    const gapSize = Math.max(0.5, Number(this.store.snapshot().eventModel.event.courseAppearance?.autoLegGapSize) || 3.5);
+    const state = this.store.snapshot();
+    const selectedCourse = state.ui.selectedCourseId === "all" ? null : getCourse(state.eventModel, state.ui.selectedCourseId);
+    const metrics = createCourseSymbolMetrics(state.eventModel, selectedCourse, state.eventModel.event.courseAppearance, this.mapView.scale(state.ui), state.ui.selectedCourseId === "all");
+    const gapSize = Math.max(0.5, courseSymbolMmToMapDistance(Number(state.eventModel.event.courseAppearance?.autoLegGapSize) || 3.5, metrics, this.mapView.scale(state.ui)));
     this.store.updateEvent(model => {
       model.metadata.pendingSelection = null;
       const leg = ensureLegBetween(model, legHit.leg.from.control.id, legHit.leg.to.control.id);

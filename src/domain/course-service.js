@@ -978,7 +978,8 @@ function labelForControl(course, courseControl, control, ordinal) {
   const labelKind = course.labelKind;
   switch (labelKind) {
     case "code": return code;
-    case "sequence-and-code": return `${ordinal}-${code}`;
+    case "sequence-and-code": return ordinal ? `${ordinal}-${code}` : code;
+    case "sequence-and-code-slash": return ordinal ? `${ordinal}/${code}` : code;
     case "sequence-and-score": return score ? `${ordinal}(${score})` : String(ordinal);
     case "code-and-score-brackets": return score ? `${code}[${score}]` : code;
     case "code-and-score-dash": return score ? `${code}-${score}` : code;

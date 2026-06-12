@@ -2956,6 +2956,7 @@ function mergedControlLabel(course, control, courseControls, ordinal, fallbackLa
   switch (course.labelKind) {
     case "code": return code;
     case "sequence-and-code": return `${mergedOrdinal}-${code}`;
+    case "sequence-and-code-slash": return `${mergedOrdinal}/${code}`;
     case "sequence-and-score": return score ? `${mergedOrdinal}(${score})` : String(mergedOrdinal);
     case "code-and-score-brackets": return score ? `${code}[${score}]` : code;
     case "code-and-score-dash": return score ? `${code}-${score}` : code;

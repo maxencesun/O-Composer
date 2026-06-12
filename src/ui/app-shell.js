@@ -156,6 +156,17 @@ const UI_MODE_KEY = "purplePenUiMode";
 const UI_MODES = Object.freeze({ AUTO: "auto", DESKTOP: "desktop", MOBILE: "mobile" });
 const COURSE_NAMES = Object.freeze(["Course 1", "Course 2", "Course 3", "Long", "Middle", "Sprint", "Score", "Training"]);
 const TEXT_PRESETS = Object.freeze(["Text", "Water", "First Aid", "Registration", "Start", "Finish", "Danger", "Out of Bounds"]);
+const COURSE_LABEL_KINDS = Object.freeze([
+  "sequence",
+  "code",
+  "sequence-and-code",
+  "sequence-and-code-slash",
+  "sequence-and-score",
+  "code-and-score-brackets",
+  "code-and-score-dash",
+  "code-and-score",
+  "score"
+]);
 const MOVE_DISTANCE_CHOICES = Object.freeze([1, 2, 5, 10, 25, 50, 100]);
 const DEFAULT_TEXT_FONT_HEIGHT = 3;
 const CONTROL_SNAP_SCREEN_RADIUS = 10;
@@ -1254,9 +1265,36 @@ export class PurplePenApp extends HTMLElement {
       return;
     }
     const target = event.target;
-    if (!(target instanceof Element) || !target.closest(".menubar .menu")) {
-      this.closeTopMenus();
+    if (target instanceof Element && target.closest(".menubar .menu")) {
+      return;
     }
+    if (this.pointerInOpenMenuBridge(event)) {
+      return;
+    }
+    this.closeTopMenus();
+  }
+
+  pointerInOpenMenuBridge(event) {
+    const x = Number(event.clientX);
+    const y = Number(event.clientY);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return false;
+    }
+    const padding = 6;
+    for (const menu of this.querySelectorAll(".menubar .menu[open]")) {
+      const rects = [menu.querySelector("summary"), menu.querySelector(".menu-list")]
+        .map(element => element?.getBoundingClientRect?.())
+        .filter(rect => rect && rect.width > 0 && rect.height > 0);
+      if (!rects.length) continue;
+      const left = Math.min(...rects.map(rect => rect.left)) - padding;
+      const right = Math.max(...rects.map(rect => rect.right)) + padding;
+      const top = Math.min(...rects.map(rect => rect.top)) - padding;
+      const bottom = Math.max(...rects.map(rect => rect.bottom)) + padding;
+      if (x >= left && x <= right && y >= top && y <= bottom) {
+        return true;
+      }
+    }
+    return false;
   }
 
   setSelection(selection) {
@@ -2377,7 +2415,7 @@ export class PurplePenApp extends HTMLElement {
       <div class="form-grid">
         <label>${escapeHtml(this.t("Name"))} <input data-field="course.name" value="${escapeAttr(course.name)}"></label>
         <label>${escapeHtml(this.t("Kind"))} <select data-field="course.kind"><option value="normal" ${course.kind === "normal" ? "selected" : ""}>${escapeHtml(this.t("normal"))}</option><option value="score" ${course.kind === "score" ? "selected" : ""}>${escapeHtml(this.t("score"))}</option><option value="team" ${course.kind === "team" ? "selected" : ""}>${escapeHtml(this.t("team"))}</option></select></label>
-        <label>${escapeHtml(this.t("Labels"))} <select data-field="course.labelKind">${["sequence", "code", "sequence-and-code", "sequence-and-score", "code-and-score-brackets", "code-and-score-dash", "code-and-score", "score"].map(kind => `<option value="${kind}" ${kind === course.labelKind ? "selected" : ""}>${escapeHtml(this.t(kind))}</option>`).join("")}</select></label>
+        <label>${escapeHtml(this.t("Labels"))} <select data-field="course.labelKind">${COURSE_LABEL_KINDS.map(kind => `<option value="${kind}" ${kind === course.labelKind ? "selected" : ""}>${escapeHtml(this.t(kind))}</option>`).join("")}</select></label>
         <label>${escapeHtml(this.t("Print scale"))} <input data-field="course.options.printScale" type="number" value="${course.options.printScale || 15000}"></label>
         <label>${escapeHtml(this.t("Climb"))} <input data-field="course.options.climb" type="number" value="${course.options.climb ?? -1}"></label>
         <label>${escapeHtml(this.t("Load"))} <input data-field="course.options.load" type="number" value="${course.options.load ?? -1}"></label>
@@ -6334,10 +6372,8 @@ function applyCourseKindDefaults(course) {
     course.options.scoreColumn = -1;
   }
   else {
+    course.labelKind = course.labelKind || "sequence";
     course.options.scoreColumn = -1;
-    if (["code-and-score", "code-and-score-brackets", "code-and-score-dash", "score"].includes(course.labelKind)) {
-      course.labelKind = "sequence";
-    }
   }
 }
 

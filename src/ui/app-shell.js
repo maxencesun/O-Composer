@@ -1005,8 +1005,7 @@ export class PurplePenApp extends HTMLElement {
                   <span id="pdfExportProgressText"></span>
                   <span id="pdfExportProgressPercent"></span>
                 </div>
-                <progress id="pdfExportProgressBar" value="0" max="100"></progress>
-                <div class="pdf-export-meter" role="presentation">
+                <div id="pdfExportProgressMeter" class="pdf-export-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                   <div id="pdfExportProgressFill" class="pdf-export-meter-fill"></div>
                 </div>
               </div>
@@ -3759,14 +3758,14 @@ export class PurplePenApp extends HTMLElement {
 
   setPdfExportProgress(progress) {
     const box = this.querySelector("#pdfExportProgress");
-    const bar = this.querySelector("#pdfExportProgressBar");
+    const meter = this.querySelector("#pdfExportProgressMeter");
     const fill = this.querySelector("#pdfExportProgressFill");
     const text = this.querySelector("#pdfExportProgressText");
     const percent = this.querySelector("#pdfExportProgressPercent");
-    if (!box || !bar || !text || !percent) return;
+    if (!box || !meter || !text || !percent) return;
     if (!progress) {
       box.hidden = true;
-      bar.value = 0;
+      meter.setAttribute("aria-valuenow", "0");
       if (fill) fill.style.transform = "scaleX(0)";
       text.textContent = "";
       percent.textContent = "";
@@ -3776,7 +3775,7 @@ export class PurplePenApp extends HTMLElement {
     const current = clamp(Number(progress.current) || 0, 0, total);
     const value = Math.round(current / total * 100);
     box.hidden = false;
-    bar.value = value;
+    meter.setAttribute("aria-valuenow", String(value));
     if (fill) fill.style.transform = `scaleX(${value / 100})`;
     text.textContent = progress.message || "";
     percent.textContent = `${value}%`;

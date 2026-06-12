@@ -18,7 +18,7 @@ const NORMAL = Object.freeze({
   crossingRadius: 2.5,
   mapIssueLength: 2.5,
   mapIssueWidth: 0.6,
-  modernCourseLineGap: 0.15,
+  isomCourseLineCircleGap: 0.35,
   nominalControlNumberHeight: 4.0,
   controlNumberHeightFactor: 5.57 / 4.0,
   controlNumberCircleDistance: 1.825
@@ -632,7 +632,7 @@ export function courseLegTrimRadius(control, metrics) {
     return radius;
   }
   const strokeOuter = lineWidth(metrics) / 2;
-  const gap = courseLineEndpointGap(metrics);
+  const gap = courseLineEndpointGap(control, metrics);
   return radius + strokeOuter + gap;
 }
 
@@ -640,11 +640,14 @@ function lineWidth(metrics) {
   return Math.max(0.7, NORMAL.lineThickness * metrics.unit * (metrics.appearance?.lineWidthRatio || 1));
 }
 
-function courseLineEndpointGap(metrics) {
-  if (metrics.mapStandard !== "2017" && metrics.mapStandard !== "Spr2019") {
+function courseLineEndpointGap(control, metrics) {
+  if (metrics.mapStandard !== "2017") {
     return 0;
   }
-  return NORMAL.modernCourseLineGap * metrics.unit;
+  if (control?.kind === "start" || control?.kind === "map-exchange" || control?.kind === "crossing-point") {
+    return 0;
+  }
+  return NORMAL.isomCourseLineCircleGap * metrics.unit;
 }
 
 function controlOutsideDiameter(metrics) {

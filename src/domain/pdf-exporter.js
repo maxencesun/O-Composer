@@ -20,16 +20,16 @@ let pdfLatinFontSetPromise = null;
 let pdfCjkFontSetPromise = null;
 let pdfLibPromise = null;
 
-export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, backgroundCanvas = null, needsUnicodeFont = false, onProgress = async () => {} }) {
+export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, backgroundImage = null, needsUnicodeFont = false, onProgress = async () => {} }) {
   await onProgress("loading-fonts");
   const fontSet = await loadPdfFontSet({ includeCjk: needsUnicodeFont });
   const layout = pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm, canvasWidth, canvasHeight });
   const ctx = new PdfCanvasContext(canvasWidth, canvasHeight, layout.box, fontSet);
-  const backgroundImage = backgroundCanvas
+  const encodedBackgroundImage = backgroundImage
     ? {
-        bytes: await canvasJpegBytes(backgroundCanvas),
-        width: Math.max(1, backgroundCanvas.width || canvasWidth || 1),
-        height: Math.max(1, backgroundCanvas.height || canvasHeight || 1)
+        bytes: await canvasJpegBytes(backgroundImage),
+        width: Math.max(1, backgroundImage.width || canvasWidth || 1),
+        height: Math.max(1, backgroundImage.height || canvasHeight || 1)
       }
     : null;
 
@@ -43,7 +43,7 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
     content: ctx.content(),
     fontSet,
     alphaResources: ctx.alphaResources(),
-    backgroundImage,
+    backgroundImage: encodedBackgroundImage,
     contentBox: layout.box
   });
 
@@ -166,37 +166,6 @@ async function loadPdfLib() {
     throw new Error(`Could not load the PDF vector embedding library. ${lastError?.message || ""}`.trim());
   })();
   return pdfLibPromise;
-}
-
-export async function createRasterMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvas, onProgress = async () => {} }) {
-  const pageWidthPt = pageWidthMm * MM_TO_PT;
-  const pageHeightPt = pageHeightMm * MM_TO_PT;
-  const marginPt = Math.max(0, marginMm) * MM_TO_PT;
-  const contentWidth = Math.max(1, pageWidthPt - marginPt * 2);
-  const contentHeight = Math.max(1, pageHeightPt - marginPt * 2);
-  const canvasWidth = Math.max(1, canvas?.width || 1);
-  const canvasHeight = Math.max(1, canvas?.height || 1);
-  const canvasAspect = canvasWidth / canvasHeight;
-  const contentAspect = contentWidth / contentHeight;
-  const drawWidth = canvasAspect > contentAspect ? contentWidth : contentHeight * canvasAspect;
-  const drawHeight = canvasAspect > contentAspect ? contentWidth / canvasAspect : contentHeight;
-  const drawX = marginPt + (contentWidth - drawWidth) / 2;
-  const drawY = marginPt + (contentHeight - drawHeight) / 2;
-  await onProgress("encoding-image");
-  const imageBytes = await canvasJpegBytes(canvas);
-
-  await onProgress("building");
-  return new Blob([buildImagePdf({
-    pageWidthPt,
-    pageHeightPt,
-    imageBytes,
-    imageWidth: canvasWidth,
-    imageHeight: canvasHeight,
-    drawX,
-    drawY,
-    drawWidth,
-    drawHeight
-  })], { type: "application/pdf" });
 }
 
 class PdfCanvasContext {
@@ -409,10 +378,10 @@ class PdfCanvasContext {
     const scaleFactor = transformScale(this.outputTransform());
     const size = fontSize(this.state.font) * scaleFactor;
     const value = String(text ?? "");
-    const font = this.pdfFont(this.state.font, value);
+    const runs = pdfTextRuns(this.fontSet, this.state.font, value);
     const p = this.apply(x, y);
     const rgb = parseColor(this.state.fillStyle, this.state.globalAlpha);
-    const estimated = textWidth(value, size, font);
+    const estimated = textRunsWidth(runs, size);
     const maxWidthPt = Math.max(0, Number(maxWidth) || 0) * scaleFactor;
     const fitScale = maxWidthPt > 0 && estimated > maxWidthPt ? maxWidthPt / estimated : 1;
     const offsetX = textOffsetX(this.state.textAlign, estimated * fitScale);
@@ -420,15 +389,22 @@ class PdfCanvasContext {
     this.parts.push(`/${this.alphaStateName(rgb.a, rgb.a)} gs`);
     this.parts.push("BT");
     this.parts.push(`${n(rgb.r)} ${n(rgb.g)} ${n(rgb.b)} rg`);
-    if (font.syntheticBold) {
+    if (runs.some(run => run.font.syntheticBold)) {
       this.parts.push(`${n(rgb.r)} ${n(rgb.g)} ${n(rgb.b)} RG`);
       this.parts.push(`${n(Math.max(0.01, size * 0.035))} w`);
-      this.parts.push("2 Tr");
     }
-    this.parts.push(`/${font.resource} ${n(size)} Tf`);
     this.parts.push(`${n(fitScale)} 0 0 1 ${n(p.x + offsetX)} ${n(p.y + offsetY)} Tm`);
-    this.parts.push(`<${pdfTextHex(value, font)}> Tj`);
-    if (font.syntheticBold) {
+    let renderingMode = 0;
+    for (const run of runs) {
+      const desiredMode = run.font.syntheticBold ? 2 : 0;
+      if (desiredMode !== renderingMode) {
+        this.parts.push(`${desiredMode} Tr`);
+        renderingMode = desiredMode;
+      }
+      this.parts.push(`/${run.font.resource} ${n(size)} Tf`);
+      this.parts.push(`<${pdfTextHex(run.text, run.font)}> Tj`);
+    }
+    if (renderingMode !== 0) {
       this.parts.push("0 Tr");
     }
     this.parts.push("ET");
@@ -439,8 +415,8 @@ class PdfCanvasContext {
   }
 
   measureText(text) {
-    const font = this.pdfFont(this.state.font, String(text ?? ""));
-    return { width: textWidth(String(text ?? ""), fontSize(this.state.font), font) };
+    const runs = pdfTextRuns(this.fontSet, this.state.font, String(text ?? ""));
+    return { width: textRunsWidth(runs, fontSize(this.state.font)) };
   }
 
   pdfFont(font, text = "") {
@@ -578,57 +554,6 @@ function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources 
   return output;
 }
 
-function buildImagePdf({ pageWidthPt, pageHeightPt, imageBytes, imageWidth, imageHeight, drawX, drawY, drawWidth, drawHeight }) {
-  const content = ascii([
-    "q",
-    `${n(drawWidth)} 0 0 ${n(drawHeight)} ${n(drawX)} ${n(pageHeightPt - drawY - drawHeight)} cm`,
-    "/Im1 Do",
-    "Q"
-  ].join("\n"));
-  const chunks = [];
-  const offsets = [0];
-  let length = 0;
-
-  const add = chunk => {
-    const bytes = typeof chunk === "string" ? ascii(chunk) : chunk;
-    chunks.push(bytes);
-    length += bytes.length;
-  };
-  const object = (id, body) => {
-    offsets[id] = length;
-    add(`${id} 0 obj\n${body}\nendobj\n`);
-  };
-  const streamObject = (id, dict, data) => {
-    offsets[id] = length;
-    add(`${id} 0 obj\n${dict} /Length ${data.length} >>\nstream\n`);
-    add(data);
-    add("\nendstream\nendobj\n");
-  };
-
-  add("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
-  object(1, "<< /Type /Catalog /Pages 2 0 R >>");
-  object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-  object(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pageWidthPt)} ${n(pageHeightPt)}] /Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >>`);
-  streamObject(4, "<<", content);
-  streamObject(5, `<< /Type /XObject /Subtype /Image /Width ${Math.round(imageWidth)} /Height ${Math.round(imageHeight)} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`, imageBytes);
-  object(6, "<< /Producer (O-Composer) >>");
-
-  const xrefOffset = length;
-  add("xref\n0 7\n0000000000 65535 f \n");
-  for (let id = 1; id <= 6; id += 1) {
-    add(`${String(offsets[id]).padStart(10, "0")} 00000 n \n`);
-  }
-  add(`trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
-
-  const output = new Uint8Array(length);
-  let cursor = 0;
-  for (const chunk of chunks) {
-    output.set(chunk, cursor);
-    cursor += chunk.length;
-  }
-  return output;
-}
-
 function defaultState() {
   return {
     fillStyle: "#000",
@@ -752,7 +677,7 @@ async function loadPdfFont(source) {
 }
 
 function pdfFont(fontSet, font, text = "") {
-  if (requiresUnicodeFont(text)) {
+  if (isCjkText(text)) {
     const face = fontSet.byKey.get("heiti-bold") || fontSet.fonts[0];
     return { ...face, syntheticBold: true, widthFactor: 1 };
   }
@@ -769,10 +694,50 @@ function pdfFont(fontSet, font, text = "") {
   };
 }
 
-function requiresUnicodeFont(text) {
+function pdfTextRuns(fontSet, font, text) {
+  const value = String(text ?? "");
+  if (!value) return [];
+  const runs = [];
+  let currentCjk = null;
+  let currentText = "";
+  for (const char of value) {
+    const cjk = isCjkText(char);
+    if (currentCjk === null || cjk === currentCjk) {
+      currentText += char;
+      currentCjk = cjk;
+    }
+    else {
+      runs.push({
+        text: currentText,
+        font: pdfFont(fontSet, currentCjk ? "黑体 bold" : font, currentText)
+      });
+      currentText = char;
+      currentCjk = cjk;
+    }
+  }
+  if (currentText) {
+    runs.push({
+      text: currentText,
+      font: pdfFont(fontSet, currentCjk ? "黑体 bold" : font, currentText)
+    });
+  }
+  return runs;
+}
+
+function textRunsWidth(runs, size) {
+  return runs.reduce((sum, run) => sum + textWidth(run.text, size, run.font), 0);
+}
+
+function isCjkText(text) {
   for (const char of String(text ?? "")) {
     const code = char.codePointAt(0);
-    if (code > 255) return true;
+    if ((code >= 0x3400 && code <= 0x4dbf)
+      || (code >= 0x4e00 && code <= 0x9fff)
+      || (code >= 0xf900 && code <= 0xfaff)
+      || (code >= 0xff00 && code <= 0xffef)
+      || (code >= 0x3000 && code <= 0x303f)) {
+      return true;
+    }
   }
   return false;
 }

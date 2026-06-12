@@ -18,7 +18,7 @@ const NORMAL = Object.freeze({
   crossingRadius: 2.5,
   mapIssueLength: 2.5,
   mapIssueWidth: 0.6,
-  isomCourseLineCircleGap: 0.35,
+  isomCourseLineCircleGap: 1.0,
   nominalControlNumberHeight: 4.0,
   controlNumberHeightFactor: 5.57 / 4.0,
   controlNumberCircleDistance: 1.825
@@ -67,8 +67,12 @@ export function drawCourseLeg(ctx, screenPoints, fromControl, toControl, metrics
   if (!screenPoints || screenPoints.length < 2) {
     return;
   }
-  const startRadius = courseLegTrimRadius(fromControl, metrics);
-  const endRadius = courseLegTrimRadius(toControl, metrics);
+  const startRadius = courseLegTrimRadius(fromControl, metrics, {
+    suppressCourseLineGap: flagged || options.suppressStartCourseLineGap
+  });
+  const endRadius = courseLegTrimRadius(toControl, metrics, {
+    suppressCourseLineGap: flagged || options.suppressEndCourseLineGap
+  });
   const points = trimPolyline(screenPoints, startRadius, endRadius);
   if (points.length < 2) {
     return;
@@ -626,13 +630,13 @@ export function symbolApparentRadius(control, metrics) {
   }
 }
 
-export function courseLegTrimRadius(control, metrics) {
+export function courseLegTrimRadius(control, metrics, options = {}) {
   const radius = symbolApparentRadius(control, metrics);
   if (radius <= 0 || control?.kind === "map-issue") {
     return radius;
   }
   const strokeOuter = lineWidth(metrics) / 2;
-  const gap = courseLineEndpointGap(control, metrics);
+  const gap = options.suppressCourseLineGap ? 0 : courseLineEndpointGap(control, metrics);
   return radius + strokeOuter + gap;
 }
 

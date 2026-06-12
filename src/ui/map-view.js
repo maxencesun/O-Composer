@@ -788,7 +788,8 @@ export class MapView {
     for (const leg of legs) {
       const mapPoints = legMapPoints(leg);
       const screenPoints = mapPoints.map(point => this.toScreen(point, ui));
-      const startRadius = courseLegTrimRadius(leg.from.control, metrics);
+      const endpointGaps = flaggedEndpointGapSuppression(leg);
+      const startRadius = courseLegTrimRadius(leg.from.control, metrics, { suppressCourseLineGap: endpointGaps.start });
       const screenGaps = screenGapsForLeg(
         [...(leg.leg?.gaps || []), ...(autoGaps.get(legKey(leg)) || [])],
         this.scale(ui),
@@ -798,6 +799,8 @@ export class MapView {
       drawCourseLeg(ctx, screenPoints, leg.from.control, leg.to.control, metrics, isEntireLegFlagged(leg), {
         gaps: screenGaps,
         flagRanges,
+        suppressStartCourseLineGap: endpointGaps.start,
+        suppressEndCourseLineGap: endpointGaps.end,
         dashed: leg.from.control?.kind === "map-issue" && leg.to.control?.kind === "start"
       });
     }
@@ -2506,6 +2509,14 @@ function legFlagRange(leg) {
 
 function isEntireLegFlagged(leg) {
   return normalizeLegFlaggingKind(leg.leg?.flagging?.kind) === "all";
+}
+
+function flaggedEndpointGapSuppression(leg) {
+  const flagging = normalizeLegFlaggingKind(leg.leg?.flagging?.kind);
+  return {
+    start: flagging === "all" || flagging === "begin",
+    end: flagging === "all" || flagging === "end"
+  };
 }
 
 function normalizeLegFlaggingKind(kind) {

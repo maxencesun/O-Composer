@@ -19,6 +19,7 @@ import { effectivePrintArea } from "../domain/print-area.js";
 import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import {
   createCourseSymbolMetrics,
+  courseSymbolMmToMapDistance,
   courseLegTrimRadius,
   defaultControlLabelPoint,
   directionAngle,
@@ -2224,7 +2225,7 @@ function legMapPoints(leg) {
 
 function automaticLegGaps(legs, rows, labelRows, metrics, pixelsPerMapUnit, gapSize, project) {
   const result = new Map();
-  const length = Math.max(0.5, Number(gapSize) || 3.5);
+  const length = Math.max(0.5, courseSymbolMmToMapDistance(Number(gapSize) || 3.5, metrics, pixelsPerMapUnit));
   const segmentSets = legs.map(leg => legSegments(legMapPoints(leg)));
   for (let i = 0; i < legs.length; i += 1) {
     for (let j = i + 1; j < legs.length; j += 1) {

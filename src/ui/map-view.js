@@ -15,7 +15,7 @@ import {
   resizedDescriptionSpecial,
   specialVisibleForCourse
 } from "../domain/control-descriptions.js";
-import { effectivePrintArea } from "../domain/print-area.js";
+import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js";
 import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import {
   createCourseSymbolMetrics,
@@ -1094,7 +1094,7 @@ export class MapView {
     const state = this.store.snapshot();
     const mapPoint = this.toMap(screen, state.ui);
     if (state.ui.tool === "print-area-frame") {
-      this.callbacks.onPrintAreaFrameMove?.(mapPoint);
+      const frameCenter = printAreaCenter(state.ui.printAreaEdit?.preview || state.ui.printAreaEdit?.area || effectivePrintArea(state.eventModel, state.ui.selectedCourseId));
       this.drag = {
         pointerId: event.pointerId,
         startScreen: screen,
@@ -1103,7 +1103,11 @@ export class MapView {
         hit: null,
         moved: false,
         panning: false,
-        printAreaFrame: true
+        printAreaFrame: true,
+        printAreaFrameOffset: {
+          x: frameCenter.x - mapPoint.x,
+          y: frameCenter.y - mapPoint.y
+        }
       };
       return;
     }
@@ -1208,7 +1212,9 @@ export class MapView {
     }
 
     if (this.drag.printAreaFrame) {
-      this.callbacks.onPrintAreaFrameMove?.(mapPoint);
+      if (this.drag.moved) {
+        this.callbacks.onPrintAreaFrameMove?.(printAreaFrameDragCenter(this.drag, mapPoint));
+      }
       return;
     }
 
@@ -1284,7 +1290,9 @@ export class MapView {
       return;
     }
     if (this.drag.printAreaFrame) {
-      this.callbacks.onPrintAreaFrameMove?.(mapPoint);
+      if (this.drag.moved) {
+        this.callbacks.onPrintAreaFrameMove?.(printAreaFrameDragCenter(this.drag, mapPoint));
+      }
       this.cancelDrag();
       return;
     }
@@ -2776,6 +2784,14 @@ function pointerPosition(event, cachedRect) {
   const rect = cachedRect || event.currentTarget?.getBoundingClientRect?.();
   if (!rect) return { x: event.offsetX, y: event.offsetY };
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
+
+function printAreaFrameDragCenter(drag, point) {
+  const offset = drag?.printAreaFrameOffset || { x: 0, y: 0 };
+  return {
+    x: point.x + offset.x,
+    y: point.y + offset.y
+  };
 }
 
 function pinchGesture(points) {

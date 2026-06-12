@@ -16,6 +16,8 @@ const ZH = Object.freeze({
   "Help": "帮助",
   "Feedback": "反馈通道",
   "Language": "语言",
+  "Loading O-Composer…": "正在加载 O-Composer…",
+  "Preparing the editor…": "正在准备编辑器…",
   "Desktop UI": "电脑版",
   "Mobile UI": "手机版",
   "Switch between desktop and mobile UI": "切换电脑版/手机版界面",

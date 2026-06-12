@@ -441,6 +441,7 @@ const ZH = Object.freeze({
   "sequence": "顺序编号",
   "code": "代码",
   "sequence-and-code": "顺序编号和代码",
+  "sequence-and-code-slash": "序号/点号",
   "sequence-and-score": "顺序编号和分值",
   "code-and-score-brackets": "点号[分数]",
   "code-and-score-dash": "点号-分数",

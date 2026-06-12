@@ -19,6 +19,7 @@ import { effectivePrintArea } from "../domain/print-area.js";
 import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import {
   createCourseSymbolMetrics,
+  courseLegTrimRadius,
   defaultControlLabelPoint,
   directionAngle,
   drawControlLabel,
@@ -787,7 +788,7 @@ export class MapView {
     for (const leg of legs) {
       const mapPoints = legMapPoints(leg);
       const screenPoints = mapPoints.map(point => this.toScreen(point, ui));
-      const startRadius = symbolApparentRadius(leg.from.control, metrics);
+      const startRadius = courseLegTrimRadius(leg.from.control, metrics);
       const screenGaps = screenGapsForLeg(
         [...(leg.leg?.gaps || []), ...(autoGaps.get(legKey(leg)) || [])],
         this.scale(ui),

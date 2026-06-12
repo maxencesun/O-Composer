@@ -18,6 +18,7 @@ const NORMAL = Object.freeze({
   crossingRadius: 2.5,
   mapIssueLength: 2.5,
   mapIssueWidth: 0.6,
+  modernCourseLineGap: 0.15,
   nominalControlNumberHeight: 4.0,
   controlNumberHeightFactor: 5.57 / 4.0,
   controlNumberCircleDistance: 1.825
@@ -66,8 +67,8 @@ export function drawCourseLeg(ctx, screenPoints, fromControl, toControl, metrics
   if (!screenPoints || screenPoints.length < 2) {
     return;
   }
-  const startRadius = symbolApparentRadius(fromControl, metrics);
-  const endRadius = symbolApparentRadius(toControl, metrics);
+  const startRadius = courseLegTrimRadius(fromControl, metrics);
+  const endRadius = courseLegTrimRadius(toControl, metrics);
   const points = trimPolyline(screenPoints, startRadius, endRadius);
   if (points.length < 2) {
     return;
@@ -625,8 +626,25 @@ export function symbolApparentRadius(control, metrics) {
   }
 }
 
+export function courseLegTrimRadius(control, metrics) {
+  const radius = symbolApparentRadius(control, metrics);
+  if (radius <= 0 || control?.kind === "map-issue") {
+    return radius;
+  }
+  const strokeOuter = lineWidth(metrics) / 2;
+  const gap = courseLineEndpointGap(metrics);
+  return radius + strokeOuter + gap;
+}
+
 function lineWidth(metrics) {
   return Math.max(0.7, NORMAL.lineThickness * metrics.unit * (metrics.appearance?.lineWidthRatio || 1));
+}
+
+function courseLineEndpointGap(metrics) {
+  if (metrics.mapStandard !== "2017" && metrics.mapStandard !== "Spr2019") {
+    return 0;
+  }
+  return NORMAL.modernCourseLineGap * metrics.unit;
 }
 
 function controlOutsideDiameter(metrics) {

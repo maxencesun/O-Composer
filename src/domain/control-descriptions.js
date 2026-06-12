@@ -38,6 +38,12 @@ const MIN_CELL_SIZE = 1.2;
 const COLUMN_GAP_CELLS = 0.6;
 const MARGIN_CELLS = 0.05;
 const DESCRIPTION_STANDARD = "2024";
+const DESCRIPTION_COLORS = Object.freeze({
+  black: "#000",
+  purple: "rgba(166, 38, 255, 0.82)",
+  "upper-purple": "rgba(166, 38, 255, 0.82)",
+  "lower-purple": "rgba(166, 38, 255, 0.46)"
+});
 const FALLBACK_DESCRIPTION_LANGUAGES = Object.freeze([["en", "English"]]);
 const DESCRIPTION_LANGUAGE_LABELS = Object.freeze({
   en: "English",
@@ -530,7 +536,7 @@ export function drawControlDescriptionBlock(ctx, eventModel, special, selectedCo
 }
 
 function drawDescriptionLocal(ctx, eventModel, special, metrics) {
-  const color = "#000";
+  const color = descriptionColor(special.color || eventModel?.event?.descriptions?.color);
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, metrics.width, metrics.height);
   ctx.strokeStyle = color;
@@ -1064,8 +1070,6 @@ function drawColumnFText(ctx, value, cx, cy, r) {
   };
   const split = splitColumnFText(text, rect);
   ctx.save();
-  ctx.fillStyle = "#000";
-  ctx.strokeStyle = "#000";
   ctx.lineCap = "butt";
   ctx.lineJoin = "miter";
   if (split) {
@@ -1484,8 +1488,6 @@ function drawXmlSymbol(ctx, symbol, cx, cy, radius) {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.scale(radius / 70, -radius / 70);
-  ctx.strokeStyle = "#000";
-  ctx.fillStyle = "#000";
   for (const stroke of symbol.strokes || []) {
     if (symbol.id === "13.6" && isMapIssueExtraLeftDash(stroke)) {
       continue;
@@ -1493,6 +1495,17 @@ function drawXmlSymbol(ctx, symbol, cx, cy, radius) {
     drawXmlStroke(ctx, stroke);
   }
   ctx.restore();
+}
+
+function descriptionColor(value) {
+  const color = String(value || "black").trim();
+  return DESCRIPTION_COLORS[color] || (isCssColorValue(color) ? color : DESCRIPTION_COLORS.black);
+}
+
+function isCssColorValue(color) {
+  return /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)
+    || /^rgba?\(/i.test(color)
+    || /^hsla?\(/i.test(color);
 }
 
 function isMapIssueExtraLeftDash(stroke) {

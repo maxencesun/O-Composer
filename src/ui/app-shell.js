@@ -56,7 +56,7 @@ import {
   printAreaTargetLabel,
   setPrintArea
 } from "../domain/print-area.js";
-import { createRasterMapPdfBlob, createVectorMapPdfBlob } from "../domain/pdf-exporter.js";
+import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js";
 import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js";
 import {
   allControlsView,
@@ -127,9 +127,7 @@ const PDF_COURSE_SCOPES = Object.freeze({
 });
 
 const PDF_OUTPUT_MODES = Object.freeze({
-  AUTO: "auto",
-  VECTOR: "vector",
-  RASTER: "raster"
+  VECTOR: "vector"
 });
 
 const PDF_EXPORT_SETTINGS_KEY = "purplePenPdfExportSettings";
@@ -988,13 +986,6 @@ export class PurplePenApp extends HTMLElement {
                 <legend>${escapeHtml(this.t("Appearance"))}</legend>
                 <label class="dialog-check"><input id="pdfIncludeBaseMap" type="checkbox" checked> ${escapeHtml(this.t("Include base map"))}</label>
                 <label class="dialog-check"><input id="pdfIncludeDescriptions" type="checkbox" checked> ${escapeHtml(this.t("Include control descriptions"))}</label>
-                <label>${escapeHtml(this.t("Rendering"))}
-                  <select id="pdfOutputMode">
-                    <option value="auto">${escapeHtml(this.t("Automatic"))}</option>
-                    <option value="vector">${escapeHtml(this.t("Vector PDF"))}</option>
-                    <option value="raster">${escapeHtml(this.t("Raster PDF"))}</option>
-                  </select>
-                </label>
               </fieldset>
               <fieldset>
                 <legend>${escapeHtml(this.t("Files"))}</legend>
@@ -3597,7 +3588,6 @@ export class PurplePenApp extends HTMLElement {
     this.populatePdfCourseOptions(state, settings.courseScope);
     this.querySelector("#pdfIncludeBaseMap").checked = settings.includeBaseMap !== false;
     this.querySelector("#pdfIncludeDescriptions").checked = settings.includeDescriptions !== false;
-    this.querySelector("#pdfOutputMode").value = settings.outputMode || PDF_OUTPUT_MODES.AUTO;
     this.querySelector("#pdfFilePrefix").value = settings.filePrefix || baseName(state.eventModel.sourceName);
     this.querySelector("#pdfUseCourseNames").checked = settings.useCourseNames !== false;
     this.querySelector("#pdfRelayUsedOnly").checked = settings.relayUsedOnly !== false;
@@ -3631,7 +3621,7 @@ export class PurplePenApp extends HTMLElement {
       includeBaseMap: this.querySelector("#pdfIncludeBaseMap").checked,
       includeDescriptions: this.querySelector("#pdfIncludeDescriptions").checked,
       pageBackground: false,
-      outputMode: this.querySelector("#pdfOutputMode").value,
+      outputMode: PDF_OUTPUT_MODES.VECTOR,
       filePrefix: this.querySelector("#pdfFilePrefix").value.trim() || baseName(this.store.snapshot().eventModel.sourceName),
       useCourseNames: this.querySelector("#pdfUseCourseNames").checked,
       relayUsedOnly: this.querySelector("#pdfRelayUsedOnly").checked
@@ -3644,14 +3634,7 @@ export class PurplePenApp extends HTMLElement {
     if (!summary) return;
     const settings = this.pdfSettingsFromDialog();
     const targets = this.pdfExportTargets(state, settings);
-    const bitmapBaseMap = settings.includeBaseMap && this.mapView.hasBitmapBackground() && !this.mapView.omapMap;
-    const renderingLabel = bitmapBaseMap
-      ? "Raster PDF (bitmap base map)."
-      : settings.outputMode === PDF_OUTPUT_MODES.RASTER
-        ? "Raster PDF."
-        : settings.outputMode === PDF_OUTPUT_MODES.VECTOR
-          ? "Vector PDF."
-          : "Automatic rendering.";
+    const renderingLabel = "Vector PDF.";
     const parts = [
       this.t(targets.length === 1 ? "1 PDF will be created." : "{count} PDFs will be created.", { count: targets.length }),
       this.t(settings.includeBaseMap ? "Base map included." : "Course overlay only."),
@@ -3915,45 +3898,12 @@ export class PurplePenApp extends HTMLElement {
       ...(target.exportUi || {})
     };
     const pdfBackground = await this.vectorPdfBackgroundForExport(state, area, size, settings);
-    const hasRasterMap = settings.includeBaseMap
-      && this.mapView.hasBitmapBackground()
-      && !this.mapView.omapMap
-      && !pdfBackground;
-    const forceRaster = settings.outputMode === PDF_OUTPUT_MODES.RASTER;
-    const forceVector = settings.outputMode === PDF_OUTPUT_MODES.VECTOR;
-    if (forceRaster || hasRasterMap) {
-      await onProgress(1, this.t("Preparing {name} page…", { name: target.name }));
-      await onProgress(2, this.t("Drawing {name} map…", { name: target.name }));
-      const canvas = this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
-        includeBitmapBackground: settings.includeBaseMap,
-        includeOmapMap: settings.includeBaseMap,
-        includePageBackground: false
-      });
-      await onProgress(4, this.t("Encoding {name} image…", { name: target.name }));
-      const blob = await createRasterMapPdfBlob({
-        pageWidthMm: page.width,
-        pageHeightMm: page.height,
-        marginMm,
-        canvas,
-        onProgress: async stage => {
-          if (stage === "encoding-image") {
-            await onProgress(5, this.t("Encoding {name} image…", { name: target.name }));
-          }
-          else if (stage === "building") {
-            await onProgress(6, this.t("Writing {name} PDF…", { name: target.name }));
-          }
-        }
-      });
-      await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
-      return blob;
-    }
     await onProgress(1, this.t("Preparing {name} page…", { name: target.name }));
-    const omapBackgroundCanvas = settings.includeBaseMap && this.mapView.omapMap && !pdfBackground
+    const bitmapBackground = settings.includeBaseMap && this.mapView.hasBitmapBackground() && !this.mapView.omapMap && !pdfBackground
       ? this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
-          includeBitmapBackground: false,
-          includeOmapMap: true,
-          includePageBackground: true,
-          pageBackgroundColor: "#ffffff",
+          includeBitmapBackground: true,
+          includeOmapMap: false,
+          includePageBackground: false,
           includeSpecials: false,
           includeCourse: false
         })
@@ -3965,8 +3915,8 @@ export class PurplePenApp extends HTMLElement {
       canvasWidth: size.width,
       canvasHeight: size.height,
       backgroundPdf: pdfBackground,
-      backgroundCanvas: omapBackgroundCanvas,
-      needsUnicodeFont: containsUnicodeText(eventModel) || containsUnicodeText(target.name),
+      backgroundImage: bitmapBackground,
+      needsUnicodeFont: containsUnicodeText(eventModel) || containsUnicodeText(target.name) || containsUnicodeText(this.mapView.omapMap),
       onProgress: async stage => {
         const phase = vectorPdfProgressPhase(stage);
         const message = vectorPdfProgressMessage(stage, target.name, this.t.bind(this));
@@ -3976,7 +3926,7 @@ export class PurplePenApp extends HTMLElement {
       },
       draw: ctx => this.mapView.renderAreaToContext(ctx, eventModel, exportUi, area, size, {
         includeBitmapBackground: false,
-        includeOmapMap: settings.includeBaseMap && !omapBackgroundCanvas,
+        includeOmapMap: settings.includeBaseMap,
         includePageBackground: false
       })
     });
@@ -3989,7 +3939,6 @@ export class PurplePenApp extends HTMLElement {
     if (!settings.includeBaseMap) return null;
     const background = state.ui.background;
     if (background?.sourceKind !== "pdf") return null;
-    if (settings.outputMode === PDF_OUTPUT_MODES.RASTER) return null;
     let sourceDataUrl = background.pdf?.sourceDataUrl || null;
     if (!pdfDataUrlLooksLikePdf(sourceDataUrl) && background.pdf?.cacheKey) {
       sourceDataUrl = await loadCachedPdfBasemap(background.pdf.cacheKey);
@@ -6914,7 +6863,7 @@ function defaultPdfExportSettings() {
     includeBaseMap: true,
     includeDescriptions: true,
     pageBackground: false,
-    outputMode: PDF_OUTPUT_MODES.AUTO,
+    outputMode: PDF_OUTPUT_MODES.VECTOR,
     filePrefix: "",
     useCourseNames: true,
     relayUsedOnly: true

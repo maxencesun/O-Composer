@@ -3948,6 +3948,16 @@ export class PurplePenApp extends HTMLElement {
       return blob;
     }
     await onProgress(1, this.t("Preparing {name} page…", { name: target.name }));
+    const omapBackgroundCanvas = settings.includeBaseMap && this.mapView.omapMap && !pdfBackground
+      ? this.mapView.renderAreaToCanvas(eventModel, exportUi, area, size, {
+          includeBitmapBackground: false,
+          includeOmapMap: true,
+          includePageBackground: true,
+          pageBackgroundColor: "#ffffff",
+          includeSpecials: false,
+          includeCourse: false
+        })
+      : null;
     const blob = await createVectorMapPdfBlob({
       pageWidthMm: page.width,
       pageHeightMm: page.height,
@@ -3955,6 +3965,7 @@ export class PurplePenApp extends HTMLElement {
       canvasWidth: size.width,
       canvasHeight: size.height,
       backgroundPdf: pdfBackground,
+      backgroundCanvas: omapBackgroundCanvas,
       needsUnicodeFont: containsUnicodeText(eventModel) || containsUnicodeText(target.name),
       onProgress: async stage => {
         const phase = vectorPdfProgressPhase(stage);
@@ -3965,7 +3976,7 @@ export class PurplePenApp extends HTMLElement {
       },
       draw: ctx => this.mapView.renderAreaToContext(ctx, eventModel, exportUi, area, size, {
         includeBitmapBackground: false,
-        includeOmapMap: settings.includeBaseMap,
+        includeOmapMap: settings.includeBaseMap && !omapBackgroundCanvas,
         includePageBackground: false
       })
     });

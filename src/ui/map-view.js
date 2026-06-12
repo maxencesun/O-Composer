@@ -203,8 +203,12 @@ export class MapView {
       if (options.includeOmapMap !== false) {
         this.drawOmapDirect(ctx, exportUi);
       }
-      this.drawSpecials(ctx, eventModel, exportUi);
-      this.drawCourse(ctx, eventModel, exportUi);
+      if (options.includeSpecials !== false) {
+        this.drawSpecials(ctx, eventModel, exportUi);
+      }
+      if (options.includeCourse !== false) {
+        this.drawCourse(ctx, eventModel, exportUi);
+      }
     }
     finally {
       this.bounds = previousBounds;

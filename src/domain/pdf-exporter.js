@@ -20,11 +20,18 @@ let pdfLatinFontSetPromise = null;
 let pdfCjkFontSetPromise = null;
 let pdfLibPromise = null;
 
-export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, needsUnicodeFont = false, onProgress = async () => {} }) {
+export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, backgroundCanvas = null, needsUnicodeFont = false, onProgress = async () => {} }) {
   await onProgress("loading-fonts");
   const fontSet = await loadPdfFontSet({ includeCjk: needsUnicodeFont });
   const layout = pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm, canvasWidth, canvasHeight });
   const ctx = new PdfCanvasContext(canvasWidth, canvasHeight, layout.box, fontSet);
+  const backgroundImage = backgroundCanvas
+    ? {
+        bytes: await canvasJpegBytes(backgroundCanvas),
+        width: Math.max(1, backgroundCanvas.width || canvasWidth || 1),
+        height: Math.max(1, backgroundCanvas.height || canvasHeight || 1)
+      }
+    : null;
 
   await onProgress("drawing");
   draw(ctx);
@@ -35,7 +42,9 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
     pageHeightPt: layout.pageHeightPt,
     content: ctx.content(),
     fontSet,
-    alphaResources: ctx.alphaResources()
+    alphaResources: ctx.alphaResources(),
+    backgroundImage,
+    contentBox: layout.box
   });
 
   if (backgroundPdf?.sourceDataUrl && backgroundPdf?.canvasBox) {
@@ -501,7 +510,7 @@ class PdfCanvasContext {
   }
 }
 
-function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources = "" }) {
+function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources = "", backgroundImage = null, contentBox = null }) {
   const chunks = [];
   const offsets = [0];
   let length = 0;
@@ -522,12 +531,24 @@ function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources 
     add("\nendstream\nendobj\n");
   };
   const fontObjects = createFontObjects(fontSet, 6);
+  const imageObjectId = backgroundImage ? fontObjects.nextId : 0;
+  const nextId = backgroundImage ? fontObjects.nextId + 1 : fontObjects.nextId;
+  const backgroundContent = backgroundImage && contentBox
+    ? [
+        "q",
+        `${n(contentBox.width)} 0 0 ${n(contentBox.height)} ${n(contentBox.x)} ${n(contentBox.y)} cm`,
+        "/ImBase Do",
+        "Q"
+      ].join("\n")
+    : "";
+  const pageContent = backgroundContent ? `${backgroundContent}\n${content}` : content;
+  const xObjectResources = backgroundImage ? ` /XObject << /ImBase ${imageObjectId} 0 R >>` : "";
 
   add("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
   object(1, "<< /Type /Catalog /Pages 2 0 R >>");
   object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
-  object(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pageWidthPt)} ${n(pageHeightPt)}] /Resources << /Font << ${fontObjects.resources} >>${alphaResources ? ` /ExtGState << ${alphaResources} >>` : ""} >> /Contents 4 0 R >>`);
-  streamObject(4, "<<", ascii(content));
+  object(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pageWidthPt)} ${n(pageHeightPt)}] /Resources << /Font << ${fontObjects.resources} >>${xObjectResources}${alphaResources ? ` /ExtGState << ${alphaResources} >>` : ""} >> /Contents 4 0 R >>`);
+  streamObject(4, "<<", ascii(pageContent));
   object(5, "<< /Producer (O-Composer) >>");
   for (const item of fontObjects.objects) {
     if (item.stream) {
@@ -537,13 +558,16 @@ function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources 
       object(item.id, item.body);
     }
   }
+  if (backgroundImage) {
+    streamObject(imageObjectId, `<< /Type /XObject /Subtype /Image /Width ${Math.round(backgroundImage.width)} /Height ${Math.round(backgroundImage.height)} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`, backgroundImage.bytes);
+  }
 
   const xrefOffset = length;
-  add(`xref\n0 ${fontObjects.nextId}\n0000000000 65535 f \n`);
-  for (let id = 1; id < fontObjects.nextId; id += 1) {
+  add(`xref\n0 ${nextId}\n0000000000 65535 f \n`);
+  for (let id = 1; id < nextId; id += 1) {
     add(`${String(offsets[id]).padStart(10, "0")} 00000 n \n`);
   }
-  add(`trailer\n<< /Size ${fontObjects.nextId} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+  add(`trailer\n<< /Size ${nextId} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
 
   const output = new Uint8Array(length);
   let cursor = 0;

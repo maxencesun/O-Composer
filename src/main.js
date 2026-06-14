@@ -1,6 +1,12 @@
 const BOOT_LOADING_ID = "oComposerBootLoading";
 const BOOT_LOADING_STYLE_ID = "oComposerBootLoadingStyle";
 const LANGUAGE_KEY = "purplePenLanguage";
+const bootProgressState = {
+  percent: 4,
+  title: "",
+  detail: "",
+  indeterminate: false
+};
 
 function bootText() {
   let language = "en";
@@ -13,6 +19,8 @@ function bootText() {
     return {
       title: "正在加载 O-Composer…",
       detail: "正在准备编辑器…",
+      moduleDetail: "正在加载编辑器模块…",
+      initializeDetail: "正在初始化编辑器…",
       errorTitle: "O-Composer 启动失败",
       errorDetail: "请刷新页面，或打开开发者工具查看错误。"
     };
@@ -20,9 +28,57 @@ function bootText() {
   return {
     title: "Loading O-Composer…",
     detail: "Preparing the editor…",
+    moduleDetail: "Loading editor modules…",
+    initializeDetail: "Initializing the editor…",
     errorTitle: "O-Composer failed to start",
     errorDetail: "Refresh the page, or open developer tools to inspect the error."
   };
+}
+
+function clampPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(100, Math.round(number)));
+}
+
+function applyBootLoadingProgress() {
+  const overlay = typeof document === "undefined" ? null : document.getElementById(BOOT_LOADING_ID);
+  if (!overlay) return;
+  const title = overlay.querySelector("[data-boot-title]");
+  const detail = overlay.querySelector("[data-boot-detail]");
+  const bar = overlay.querySelector("[data-boot-progress]");
+  const value = overlay.querySelector("[data-boot-progress-value]");
+  const percent = clampPercent(bootProgressState.percent);
+  overlay.classList.toggle("is-indeterminate", Boolean(bootProgressState.indeterminate));
+  overlay.style.setProperty("--app-boot-progress", `${percent}%`);
+  if (title && bootProgressState.title) title.textContent = bootProgressState.title;
+  if (detail && bootProgressState.detail) detail.textContent = bootProgressState.detail;
+  if (bar) {
+    bar.setAttribute("aria-valuenow", String(percent));
+    bar.setAttribute("aria-valuetext", `${percent}%`);
+  }
+  if (value) value.textContent = `${percent}%`;
+}
+
+function updateBootLoadingProgress(update = {}) {
+  const text = bootText();
+  if (update.title !== undefined) {
+    bootProgressState.title = update.title || text.title;
+  } else if (!bootProgressState.title) {
+    bootProgressState.title = text.title;
+  }
+  if (update.detail !== undefined) {
+    bootProgressState.detail = update.detail || text.detail;
+  } else if (!bootProgressState.detail) {
+    bootProgressState.detail = text.detail;
+  }
+  if (update.percent !== undefined) {
+    bootProgressState.percent = clampPercent(update.percent);
+  }
+  if (update.indeterminate !== undefined) {
+    bootProgressState.indeterminate = Boolean(update.indeterminate);
+  }
+  applyBootLoadingProgress();
 }
 
 function ensureBootLoadingStyle() {
@@ -31,6 +87,7 @@ function ensureBootLoadingStyle() {
   style.id = BOOT_LOADING_STYLE_ID;
   style.textContent = `
     #${BOOT_LOADING_ID} {
+      --app-boot-progress: 4%;
       position: fixed;
       inset: 0;
       z-index: 2147483647;
@@ -56,6 +113,7 @@ function ensureBootLoadingStyle() {
       display: flex;
       align-items: center;
       gap: 12px;
+      width: min(420px, calc(100vw - 32px));
       max-width: min(420px, calc(100vw - 32px));
       padding: 16px 18px;
       border: 1px solid #d1d5db;
@@ -72,6 +130,10 @@ function ensureBootLoadingStyle() {
       border-radius: 999px;
       animation: appBootSpin 0.85s linear infinite;
     }
+    #${BOOT_LOADING_ID} .app-boot-content {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
     #${BOOT_LOADING_ID} strong,
     #${BOOT_LOADING_ID} span {
       display: block;
@@ -81,8 +143,52 @@ function ensureBootLoadingStyle() {
       color: #4b5563;
       font-size: 12px;
     }
+    #${BOOT_LOADING_ID} .app-boot-progress-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 9px;
+    }
+    #${BOOT_LOADING_ID} .app-boot-progress-track {
+      position: relative;
+      flex: 1 1 auto;
+      height: 7px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e5e7eb;
+    }
+    #${BOOT_LOADING_ID} .app-boot-progress-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: var(--app-boot-progress);
+      min-width: 7px;
+      border-radius: inherit;
+      background: #a626ff;
+      transition: width 0.18s ease;
+    }
+    #${BOOT_LOADING_ID}.is-indeterminate .app-boot-progress-fill {
+      width: 38%;
+      min-width: 38%;
+      animation: appBootProgressIndeterminate 1.1s ease-in-out infinite;
+      transition: none;
+    }
+    #${BOOT_LOADING_ID} .app-boot-progress-value {
+      flex: 0 0 auto;
+      min-width: 34px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #4b5563;
+      font-size: 12px;
+    }
+    #${BOOT_LOADING_ID}.is-indeterminate .app-boot-progress-value {
+      visibility: hidden;
+    }
     @keyframes appBootSpin {
       to { transform: rotate(360deg); }
+    }
+    @keyframes appBootProgressIndeterminate {
+      0% { transform: translateX(-115%); }
+      100% { transform: translateX(265%); }
     }
   `;
   document.head?.appendChild(style) || document.documentElement.appendChild(style);
@@ -99,15 +205,22 @@ function ensureBootLoading() {
   overlay.innerHTML = `
     <div class="app-boot-card">
       <div class="app-boot-spinner" aria-hidden="true"></div>
-      <div>
+      <div class="app-boot-content">
         <strong data-boot-title>${text.title}</strong>
         <span data-boot-detail>${text.detail}</span>
+        <div class="app-boot-progress-row">
+          <div class="app-boot-progress-track" data-boot-progress role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="4" aria-valuetext="4%">
+            <div class="app-boot-progress-fill"></div>
+          </div>
+          <span class="app-boot-progress-value" data-boot-progress-value>4%</span>
+        </div>
       </div>
     </div>
   `;
   const appendOverlay = () => {
     if (!document.body || document.getElementById(BOOT_LOADING_ID)) return;
     document.body.prepend(overlay);
+    applyBootLoadingProgress();
   };
   if (document.body) {
     appendOverlay();
@@ -121,16 +234,29 @@ function showBootError(error) {
   if (!overlay) return;
   const text = bootText();
   overlay.classList.add("is-error");
-  const title = overlay.querySelector("[data-boot-title]");
-  const detail = overlay.querySelector("[data-boot-detail]");
-  if (title) title.textContent = text.errorTitle;
-  if (detail) detail.textContent = `${text.errorDetail}${error?.message ? ` ${error.message}` : ""}`;
+  overlay.classList.remove("is-indeterminate");
+  updateBootLoadingProgress({
+    percent: 100,
+    title: text.errorTitle,
+    detail: `${text.errorDetail}${error?.message ? ` ${error.message}` : ""}`
+  });
 }
 
+const text = bootText();
+globalThis.__oComposerBootLoading = {
+  update: updateBootLoadingProgress
+};
+
 ensureBootLoading();
+updateBootLoadingProgress({ percent: 8, detail: text.detail });
+
+requestAnimationFrame(() => {
+  updateBootLoadingProgress({ percent: 18, detail: text.moduleDetail, indeterminate: true });
+});
 
 import("./ui/app-shell.js")
   .then(({ PurplePenApp }) => {
+    updateBootLoadingProgress({ percent: 52, detail: text.initializeDetail, indeterminate: false });
     customElements.define("purple-pen-app", PurplePenApp);
   })
   .catch(error => {

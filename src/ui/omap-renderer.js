@@ -811,14 +811,21 @@ function drawLinePattern(ctx, pattern, origin, visibleBounds, scale, targetPrior
   const spacing = Math.max(2, pattern.lineSpacing * scale);
   const direction = screenDirection(pattern.angle);
   const normal = { x: -direction.y, y: direction.x };
-  // Keep the hatch grid anchored to the map/object pattern origin, not to the
-  // individual polygon bounds. Purple Pen draws hatches/patterns in a shared
-  // transformed coordinate system; using each area piece's bbox center makes
-  // adjacent pieces drift out of phase at their borders.
+  // Keep the hatch phase anchored to the shared map/object pattern origin, not
+  // to each polygon's bbox. However, do not draw the finite line segments around
+  // that origin: on large maps the origin can be far away, and a short segment
+  // centered there will not reach the clipped polygon. Move the line anchor along
+  // the hatch direction to the current visible area while preserving the normal
+  // offset, so all hatch directions remain visible and still phase-aligned.
   const diagonal = Math.hypot(visibleBounds.width, visibleBounds.height) + 40;
   const range = projectedRange(visibleBounds, origin, normal);
   const first = Math.floor((range.min - pattern.lineOffset * scale) / spacing) - 1;
   const last = Math.ceil((range.max - pattern.lineOffset * scale) / spacing) + 1;
+  const visibleCenter = {
+    x: visibleBounds.x + visibleBounds.width / 2,
+    y: visibleBounds.y + visibleBounds.height / 2
+  };
+  const directionShift = dotDelta(visibleCenter, origin, direction);
 
   ctx.save();
   ctx.strokeStyle = pattern.color || "#777";
@@ -826,8 +833,8 @@ function drawLinePattern(ctx, pattern, origin, visibleBounds, scale, targetPrior
   ctx.beginPath();
   for (let i = first; i <= last; i += 1) {
     const offset = i * spacing + pattern.lineOffset * scale;
-    const x = origin.x + normal.x * offset;
-    const y = origin.y + normal.y * offset;
+    const x = origin.x + direction.x * directionShift + normal.x * offset;
+    const y = origin.y + direction.y * directionShift + normal.y * offset;
     ctx.moveTo(x - direction.x * diagonal, y - direction.y * diagonal);
     ctx.lineTo(x + direction.x * diagonal, y + direction.y * diagonal);
   }
@@ -1451,6 +1458,10 @@ function intersectBounds(a, b) {
     width: right - left,
     height: bottom - top
   };
+}
+
+function dotDelta(point, origin, axis) {
+  return (point.x - origin.x) * axis.x + (point.y - origin.y) * axis.y;
 }
 
 function projectedRange(bounds, origin, axis) {

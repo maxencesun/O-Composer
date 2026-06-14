@@ -93,7 +93,7 @@ function drawArea(ctx, object, area, project, scale, transform, targetPriority) 
     ctx.fill("evenodd");
   }
   for (const pattern of area.patterns || []) {
-    drawPattern(ctx, patternForObject(pattern, object, transform), screenPoints, scale, targetPriority);
+    drawPattern(ctx, patternForObject(pattern, object, transform), screenPoints, project, scale, targetPriority);
   }
   ctx.restore();
 }
@@ -776,34 +776,47 @@ function patternForObject(pattern, object, transform) {
   };
 }
 
-function drawPattern(ctx, pattern, screenPoints, scale, targetPriority) {
+function drawPattern(ctx, pattern, screenPoints, project, scale, targetPriority) {
   if (!pattern || !screenPoints.length) return;
   if (!pattern.priorities?.includes(targetPriority) && !priorityMatches(pattern.priority, targetPriority)) return;
   const bounds = screenBounds(screenPoints);
   const visibleBounds = intersectBounds(bounds, canvasScreenBounds(ctx));
   const diagonal = Math.hypot(bounds.width, bounds.height) + 20;
   if (diagonal <= 0) return;
+  const origin = patternOriginScreenPoint(pattern, project);
 
   ctx.save();
   makePath(ctx, screenPoints, true);
   ctx.clip("evenodd");
   if (pattern.type === "2") {
-    drawPointPattern(ctx, pattern, bounds, visibleBounds, scale, targetPriority);
+    drawPointPattern(ctx, pattern, origin, visibleBounds, scale, targetPriority);
   }
   else {
-    drawLinePattern(ctx, pattern, bounds, visibleBounds, scale, targetPriority);
+    drawLinePattern(ctx, pattern, origin, visibleBounds, scale, targetPriority);
   }
   ctx.restore();
 }
 
-function drawLinePattern(ctx, pattern, bounds, visibleBounds, scale, targetPriority) {
+function patternOriginScreenPoint(pattern, project) {
+  const origin = pattern?.origin || { x: 0, y: 0 };
+  const projected = typeof project === "function" ? project(origin) : origin;
+  return {
+    x: Number.isFinite(projected?.x) ? projected.x : 0,
+    y: Number.isFinite(projected?.y) ? projected.y : 0
+  };
+}
+
+function drawLinePattern(ctx, pattern, origin, visibleBounds, scale, targetPriority) {
   if (!priorityMatches(pattern.priority, targetPriority)) return;
   const spacing = Math.max(2, pattern.lineSpacing * scale);
   const direction = screenDirection(pattern.angle);
   const normal = { x: -direction.y, y: direction.x };
-  const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
+  // Keep the hatch grid anchored to the map/object pattern origin, not to the
+  // individual polygon bounds. Purple Pen draws hatches/patterns in a shared
+  // transformed coordinate system; using each area piece's bbox center makes
+  // adjacent pieces drift out of phase at their borders.
   const diagonal = Math.hypot(visibleBounds.width, visibleBounds.height) + 40;
-  const range = projectedRange(visibleBounds, center, normal);
+  const range = projectedRange(visibleBounds, origin, normal);
   const first = Math.floor((range.min - pattern.lineOffset * scale) / spacing) - 1;
   const last = Math.ceil((range.max - pattern.lineOffset * scale) / spacing) + 1;
 
@@ -813,8 +826,8 @@ function drawLinePattern(ctx, pattern, bounds, visibleBounds, scale, targetPrior
   ctx.beginPath();
   for (let i = first; i <= last; i += 1) {
     const offset = i * spacing + pattern.lineOffset * scale;
-    const x = center.x + normal.x * offset;
-    const y = center.y + normal.y * offset;
+    const x = origin.x + normal.x * offset;
+    const y = origin.y + normal.y * offset;
     ctx.moveTo(x - direction.x * diagonal, y - direction.y * diagonal);
     ctx.lineTo(x + direction.x * diagonal, y + direction.y * diagonal);
   }
@@ -822,7 +835,7 @@ function drawLinePattern(ctx, pattern, bounds, visibleBounds, scale, targetPrior
   ctx.restore();
 }
 
-function drawPointPattern(ctx, pattern, bounds, visibleBounds, scale, targetPriority) {
+function drawPointPattern(ctx, pattern, origin, visibleBounds, scale, targetPriority) {
   const pointStyle = pattern.symbol?.point || null;
   const canFill = pointStyle?.innerColor && pointStyle.innerRadius > 0 && priorityMatches(pointStyle.innerPriority, targetPriority);
   const canStroke = pointStyle?.outerColor && pointStyle.outerWidth > 0 && priorityMatches(pointStyle.outerPriority, targetPriority);
@@ -833,9 +846,10 @@ function drawPointPattern(ctx, pattern, bounds, visibleBounds, scale, targetPrio
   const pointDistance = Math.max(4, pattern.pointDistance * scale);
   const direction = screenDirection(pattern.angle);
   const normal = { x: -direction.y, y: direction.x };
-  const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
-  const normalRange = projectedRange(visibleBounds, center, normal);
-  const pointRange = projectedRange(visibleBounds, center, direction);
+  // Anchor the point grid to the same shared origin as line hatching so
+  // separately clipped pieces of one area symbol stay phase-aligned.
+  const normalRange = projectedRange(visibleBounds, origin, normal);
+  const pointRange = projectedRange(visibleBounds, origin, direction);
   const firstNormal = Math.floor((normalRange.min - pattern.lineOffset * scale) / lineSpacing) - 2;
   const lastNormal = Math.ceil((normalRange.max - pattern.lineOffset * scale) / lineSpacing) + 2;
   const firstPoint = Math.floor((pointRange.min - pattern.offsetAlongLine * scale) / pointDistance) - 2;
@@ -854,8 +868,8 @@ function drawPointPattern(ctx, pattern, bounds, visibleBounds, scale, targetPrio
   }
   for (let i = firstNormal; i <= lastNormal; i += 1) {
     for (let j = firstPoint; j <= lastPoint; j += 1) {
-      const x = center.x + normal.x * (i * lineSpacing + pattern.lineOffset * scale) + direction.x * (j * pointDistance + pattern.offsetAlongLine * scale);
-      const y = center.y + normal.y * (i * lineSpacing + pattern.lineOffset * scale) + direction.y * (j * pointDistance + pattern.offsetAlongLine * scale);
+      const x = origin.x + normal.x * (i * lineSpacing + pattern.lineOffset * scale) + direction.x * (j * pointDistance + pattern.offsetAlongLine * scale);
+      const y = origin.y + normal.y * (i * lineSpacing + pattern.lineOffset * scale) + direction.y * (j * pointDistance + pattern.offsetAlongLine * scale);
       if (canFill) {
         ctx.beginPath();
         ctx.arc(x, y, Math.max(0.7, pointStyle.innerRadius * scale), 0, Math.PI * 2);

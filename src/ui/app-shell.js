@@ -276,16 +276,24 @@ import {
   escapeHtml,
   escapeAttr
 } from "./app-shell-helpers.js";
+
+function updateBootLoadingProgress(percent, detail) {
+  globalThis.__oComposerBootLoading?.update?.({ percent, detail, indeterminate: false });
+}
+
 export class PurplePenApp extends HTMLElement {
   connectedCallback() {
     consumeLanguageRefreshParam();
     this.language = getLanguage();
+    updateBootLoadingProgress(58, this.t("Building editor UI…"));
     this.store = new Store();
     this.innerHTML = this.template();
+    this.updateInitialLoadingProgress(60, this.t("Building editor UI…"));
     this.syncResponsiveUiClass();
     this.syncApplicationLanguageControl();
     this.renderKeys = null;
     this.cacheReady = false;
+    this.updateInitialLoadingProgress(68, this.t("Preparing map view…"));
     this.mapView = new MapView(this.querySelector("#mapCanvas"), this.store, {
       onSelect: selection => this.setSelection(selection),
       onToolPoint: (tool, point, options) => this.applyTool(tool, point, options),
@@ -307,10 +315,15 @@ export class PurplePenApp extends HTMLElement {
       onHover: point => this.updateMouseStatus(point)
     });
     this.bindEvents();
+    this.updateInitialLoadingProgress(74, this.t("Restoring cached session…"));
     installAppResourceFetchCache(APP_RESOURCE_CACHE_NAME, APP_RESOURCE_URLS);
     this.startResourcePrecache();
     this.deferMapLayoutRefresh();
-    const cachedSessionReady = this.restoreCachedSession();
+    const cachedSessionReady = Promise.resolve(this.restoreCachedSession())
+      .then(result => {
+        this.updateInitialLoadingProgress(84, this.t("Loading control symbols…"));
+        return result;
+      });
     this.store.subscribe(state => this.render(state));
     this.store.subscribe(state => this.scheduleSessionCache(state));
     this.refreshAfterFontLoad();
@@ -318,16 +331,37 @@ export class PurplePenApp extends HTMLElement {
       .then(() => {
         this.renderKeys = null;
         this.render(this.store.snapshot());
+        this.updateInitialLoadingProgress(94, this.t("Finalizing…"));
       })
       .catch(error => {
         console.warn(error);
+        this.updateInitialLoadingProgress(94, this.t("Finalizing…"));
       });
     this.hideInitialLoadingWhenReady([cachedSessionReady, symbolsReady]);
   }
 
+  updateInitialLoadingProgress(percent, detail) {
+    const safePercent = clamp(Math.round(Number(percent) || 0), 0, 100);
+    const title = this.querySelector("#appInitLoadingTitle");
+    const detailEl = this.querySelector("#appInitLoadingDetail");
+    const bar = this.querySelector("#appInitProgressBar");
+    const value = this.querySelector("#appInitProgressValue");
+    if (title) title.textContent = this.t("Loading O-Composer…");
+    if (detailEl && detail) detailEl.textContent = detail;
+    if (bar) {
+      bar.value = safePercent;
+      bar.setAttribute("aria-valuenow", String(safePercent));
+    }
+    if (value) value.textContent = `${safePercent}%`;
+    updateBootLoadingProgress(safePercent, detail);
+  }
+
   hideInitialLoadingWhenReady(promises = []) {
     void Promise.allSettled(promises)
-      .then(() => new Promise(resolve => requestAnimationFrame(resolve)))
+      .then(() => {
+        this.updateInitialLoadingProgress(100, this.t("Ready."));
+        return new Promise(resolve => requestAnimationFrame(resolve));
+      })
       .then(() => this.hideInitialLoading());
   }
 

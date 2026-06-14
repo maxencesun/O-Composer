@@ -281,6 +281,8 @@ export function createAppShellTemplateMethods(deps) {
           display: flex;
           align-items: center;
           gap: 12px;
+          width: min(420px, calc(100vw - 32px));
+          max-width: min(420px, calc(100vw - 32px));
           padding: 16px 18px;
           border: 1px solid #d1d5db;
           border-radius: 12px;
@@ -288,12 +290,17 @@ export function createAppShellTemplateMethods(deps) {
           box-shadow: 0 12px 36px rgba(15, 23, 42, 0.16);
         }
         purple-pen-app .app-init-spinner {
+          flex: 0 0 auto;
           width: 24px;
           height: 24px;
           border: 3px solid #e5e7eb;
           border-top-color: #a626ff;
           border-radius: 999px;
           animation: appInitSpin 0.85s linear infinite;
+        }
+        purple-pen-app .app-init-loading-content {
+          flex: 1 1 auto;
+          min-width: 0;
         }
         purple-pen-app .app-init-loading strong,
         purple-pen-app .app-init-loading span {
@@ -303,6 +310,40 @@ export function createAppShellTemplateMethods(deps) {
           margin-top: 2px;
           color: #4b5563;
           font-size: 12px;
+        }
+        purple-pen-app .app-init-progress-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 9px;
+        }
+        purple-pen-app .app-init-progress-row progress {
+          flex: 1 1 auto;
+          width: 100%;
+          height: 8px;
+          border: 0;
+          border-radius: 999px;
+          overflow: hidden;
+          background: #e5e7eb;
+        }
+        purple-pen-app .app-init-progress-row progress::-webkit-progress-bar {
+          border-radius: 999px;
+          background: #e5e7eb;
+        }
+        purple-pen-app .app-init-progress-row progress::-webkit-progress-value {
+          border-radius: 999px;
+          background: #a626ff;
+          transition: width 0.18s ease;
+        }
+        purple-pen-app .app-init-progress-row progress::-moz-progress-bar {
+          border-radius: 999px;
+          background: #a626ff;
+        }
+        purple-pen-app .app-init-progress-value {
+          flex: 0 0 auto;
+          min-width: 34px;
+          text-align: right;
+          font-variant-numeric: tabular-nums;
         }
         @keyframes appInitSpin {
           to { transform: rotate(360deg); }
@@ -470,9 +511,13 @@ export function createAppShellTemplateMethods(deps) {
         <div id="appInitLoading" class="app-init-loading" role="status" aria-live="polite">
           <div class="app-init-loading-card">
             <div class="app-init-spinner" aria-hidden="true"></div>
-            <div>
-              <strong>${escapeHtml(this.t("Loading O-Composer…"))}</strong>
-              <span>${escapeHtml(this.t("Preparing the editor…"))}</span>
+            <div class="app-init-loading-content">
+              <strong id="appInitLoadingTitle">${escapeHtml(this.t("Loading O-Composer…"))}</strong>
+              <span id="appInitLoadingDetail">${escapeHtml(this.t("Preparing the editor…"))}</span>
+              <div class="app-init-progress-row">
+                <progress id="appInitProgressBar" max="100" value="55" aria-label="${escapeAttr(this.t("Startup progress"))}"></progress>
+                <span id="appInitProgressValue" class="app-init-progress-value">55%</span>
+              </div>
             </div>
           </div>
         </div>

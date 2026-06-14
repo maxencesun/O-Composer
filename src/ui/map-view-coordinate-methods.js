@@ -1,3 +1,6 @@
+const MIN_INTERACTIVE_SCALE_WIDTH = 320;
+const MIN_INTERACTIVE_SCALE_HEIGHT = 240;
+
 export function createMapViewCoordinateMethods(deps) {
   const {
     allControlsView,
@@ -134,7 +137,14 @@ export function createMapViewCoordinateMethods(deps) {
 
   scale(ui) {
     const { width, height } = this.viewportSize(ui);
-    return Math.min(width / this.bounds.width, height / this.bounds.height) * (ui.zoom || 1);
+    // For the live editor, avoid deriving the fit scale from a nearly-collapsed
+    // canvas. A very narrow map panel used to make the scale almost zero, which
+    // expanded the visible map bounds enormously and caused the OMAP worker to
+    // render far more objects than the user could actually see. Explicit export
+    // viewports keep their exact size.
+    const fitWidth = ui?.__viewport ? width : Math.max(width, MIN_INTERACTIVE_SCALE_WIDTH);
+    const fitHeight = ui?.__viewport ? height : Math.max(height, MIN_INTERACTIVE_SCALE_HEIGHT);
+    return Math.min(fitWidth / this.bounds.width, fitHeight / this.bounds.height) * (ui.zoom || 1);
   },
 
   viewportSize(ui) {

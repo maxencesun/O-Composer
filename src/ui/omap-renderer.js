@@ -781,6 +781,12 @@ function drawPattern(ctx, pattern, screenPoints, project, scale, targetPriority)
   if (!pattern.priorities?.includes(targetPriority) && !priorityMatches(pattern.priority, targetPriority)) return;
   const bounds = screenBounds(screenPoints);
   const visibleBounds = intersectBounds(bounds, canvasScreenBounds(ctx));
+  // When a narrow viewport makes the map scale very small, the map-bounds cull can
+  // still include many objects whose screen bbox is completely outside the canvas.
+  // Do not draw their hatch/point patterns: clipping an off-screen path and then
+  // painting a full-canvas pattern for every such object can keep the GPU busy for
+  // seconds and look like the map never finishes rendering.
+  if (!visibleBounds || visibleBounds.width <= 0 || visibleBounds.height <= 0) return;
   const diagonal = Math.hypot(bounds.width, bounds.height) + 20;
   if (diagonal <= 0) return;
   const origin = patternOriginScreenPoint(pattern, project);
@@ -1450,7 +1456,7 @@ function intersectBounds(a, b) {
   const right = Math.min(a.x + a.width, b.x + b.width);
   const bottom = Math.min(a.y + a.height, b.y + b.height);
   if (right <= left || bottom <= top) {
-    return b;
+    return null;
   }
   return {
     x: left,

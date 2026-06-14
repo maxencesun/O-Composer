@@ -341,7 +341,7 @@ export function createAppShellCommandMethods(deps) {
         }, "All controls");
         break;
       case "quality":
-        this.store.updateUi(ui => { ui.highQuality = !ui.highQuality; }, "Map quality");
+        this.cycleRenderQuality();
         break;
       case "event-adjustment":
         this.store.updateUi(ui => { ui.selection = { type: "event" }; }, "Event adjustment");
@@ -443,7 +443,7 @@ export function createAppShellCommandMethods(deps) {
         this.exportPdf();
         break;
       case "about":
-        alert(this.t("O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.", { version: APP_VERSION }));
+        alert(this.t("O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.\n\nLicensed under the GNU AGPLv3.", { version: APP_VERSION }));
         break;
       case "help":
         alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));

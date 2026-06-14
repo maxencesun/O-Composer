@@ -107,7 +107,10 @@ export function createMapViewOmapMethods(deps) {
     fillForSpecial,
     specialCategoryForHitTest,
     symbolApparentRadiusControl,
-    clamp
+    clamp,
+    effectiveOmapPixelRatio,
+    omapPaddingMultiplier,
+    renderQualityHighQuality
   } = deps;
   return {
   drawOmap(ctx, ui) {
@@ -116,7 +119,7 @@ export function createMapViewOmapMethods(deps) {
     }
     const width = this.canvas.clientWidth || 1;
     const height = this.canvas.clientHeight || 1;
-    const ratio = window.devicePixelRatio || 1;
+    const ratio = effectiveOmapPixelRatio(ui, window.devicePixelRatio || 1);
     const matchingLayer = this.findOmapLayer(layer => this.omapLayerMatchesLayer(layer, ui, width, height, ratio));
 
     if (matchingLayer) {
@@ -149,7 +152,7 @@ export function createMapViewOmapMethods(deps) {
     ctx.save();
     ctx.globalAlpha = ui.mapIntensity;
     drawOmapMap(ctx, this.omapMap, point => this.toScreen(point, ui), this.scale(ui), {
-      highQuality: true,
+      highQuality: renderQualityHighQuality(ui),
       mapBounds: {
         left: this.bounds.left,
         right: this.bounds.right,
@@ -176,7 +179,7 @@ export function createMapViewOmapMethods(deps) {
       const screen = this.toScreen(point, ui);
       return { x: screen.x + view.padX, y: screen.y + view.padY };
     }, view.scale, {
-      highQuality: ui.highQuality,
+      highQuality: renderQualityHighQuality(ui),
       mapBounds: view.mapBounds
     });
 
@@ -197,6 +200,7 @@ export function createMapViewOmapMethods(deps) {
       pan: view.pan,
       scale: view.scale,
       highQuality: view.highQuality,
+      renderQuality: view.renderQuality || "balanced",
       mapBounds: view.mapBounds
     };
   },
@@ -252,7 +256,8 @@ export function createMapViewOmapMethods(deps) {
       && layer.viewportWidth === width
       && layer.viewportHeight === height
       && layer.ratio === ratio
-      && layer.highQuality === ui.highQuality
+      && layer.highQuality === renderQualityHighQuality(ui)
+      && (layer.renderQuality || "balanced") === (ui.renderQuality || "balanced")
       && sameBounds(layer.bounds, this.bounds)
       && layer.scale > 0;
   },
@@ -347,8 +352,9 @@ export function createMapViewOmapMethods(deps) {
   },
 
   createOmapLayerView(ui, width, height, ratio) {
-    const padX = Math.ceil(width * OMAP_LAYER_PADDING);
-    const padY = Math.ceil(height * OMAP_LAYER_PADDING);
+    const paddingScale = omapPaddingMultiplier(ui);
+    const padX = Math.ceil(width * OMAP_LAYER_PADDING * paddingScale);
+    const padY = Math.ceil(height * OMAP_LAYER_PADDING * paddingScale);
     const layerWidth = width + padX * 2;
     const layerHeight = height + padY * 2;
     const view = {
@@ -363,7 +369,8 @@ export function createMapViewOmapMethods(deps) {
       zoom: ui.zoom,
       pan: { ...ui.pan },
       scale: this.scale(ui),
-      highQuality: ui.highQuality
+      highQuality: renderQualityHighQuality(ui),
+      renderQuality: ui.renderQuality || "balanced"
     };
     view.mapBounds = layerMapBounds(view);
     return view;
@@ -450,6 +457,7 @@ export function createMapViewOmapMethods(deps) {
         pan: message.view.pan,
         scale: message.view.scale,
         highQuality: message.view.highQuality,
+        renderQuality: message.view.renderQuality || "balanced",
         mapBounds: message.view.mapBounds
       });
       this.requestDraw(this.store.snapshot());

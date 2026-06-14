@@ -1055,6 +1055,7 @@ export function omapRenderKey(mapVersion, view) {
     view.height,
     view.ratio,
     view.highQuality ? 1 : 0,
+    view.renderQuality || "balanced",
     roundKey(view.zoom),
     roundKey(view.pan.x),
     roundKey(view.pan.y),

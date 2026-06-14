@@ -30,6 +30,13 @@ import {
   symbolApparentRadius
 } from "./course-symbols.js";
 import { drawOmapMap } from "./omap-renderer.js";
+import {
+  effectiveCanvasPixelRatio,
+  effectiveOmapPixelRatio,
+  omapPaddingMultiplier,
+  renderQualityHighQuality,
+  renderQualityImageSmoothingQuality
+} from "./render-quality.js";
 
 import {
   ADDABLE_CONTROL_SNAP_PIXELS,
@@ -220,6 +227,11 @@ const MAP_VIEW_METHOD_DEPS = {
   drawPointSpecialSymbol,
   symbolApparentRadius,
   drawOmapMap,
+  effectiveCanvasPixelRatio,
+  effectiveOmapPixelRatio,
+  omapPaddingMultiplier,
+  renderQualityHighQuality,
+  renderQualityImageSmoothingQuality,
   ADDABLE_CONTROL_SNAP_PIXELS,
   MAX_ZOOM,
   GRID,

@@ -332,11 +332,22 @@ export class PurplePenApp extends HTMLElement {
   }
 
   hideInitialLoading() {
-    const overlay = this.querySelector("#appInitLoading");
-    if (!overlay || overlay.hidden) return;
-    overlay.classList.add("is-done");
+    const overlays = [
+      this.querySelector("#appInitLoading"),
+      document.getElementById("oComposerBootLoading")
+    ].filter(overlay => overlay && !overlay.hidden);
+    if (!overlays.length) return;
+    for (const overlay of overlays) {
+      overlay.classList.add("is-done");
+    }
     window.setTimeout(() => {
-      overlay.hidden = true;
+      for (const overlay of overlays) {
+        overlay.hidden = true;
+        if (overlay.id === "oComposerBootLoading") {
+          overlay.remove();
+          document.getElementById("oComposerBootLoadingStyle")?.remove();
+        }
+      }
     }, 180);
   }
 

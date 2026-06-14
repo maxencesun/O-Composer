@@ -107,13 +107,15 @@ export function createMapViewRenderMethods(deps) {
     fillForSpecial,
     specialCategoryForHitTest,
     symbolApparentRadiusControl,
-    clamp
+    clamp,
+    effectiveCanvasPixelRatio,
+    renderQualityImageSmoothingQuality
   } = deps;
   return {
   draw(state) {
     const { eventModel, ui } = state;
     this.lastDrawState = state;
-    if (this.resizeForDpi()) {
+    if (this.resizeForDpi(ui)) {
       this.invalidateOmapLayer();
     }
     this.bounds = this.visibleBounds(eventModel, ui);
@@ -202,8 +204,8 @@ export function createMapViewRenderMethods(deps) {
     }
   },
 
-  resizeForDpi() {
-    const ratio = window.devicePixelRatio || 1;
+  resizeForDpi(ui = this.store.snapshot().ui) {
+    const ratio = effectiveCanvasPixelRatio(ui, window.devicePixelRatio || 1);
     const rect = this.canvas.getBoundingClientRect();
     const width = Math.max(1, Math.floor(rect.width));
     const height = Math.max(1, Math.floor(rect.height));
@@ -268,7 +270,7 @@ export function createMapViewRenderMethods(deps) {
     ctx.save();
     ctx.globalAlpha = ui.mapIntensity;
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    ctx.imageSmoothingQuality = renderQualityImageSmoothingQuality(ui);
     ctx.drawImage(this.backgroundImage, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
     ctx.restore();
   },

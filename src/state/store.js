@@ -12,6 +12,7 @@ export class Store {
         pan: { x: 0, y: 0 },
         mapIntensity: 0.65,
         highQuality: true,
+        renderQuality: "balanced",
         showPrintArea: false,
         showAllControls: true,
         variationMode: "default",

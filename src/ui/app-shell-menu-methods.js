@@ -320,6 +320,7 @@ export function createAppShellMenuMethods(deps) {
       this.applyApplicationLanguage(event.target.value);
     });
     this.querySelector("#uiModeToggle").addEventListener("click", () => this.toggleUiMode());
+    this.querySelector("#renderQualitySelect")?.addEventListener("change", event => this.setRenderQuality(event.target.value));
 
     this.querySelector("#selectionPanel").addEventListener("change", event => this.updateSelectionField(event));
     this.querySelector("#selectionPanel").addEventListener("click", event => this.handleSelectionPanelClick(event));

@@ -113,6 +113,13 @@ import { createAppShellCommandMethods } from "./app-shell-command-methods.js";
 import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js";
 import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js";
 import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js";
+import {
+  RENDER_QUALITIES,
+  isRenderQualityId,
+  readRenderQualityPreference,
+  setRenderQualityPreference,
+  renderQualityHighQuality
+} from "./render-quality.js";
 
 import {
   PAPER_SIZES,
@@ -287,10 +294,14 @@ export class PurplePenApp extends HTMLElement {
     this.language = getLanguage();
     updateBootLoadingProgress(58, this.t("Building editor UI…"));
     this.store = new Store();
+    const initialRenderQuality = readRenderQualityPreference();
+    this.store.state.ui.renderQuality = initialRenderQuality;
+    this.store.state.ui.highQuality = renderQualityHighQuality(initialRenderQuality);
     this.innerHTML = this.template();
     this.updateInitialLoadingProgress(60, this.t("Building editor UI…"));
     this.syncResponsiveUiClass();
     this.syncApplicationLanguageControl();
+    this.syncRenderQualityControl();
     this.renderKeys = null;
     this.cacheReady = false;
     this.updateInitialLoadingProgress(68, this.t("Preparing map view…"));
@@ -460,6 +471,32 @@ export class PurplePenApp extends HTMLElement {
     setUiModePreference(nextMode);
     this.syncResponsiveUiClass();
     this.deferMapLayoutRefresh();
+  }
+
+  setRenderQuality(value) {
+    if (!isRenderQualityId(value)) return;
+    setRenderQualityPreference(value);
+    this.store.updateUi(ui => {
+      ui.renderQuality = value;
+      ui.highQuality = renderQualityHighQuality(value);
+    }, this.t("Render quality"));
+    this.syncRenderQualityControl();
+    this.mapView?.invalidateOmapLayer?.();
+    this.deferMapLayoutRefresh();
+  }
+
+  cycleRenderQuality() {
+    const current = this.store.snapshot().ui.renderQuality || readRenderQualityPreference();
+    const index = Math.max(0, RENDER_QUALITIES.findIndex(profile => profile.id === current));
+    const next = RENDER_QUALITIES[(index + 1) % RENDER_QUALITIES.length];
+    this.setRenderQuality(next.id);
+  }
+
+  syncRenderQualityControl() {
+    const select = this.querySelector("#renderQualitySelect");
+    if (!select) return;
+    const value = this.store?.snapshot?.().ui?.renderQuality || readRenderQualityPreference();
+    select.value = isRenderQualityId(value) ? value : readRenderQualityPreference();
   }
 
   syncResponsiveUiClass() {
@@ -670,6 +707,7 @@ export class PurplePenApp extends HTMLElement {
         pan: state.ui.pan,
         mapIntensity: state.ui.mapIntensity,
         highQuality: state.ui.highQuality,
+        renderQuality: state.ui.renderQuality,
         showPrintArea: state.ui.showPrintArea,
         showAllControls: state.ui.showAllControls
       },
@@ -932,7 +970,12 @@ const APP_SHELL_METHOD_DEPS = {
   precacheAppResources,
   formatBytes,
   escapeHtml,
-  escapeAttr
+  escapeAttr,
+  RENDER_QUALITIES,
+  isRenderQualityId,
+  readRenderQualityPreference,
+  setRenderQualityPreference,
+  renderQualityHighQuality
 };
 
 Object.assign(

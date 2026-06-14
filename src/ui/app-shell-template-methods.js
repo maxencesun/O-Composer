@@ -109,6 +109,7 @@ export function createAppShellTemplateMethods(deps) {
     LANGUAGE_REFRESH_PARAM,
     UI_MODE_KEY,
     UI_MODES,
+    RENDER_QUALITIES,
     COURSE_NAMES,
     TEXT_PRESETS,
     COURSE_LABEL_KINDS,
@@ -259,6 +260,17 @@ export function createAppShellTemplateMethods(deps) {
       <style id="tabletDesktopLayoutFix">
         purple-pen-app .app-frame {
           position: relative;
+        }
+        purple-pen-app .sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
         }
         purple-pen-app .app-init-loading {
           position: absolute;
@@ -430,26 +442,61 @@ export function createAppShellTemplateMethods(deps) {
           max-width: 100% !important;
           touch-action: none !important;
         }
-        purple-pen-app .ui-mode-toggle {
+        purple-pen-app .topbar-control {
           flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          min-width: 0;
+        }
+        purple-pen-app .render-quality-control {
           margin-left: auto;
-          padding: 4px 9px;
+        }
+        purple-pen-app .render-quality-control select {
+          max-width: min(160px, 28vw);
+          min-width: 92px;
+          height: 28px;
+          padding: 3px 24px 3px 8px;
           border-radius: 7px;
-          border: 1px solid #c7c7c7;
-          background: rgba(255,255,255,.96);
-          color: #222;
+          border: 1px solid #d1d5db;
+          background: rgba(255,255,255,.94);
+          color: #1f2937;
           font: inherit;
+          font-size: 13px;
           line-height: 1.2;
+        }
+        purple-pen-app .render-quality-control select:hover,
+        purple-pen-app .render-quality-control select:focus-visible {
+          border-color: #9ca3af;
+          background: #fff;
+          outline: none;
+        }
+        purple-pen-app .topbar-link {
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 28px;
+          padding: 4px 7px;
+          border: 0;
+          border-radius: 7px;
+          background: transparent;
+          color: #1f2937;
+          font: inherit;
+          font-size: 13px;
+          line-height: 1.2;
+          text-decoration: none;
           cursor: pointer;
           white-space: nowrap;
         }
-        purple-pen-app .ui-mode-toggle:hover,
-        purple-pen-app .ui-mode-toggle:focus-visible {
-          background: #fff;
-          border-color: #8e8e8e;
+        purple-pen-app .topbar-link:hover,
+        purple-pen-app .topbar-link:focus-visible {
+          background: rgba(166, 38, 255, 0.08);
+          color: #5b21b6;
           outline: none;
+          text-decoration: none;
         }
-        purple-pen-app .ui-mode-toggle + .feedback-link {
+        purple-pen-app .render-quality-control + .topbar-link,
+        purple-pen-app .topbar-link + .topbar-link {
           margin-left: 6px !important;
         }
         purple-pen-app .pdf-export-dialog {
@@ -561,7 +608,7 @@ export function createAppShellTemplateMethods(deps) {
             ["toggle-print-area", "Show Export Area"],
             ["set-print-area", "Set Export Area"],
             ["toggle-all-controls", "All Controls"],
-            ["quality", "High Quality Map"]
+            ["quality", "Cycle Render Quality"]
           ])}
           ${this.menu("Add", [
             ["tool-start", "Start"],
@@ -611,8 +658,14 @@ export function createAppShellTemplateMethods(deps) {
             ["about", "About O-Composer"],
             ["help", "Frontend Limitations"]
           ])}
-          <button id="uiModeToggle" class="ui-mode-toggle" type="button" title="${escapeAttr(this.t("Switch between desktop and mobile UI"))}" aria-label="${escapeAttr(this.t("Switch between desktop and mobile UI"))}"></button>
-          <a class="feedback-link" href="https://365.kdocs.cn/l/cmBYi18akxdM" target="_blank" rel="noopener noreferrer">${escapeHtml(this.t("Feedback"))}</a>
+          <label class="topbar-control render-quality-control" title="${escapeAttr(this.t("Render quality"))}">
+            <span class="sr-only">${escapeHtml(this.t("Render quality"))}</span>
+            <select id="renderQualitySelect" aria-label="${escapeAttr(this.t("Render quality"))}">
+              ${RENDER_QUALITIES.map(profile => `<option value="${escapeAttr(profile.id)}">${escapeHtml(this.t(profile.label))}</option>`).join("")}
+            </select>
+          </label>
+          <button id="uiModeToggle" class="topbar-link ui-mode-toggle" type="button" title="${escapeAttr(this.t("Switch between desktop and mobile UI"))}" aria-label="${escapeAttr(this.t("Switch between desktop and mobile UI"))}"></button>
+          <a class="topbar-link feedback-link" href="https://365.kdocs.cn/l/cmBYi18akxdM" target="_blank" rel="noopener noreferrer">${escapeHtml(this.t("Feedback"))}</a>
           <div class="app-brand" aria-label="${escapeAttr(`O-Composer ${APP_VERSION}`)}">
             <strong>O-Composer</strong>
             <span>${escapeHtml(APP_VERSION)}</span>

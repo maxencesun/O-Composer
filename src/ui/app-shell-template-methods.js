@@ -360,6 +360,89 @@ export function createAppShellTemplateMethods(deps) {
         @keyframes appInitSpin {
           to { transform: rotate(360deg); }
         }
+        purple-pen-app .app-meta-setup {
+          position: absolute;
+          inset: 0;
+          z-index: 9990;
+          display: grid;
+          place-items: center;
+          padding: 18px;
+          box-sizing: border-box;
+          background: linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(246, 239, 255, 0.96));
+          color: #111827;
+        }
+        purple-pen-app .app-meta-setup[hidden] {
+          display: none !important;
+        }
+        purple-pen-app .app-meta-setup-card {
+          width: min(520px, calc(100vw - 32px));
+          max-height: calc(100dvh - 32px);
+          overflow: auto;
+          padding: 22px;
+          border: 1px solid #d8c8f7;
+          border-radius: 16px;
+          background: #fff;
+          box-shadow: 0 18px 54px rgba(35, 21, 64, 0.18);
+        }
+        purple-pen-app .app-meta-setup-card h1 {
+          margin: 0 0 6px;
+          font-size: 21px;
+          line-height: 1.25;
+        }
+        purple-pen-app .app-meta-setup-card p {
+          margin: 0 0 16px;
+          color: #4b5563;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+        purple-pen-app .app-meta-setup-grid {
+          display: grid;
+          gap: 12px;
+        }
+        purple-pen-app .app-meta-setup-field {
+          display: grid;
+          gap: 5px;
+        }
+        purple-pen-app .app-meta-setup-field span {
+          font-weight: 600;
+          font-size: 13px;
+        }
+        purple-pen-app .app-meta-setup-field small {
+          color: #6b7280;
+          font-size: 12px;
+          line-height: 1.35;
+        }
+        purple-pen-app .app-meta-setup-field select {
+          width: 100%;
+          height: 34px;
+          padding: 5px 30px 5px 9px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          background: #fff;
+          color: #111827;
+          font: inherit;
+        }
+        purple-pen-app .app-meta-setup-actions {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 18px;
+        }
+        purple-pen-app .app-meta-setup-actions button {
+          min-height: 36px;
+          padding: 7px 14px;
+          border: 0;
+          border-radius: 9px;
+          background: #a626ff;
+          color: #fff;
+          font: inherit;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        purple-pen-app .app-meta-setup-actions button:hover,
+        purple-pen-app .app-meta-setup-actions button:focus-visible {
+          background: #8f1fe0;
+          outline: none;
+        }
         purple-pen-app.desktop-ui {
           display: block !important;
           width: 100vw !important;
@@ -567,6 +650,40 @@ export function createAppShellTemplateMethods(deps) {
               </div>
             </div>
           </div>
+        </div>
+        <div id="appMetaSetup" class="app-meta-setup" role="dialog" aria-modal="true" aria-labelledby="appMetaSetupTitle" hidden>
+          <form id="appMetaSetupForm" class="app-meta-setup-card" autocomplete="off">
+            <h1 id="appMetaSetupTitle">${escapeHtml(this.t("Choose your O-Composer setup"))}</h1>
+            <p>${escapeHtml(this.t("These preferences are saved in this browser and can be changed later from the top bar."))}</p>
+            <div class="app-meta-setup-grid">
+              <label class="app-meta-setup-field">
+                <span>${escapeHtml(this.t("Language"))}</span>
+                <select id="setupLanguage">
+                  ${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${escapeAttr(code)}" ${code === this.language ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+                </select>
+                <small>${escapeHtml(this.t("Used for menus, panels, dialogs, and exported UI text."))}</small>
+              </label>
+              <label class="app-meta-setup-field">
+                <span>${escapeHtml(this.t("Render quality"))}</span>
+                <select id="setupRenderQuality">
+                  ${RENDER_QUALITIES.map(profile => `<option value="${escapeAttr(profile.id)}">${escapeHtml(this.t(profile.label))}</option>`).join("")}
+                </select>
+                <small>${escapeHtml(this.t("Lower quality is smoother on weaker hardware; higher quality is sharper."))}</small>
+              </label>
+              <label class="app-meta-setup-field">
+                <span>${escapeHtml(this.t("Interface mode"))}</span>
+                <select id="setupUiMode">
+                  <option value="${escapeAttr(UI_MODES.AUTO)}">${escapeHtml(this.t("Auto"))}</option>
+                  <option value="${escapeAttr(UI_MODES.DESKTOP)}">${escapeHtml(this.t("Desktop UI"))}</option>
+                  <option value="${escapeAttr(UI_MODES.MOBILE)}">${escapeHtml(this.t("Mobile UI"))}</option>
+                </select>
+                <small>${escapeHtml(this.t("Auto chooses a layout from the current device and window size."))}</small>
+              </label>
+            </div>
+            <div class="app-meta-setup-actions">
+              <button type="submit">${escapeHtml(this.t("Enter O-Composer"))}</button>
+            </div>
+          </form>
         </div>
         <div class="orientation-overlay" aria-live="polite">
           <div>

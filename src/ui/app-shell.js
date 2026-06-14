@@ -120,6 +120,7 @@ import {
   setRenderQualityPreference,
   renderQualityHighQuality
 } from "./render-quality.js";
+import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js";
 
 import {
   PAPER_SIZES,
@@ -373,7 +374,8 @@ export class PurplePenApp extends HTMLElement {
         this.updateInitialLoadingProgress(100, this.t("Ready."));
         return new Promise(resolve => requestAnimationFrame(resolve));
       })
-      .then(() => this.hideInitialLoading());
+      .then(() => this.hideInitialLoading())
+      .then(() => this.showMetaSetupIfNeeded());
   }
 
   hideInitialLoading() {
@@ -381,19 +383,80 @@ export class PurplePenApp extends HTMLElement {
       this.querySelector("#appInitLoading"),
       document.getElementById("oComposerBootLoading")
     ].filter(overlay => overlay && !overlay.hidden);
-    if (!overlays.length) return;
+    if (!overlays.length) return Promise.resolve();
     for (const overlay of overlays) {
       overlay.classList.add("is-done");
     }
-    window.setTimeout(() => {
-      for (const overlay of overlays) {
-        overlay.hidden = true;
-        if (overlay.id === "oComposerBootLoading") {
-          overlay.remove();
-          document.getElementById("oComposerBootLoadingStyle")?.remove();
+    return new Promise(resolve => {
+      window.setTimeout(() => {
+        for (const overlay of overlays) {
+          overlay.hidden = true;
+          if (overlay.id === "oComposerBootLoading") {
+            overlay.remove();
+            document.getElementById("oComposerBootLoadingStyle")?.remove();
+          }
         }
-      }
-    }, 180);
+        resolve();
+      }, 180);
+    });
+  }
+
+  showMetaSetupIfNeeded() {
+    if (hasCompletedMetaSetup()) return;
+    this.populateMetaSetupForm();
+    const overlay = this.querySelector("#appMetaSetup");
+    if (!overlay) return;
+    overlay.hidden = false;
+    overlay.classList.add("is-visible");
+    const firstField = overlay.querySelector("select, button");
+    requestAnimationFrame(() => firstField?.focus?.());
+  }
+
+  populateMetaSetupForm() {
+    const languageSelect = this.querySelector("#setupLanguage");
+    const renderQualitySelect = this.querySelector("#setupRenderQuality");
+    const uiModeSelect = this.querySelector("#setupUiMode");
+    if (languageSelect) languageSelect.value = this.language;
+    if (renderQualitySelect) {
+      const value = this.store?.snapshot?.().ui?.renderQuality || readRenderQualityPreference();
+      renderQualitySelect.value = isRenderQualityId(value) ? value : readRenderQualityPreference();
+    }
+    if (uiModeSelect) uiModeSelect.value = this.uiModePreference();
+  }
+
+  applyMetaSetupForm() {
+    const language = this.querySelector("#setupLanguage")?.value || this.language;
+    const renderQuality = this.querySelector("#setupRenderQuality")?.value || readRenderQualityPreference();
+    const uiMode = this.querySelector("#setupUiMode")?.value || UI_MODES.AUTO;
+    const previousLanguage = this.language;
+
+    if (SUPPORTED_LANGUAGES.some(([code]) => code === language)) {
+      setLanguage(language);
+    }
+    if (isRenderQualityId(renderQuality)) {
+      this.setRenderQuality(renderQuality);
+    }
+    if (Object.values(UI_MODES).includes(uiMode)) {
+      setUiModePreference(uiMode);
+      this.syncResponsiveUiClass();
+    }
+
+    saveMetaSetupPreference({ language, renderQuality, uiMode });
+
+    if (language !== previousLanguage) {
+      forceWholePageLanguageReload();
+      return;
+    }
+
+    this.language = language;
+    this.syncApplicationLanguageControl();
+    this.syncRenderQualityControl();
+    const overlay = this.querySelector("#appMetaSetup");
+    if (overlay) {
+      overlay.classList.remove("is-visible");
+      overlay.hidden = true;
+    }
+    this.deferMapLayoutRefresh();
   }
 
   refreshAfterFontLoad() {

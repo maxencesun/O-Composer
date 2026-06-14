@@ -321,6 +321,10 @@ export function createAppShellMenuMethods(deps) {
     });
     this.querySelector("#uiModeToggle").addEventListener("click", () => this.toggleUiMode());
     this.querySelector("#renderQualitySelect")?.addEventListener("change", event => this.setRenderQuality(event.target.value));
+    this.querySelector("#appMetaSetupForm")?.addEventListener("submit", event => {
+      event.preventDefault();
+      this.applyMetaSetupForm();
+    });
 
     this.querySelector("#selectionPanel").addEventListener("change", event => this.updateSelectionField(event));
     this.querySelector("#selectionPanel").addEventListener("click", event => this.handleSelectionPanelClick(event));

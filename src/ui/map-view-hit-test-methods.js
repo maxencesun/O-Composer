@@ -219,7 +219,7 @@ export function createMapViewHitTestMethods(deps) {
         continue;
       }
 
-      const geometryDistance = specialHitDistance(special, point, specialThreshold, state.ui, scale);
+      const geometryDistance = specialHitDistance(special, point, specialThreshold, state.ui, scale, state.eventModel);
       if (geometryDistance < Infinity) {
         let effectiveDist = geometryDistance;
         effectiveDist -= category === "area" ? AREA_SPECIAL_PRIORITY_BONUS : DRAWN_SPECIAL_PRIORITY_BONUS;

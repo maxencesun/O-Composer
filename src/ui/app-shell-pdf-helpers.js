@@ -59,7 +59,8 @@ export function defaultPdfExportSettings() {
     outputMode: PDF_OUTPUT_MODES.VECTOR,
     filePrefix: "",
     useCourseNames: true,
-    relayUsedOnly: true
+    relayUsedOnly: true,
+    losslessCompression: true
   };
 }
 
@@ -154,6 +155,7 @@ export function vectorPdfProgressPhase(stage) {
     "loading-fonts": 2,
     drawing: 3,
     building: 5,
+    compressing: 5,
     "loading-pdf-lib": 6,
     "reading-base-map": 6,
     saving: 7,
@@ -165,6 +167,7 @@ export function vectorPdfProgressMessage(stage, name, translate) {
   if (stage === "loading-fonts") return translate("Loading PDF fonts…");
   if (stage === "drawing") return translate("Drawing {name} map…", { name });
   if (stage === "building") return translate("Writing {name} PDF…", { name });
+  if (stage === "compressing") return translate("Compressing {name} PDF losslessly…", { name });
   if (stage === "loading-pdf-lib" || stage === "reading-base-map") return translate("Merging {name} base map…", { name });
   if (stage === "saving" || stage === "done") return translate("Finalizing {name}…", { name });
   return "";

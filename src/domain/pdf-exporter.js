@@ -20,7 +20,7 @@ let pdfLatinFontSetPromise = null;
 let pdfCjkFontSetPromise = null;
 let pdfLibPromise = null;
 
-export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, backgroundImage = null, needsUnicodeFont = false, onProgress = async () => {} }) {
+export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight, draw, backgroundPdf = null, backgroundImage = null, needsUnicodeFont = false, losslessCompression = true, onProgress = async () => {} }) {
   await onProgress("loading-fonts");
   const fontSet = await loadPdfFontSet({ includeCjk: needsUnicodeFont });
   const layout = pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm, canvasWidth, canvasHeight });
@@ -36,15 +36,16 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
   await onProgress("drawing");
   draw(ctx);
 
-  await onProgress("building");
-  const overlayBytes = buildPdf({
+  await onProgress(losslessCompression !== false ? "compressing" : "building");
+  const overlayBytes = await buildPdf({
     pageWidthPt: layout.pageWidthPt,
     pageHeightPt: layout.pageHeightPt,
     content: ctx.content(),
     fontSet,
     alphaResources: ctx.alphaResources(),
     backgroundImage: encodedBackgroundImage,
-    contentBox: layout.box
+    contentBox: layout.box,
+    compressStreams: losslessCompression !== false
   });
 
   if (backgroundPdf?.sourceDataUrl && backgroundPdf?.canvasBox) {
@@ -58,6 +59,7 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
       contentBox: layout.box,
       sourceDataUrl: backgroundPdf.sourceDataUrl,
       pageNumber: backgroundPdf.pageNumber || 1,
+      losslessCompression: losslessCompression !== false,
       onProgress
     });
   }
@@ -90,7 +92,7 @@ function pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, c
   };
 }
 
-async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHeightPt, canvasBox, canvasWidth, canvasHeight, contentBox, sourceDataUrl, pageNumber, onProgress = async () => {} }) {
+async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHeightPt, canvasBox, canvasWidth, canvasHeight, contentBox, sourceDataUrl, pageNumber, losslessCompression = true, onProgress = async () => {} }) {
   await onProgress("loading-pdf-lib");
   const { PDFDocument } = await loadPdfLib();
   await onProgress("reading-base-map");
@@ -124,7 +126,7 @@ async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHei
     height: overlayBox.height
   });
   await onProgress("saving");
-  const output = await document.save({ useObjectStreams: false });
+  const output = await document.save({ useObjectStreams: losslessCompression !== false });
   sourceDocument?.destroy?.();
   overlayDocument?.destroy?.();
   return new Blob([output], { type: "application/pdf" });
@@ -486,7 +488,7 @@ class PdfCanvasContext {
   }
 }
 
-function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources = "", backgroundImage = null, contentBox = null }) {
+async function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources = "", backgroundImage = null, contentBox = null, compressStreams = true }) {
   const chunks = [];
   const offsets = [0];
   let length = 0;
@@ -524,18 +526,18 @@ function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources 
   object(1, "<< /Type /Catalog /Pages 2 0 R >>");
   object(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
   object(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pageWidthPt)} ${n(pageHeightPt)}] /Resources << /Font << ${fontObjects.resources} >>${xObjectResources}${alphaResources ? ` /ExtGState << ${alphaResources} >>` : ""} >> /Contents 4 0 R >>`);
-  streamObject(4, "<<", ascii(pageContent));
+  await streamObject(4, "<<", ascii(pageContent));
   object(5, "<< /Producer (O-Composer) >>");
   for (const item of fontObjects.objects) {
     if (item.stream) {
-      streamObject(item.id, item.dict, item.data);
+      await streamObject(item.id, item.dict, item.data);
     }
     else {
       object(item.id, item.body);
     }
   }
   if (backgroundImage) {
-    streamObject(imageObjectId, `<< /Type /XObject /Subtype /Image /Width ${Math.round(backgroundImage.width)} /Height ${Math.round(backgroundImage.height)} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`, backgroundImage.bytes);
+    await streamObject(imageObjectId, `<< /Type /XObject /Subtype /Image /Width ${Math.round(backgroundImage.width)} /Height ${Math.round(backgroundImage.height)} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode`, backgroundImage.bytes);
   }
 
   const xrefOffset = length;
@@ -552,6 +554,35 @@ function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaResources 
     cursor += chunk.length;
   }
   return output;
+}
+
+async function pdfStreamData(data, dict, compressStreams) {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data || []);
+  const originalDict = String(dict || "<<");
+  if (!compressStreams || originalDict.includes("/Filter") || bytes.length < 64) {
+    return { dict: originalDict, data: bytes };
+  }
+  const compressed = await flateCompress(bytes);
+  if (!compressed || compressed.length >= bytes.length) {
+    return { dict: originalDict, data: bytes };
+  }
+  return {
+    dict: `${originalDict} /Filter /FlateDecode`,
+    data: compressed
+  };
+}
+
+async function flateCompress(bytes) {
+  if (typeof CompressionStream !== "function" || typeof Blob !== "function" || typeof Response !== "function") {
+    return null;
+  }
+  try {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  catch {
+    return null;
+  }
 }
 
 function defaultState() {

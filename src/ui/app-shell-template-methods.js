@@ -279,6 +279,9 @@ export function createAppShellTemplateMethods(deps) {
           min-height: 0;
           overflow: hidden;
         }
+        purple-pen-app [hidden] {
+          display: none !important;
+        }
         purple-pen-app .sr-only {
           position: absolute;
           width: 1px;
@@ -661,16 +664,33 @@ export function createAppShellTemplateMethods(deps) {
 
         purple-pen-app .constants-panel {
           display: grid;
-          gap: 10px;
+          gap: 12px;
+          min-width: 0;
+          margin: 0;
+          padding: 12px;
+          box-sizing: border-box;
+        }
+        purple-pen-app .constants-panel h2,
+        purple-pen-app .constants-panel h3 {
+          line-height: 1.25;
+        }
+        purple-pen-app .constants-panel h2 {
+          margin: 0;
+          font-size: 16px;
+        }
+        purple-pen-app .constants-panel h3 {
+          margin: 2px 0 -2px;
+          font-size: 13px;
         }
         purple-pen-app .constants-help {
-          margin: 0 0 8px;
+          margin: 0;
           color: #6b7280;
           font-size: 12px;
           line-height: 1.35;
         }
         purple-pen-app .constants-table {
           width: 100%;
+          margin: 0;
           border-collapse: collapse;
           font-size: 12px;
         }
@@ -1080,6 +1100,7 @@ export function createAppShellTemplateMethods(deps) {
                 <legend>${escapeHtml(this.t("Appearance"))}</legend>
                 <label class="dialog-check"><input id="pdfIncludeBaseMap" type="checkbox" checked> ${escapeHtml(this.t("Include base map"))}</label>
                 <label class="dialog-check"><input id="pdfIncludeDescriptions" type="checkbox" checked> ${escapeHtml(this.t("Include control descriptions"))}</label>
+                <label class="dialog-check"><input id="pdfLosslessCompression" type="checkbox" checked> ${escapeHtml(this.t("Lossless PDF compression"))}</label>
               </fieldset>
               <fieldset>
                 <legend>${escapeHtml(this.t("Files"))}</legend>

@@ -461,6 +461,7 @@ export function createAppShellFileExportMethods(deps) {
     this.querySelector("#pdfFilePrefix").value = settings.filePrefix || baseName(state.eventModel.sourceName);
     this.querySelector("#pdfUseCourseNames").checked = settings.useCourseNames !== false;
     this.querySelector("#pdfRelayUsedOnly").checked = settings.relayUsedOnly !== false;
+    this.querySelector("#pdfLosslessCompression").checked = settings.losslessCompression !== false;
   },
 
   populatePdfCourseOptions(state, preferredValue) {
@@ -494,7 +495,8 @@ export function createAppShellFileExportMethods(deps) {
       outputMode: PDF_OUTPUT_MODES.VECTOR,
       filePrefix: this.querySelector("#pdfFilePrefix").value.trim() || baseName(this.store.snapshot().eventModel.sourceName),
       useCourseNames: this.querySelector("#pdfUseCourseNames").checked,
-      relayUsedOnly: this.querySelector("#pdfRelayUsedOnly").checked
+      relayUsedOnly: this.querySelector("#pdfRelayUsedOnly").checked,
+      losslessCompression: this.querySelector("#pdfLosslessCompression").checked
     };
   },
 
@@ -508,7 +510,8 @@ export function createAppShellFileExportMethods(deps) {
     const parts = [
       this.t(targets.length === 1 ? "1 PDF will be created." : "{count} PDFs will be created.", { count: targets.length }),
       this.t(settings.includeBaseMap ? "Base map included." : "Course overlay only."),
-      this.t(renderingLabel)
+      this.t(renderingLabel),
+      this.t(settings.losslessCompression !== false ? "Lossless PDF compression enabled." : "Lossless PDF compression disabled.")
     ];
     summary.hidden = false;
     summary.textContent = parts.join(" ");
@@ -787,6 +790,7 @@ export function createAppShellFileExportMethods(deps) {
       backgroundPdf: pdfBackground,
       backgroundImage: bitmapBackground,
       needsUnicodeFont: containsUnicodeText(eventModel) || containsUnicodeText(target.name) || containsUnicodeText(this.mapView.omapMap),
+      losslessCompression: settings.losslessCompression !== false,
       onProgress: async stage => {
         const phase = vectorPdfProgressPhase(stage);
         const message = vectorPdfProgressMessage(stage, target.name, this.t.bind(this));

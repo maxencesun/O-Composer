@@ -255,10 +255,11 @@ export function createAppShellDialogMethods(deps) {
   } = deps;
   return {
   switchPanel(panel) {
-    const nextPanel = ["description", "variation", "report"].includes(panel) ? panel : "description";
+    const nextPanel = ["description", "variation", "report", "constants"].includes(panel) ? panel : "description";
     this.querySelector("#descriptionPanel").hidden = nextPanel !== "description";
     this.querySelector("#variationPanel").hidden = nextPanel !== "variation";
     this.querySelector("#reportPanel").hidden = nextPanel !== "report";
+    this.querySelector("#constantsPanel").hidden = nextPanel !== "constants";
     const mobilePanelSelect = this.querySelector("#mobilePanelSelect");
     if (mobilePanelSelect) {
       mobilePanelSelect.value = nextPanel;

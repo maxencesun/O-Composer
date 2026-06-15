@@ -1,3 +1,5 @@
+import { resolveTextConstants } from "../domain/constants.js";
+
 export function createMapViewRenderMethods(deps) {
   const {
     allControlsView,
@@ -374,7 +376,7 @@ export function createMapViewRenderMethods(deps) {
         drawRectSpecial(ctx, special, points[0], points[1], this.scale(ui), true);
       }
       else if (special.kind === "text" && points.length >= 1) {
-        drawTextSpecial(ctx, special, points, this.scale(ui));
+        drawTextSpecial(ctx, { ...special, text: resolveTextConstants(special.text, eventModel, ui) }, points, this.scale(ui));
       }
       else if (special.kind === "descriptions" && points.length >= 2) {
         drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, point => this.toScreen(point, ui), mapCourseDisplayOptions(eventModel, ui));

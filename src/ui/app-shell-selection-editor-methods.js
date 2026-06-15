@@ -631,7 +631,10 @@ export function createAppShellSelectionEditorMethods(deps) {
     }
     const category = specialCategory(special.kind);
     const colorSelect = this.specialColorSelect(special);
-    const fields = [`<div class="readonly-field"><span>${escapeHtml(this.t("Kind"))}</span><strong>${escapeHtml(optionLabel(special.kind))}</strong></div>`];
+    const fields = [
+      `<div class="readonly-field"><span>${escapeHtml(this.t("Kind"))}</span><strong>${escapeHtml(optionLabel(special.kind))}</strong></div>`,
+      this.specialCourseVisibilityEditor(special)
+    ];
 
     if (category === "point") {
       // Point specials: kind only (orientation handled by rotation tool if needed)
@@ -686,6 +689,39 @@ export function createAppShellSelectionEditorMethods(deps) {
     }
 
     return `<div class="form-grid">${fields.join("\n")}</div>`;
+  },
+
+  specialCourseVisibilityEditor(special) {
+    const courses = sortedCourses(this.store.snapshot().eventModel);
+    const allCourses = special.allCourses !== false;
+    const selected = new Set((special.courses || []).map(entry => Number(entry.course)).filter(Number.isFinite));
+    const disabled = allCourses ? "disabled" : "";
+    const courseRows = courses.length
+      ? courses.map(course => `
+          <label class="special-visibility-course ${allCourses ? "disabled" : ""}">
+            <input
+              type="checkbox"
+              data-special-visibility-course
+              value="${course.id}"
+              ${!allCourses && selected.has(Number(course.id)) ? "checked" : ""}
+              ${disabled}>
+            <span>${escapeHtml(course.name || `${this.t("Course")} ${course.id}`)}</span>
+          </label>
+        `).join("")
+      : `<p class="muted special-visibility-empty">${escapeHtml(this.t("No courses have been created yet."))}</p>`;
+    return `
+      <fieldset class="special-visibility-field span-2">
+        <legend>${escapeHtml(this.t("Shown for"))}</legend>
+        <label class="check special-visibility-all">
+          <input type="checkbox" data-special-visibility-all ${allCourses ? "checked" : ""}>
+          ${escapeHtml(this.t("All courses"))}
+        </label>
+        <div class="special-visibility-courses" aria-label="${escapeAttr(this.t("Selected courses"))}">
+          ${courseRows}
+        </div>
+        <p class="muted special-visibility-help">${escapeHtml(this.t("Uncheck All courses to choose one or more specific courses."))}</p>
+      </fieldset>
+    `;
   },
 
   specialColorSelect(special) {

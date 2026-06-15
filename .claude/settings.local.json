@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check /Users/main/orienteering/BUAA_orienteering/O-Composer/src/domain/course-service.js)",
+      "Bash(node --check /Users/main/orienteering/BUAA_orienteering/O-Composer/src/domain/control-descriptions.js)",
+      "Bash(node --check /Users/main/orienteering/BUAA_orienteering/O-Composer/src/ui/app-shell.js)",
+      "Bash(sed -n '266,275p' /Users/main/orienteering/BUAA_orienteering/O-Composer/styles.css)",
+      "Bash(sed -n '411,460p' /Users/main/orienteering/BUAA_orienteering/O-Composer/styles.css)",
+      "Bash(sed -n '1012,1045p' /Users/main/orienteering/BUAA_orienteering/O-Composer/styles.css)",
+      "Bash(sed -n '1183,1200p' /Users/main/orienteering/BUAA_orienteering/O-Composer/styles.css)",
+      "Bash(node --check /Users/main/orienteering/BUAA_orienteering/O-Composer/src/ui/map-view.js)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Restore page scrolling in mobile landscape mode *)",
+      "Bash(git push *)"
+    ]
+  }
+}

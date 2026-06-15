@@ -150,6 +150,12 @@ function parseEvent(node) {
         };
         event.courseAppearance.useOcadOverprint = event.ocad.overprintColors;
         break;
+      case "constants":
+        event.constants = elements(child)
+          .filter(el => el.nodeName === "constant")
+          .map(parseCustomConstant)
+          .filter(constant => constant.name);
+        break;
       case "custom-symbol-text":
         event.customSymbolText.push({
           ref: attr(child, "iof-2004-ref", ""),
@@ -171,6 +177,15 @@ function parseEvent(node) {
     event.allControls.printScale = event.map.scale || 15000;
   }
   return event;
+}
+
+
+function parseCustomConstant(node) {
+  return {
+    name: attr(node, "name", ""),
+    description: attr(node, "description", ""),
+    expression: attr(node, "expression", "") || text(node)
+  };
 }
 
 function normalizeDescriptionStandard(value) {
@@ -664,6 +679,17 @@ function writeEvent(lines, event, level) {
       });
     }
     close(lines, level + 1, "custom-symbol-text");
+  }
+  if (event.constants?.length) {
+    open(lines, level + 1, "constants");
+    for (const constant of event.constants || []) {
+      empty(lines, level + 2, "constant", {
+        name: constant.name,
+        description: constant.description || undefined,
+        expression: constant.expression ?? constant.value ?? ""
+      });
+    }
+    close(lines, level + 1, "constants");
   }
   if (event.liveloxImportableEventId) {
     empty(lines, level + 1, "livelox", { "importable-event-id": event.liveloxImportableEventId });

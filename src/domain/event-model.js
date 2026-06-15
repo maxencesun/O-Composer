@@ -106,6 +106,7 @@ export function createBlankEvent() {
         overprintColors: false
       },
       customSymbolText: [],
+      constants: [],
       liveloxImportableEventId: ""
     },
     controls: [],

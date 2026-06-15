@@ -345,6 +345,8 @@ export function createAppShellMenuMethods(deps) {
     this.querySelector("#variationPanel").addEventListener("click", event => this.handleVariationPanelClick(event));
     this.querySelector("#variationPanel").addEventListener("input", event => this.handleVariationPanelInput(event));
     this.querySelector("#variationPanel").addEventListener("change", event => this.handleVariationPanelChange(event));
+    this.querySelector("#constantsPanel").addEventListener("click", event => this.handleConstantsPanelClick(event));
+    this.querySelector("#constantsPanel").addEventListener("change", event => this.handleConstantsPanelChange(event));
     this.querySelector("#printAreaForm").addEventListener("submit", event => {
       event.preventDefault();
       this.applyPrintAreaDialog();

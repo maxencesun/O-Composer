@@ -880,6 +880,16 @@ export function createAppShellCommandMethods(deps) {
       return;
     }
 
+    if (target.dataset.specialVisibilityAll !== undefined && selection?.type === "special") {
+      this.updateSelectedSpecialVisibility({ allCourses: target.checked });
+      return;
+    }
+
+    if (target.dataset.specialVisibilityCourse !== undefined && selection?.type === "special") {
+      this.updateSelectedSpecialVisibility({ courseId: Number(target.value), visible: target.checked });
+      return;
+    }
+
     const field = target.dataset.field;
     if (!field) return;
     if (field === "special.kind") return;
@@ -930,6 +940,49 @@ export function createAppShellCommandMethods(deps) {
       this.renderKeys = null;
       this.render(this.store.snapshot());
     }
+  },
+
+  updateSelectedSpecialVisibility(change) {
+    const snapshot = this.store.snapshot();
+    const selection = snapshot.ui.selection;
+    const selectedCourseId = snapshot.ui.selectedCourseId;
+    if (selection?.type !== "special") return;
+    this.store.updateEvent(model => {
+      const special = objectForSelection(model, selection);
+      if (!special || special.kind === "descriptions") return;
+      const courses = sortedCourses(model);
+      if (change.allCourses !== undefined) {
+        special.allCourses = !!change.allCourses;
+        if (special.allCourses) {
+          special.courses = [];
+          return;
+        }
+        const fallbackCourse = courses.find(course => String(course.id) === String(selectedCourseId)) || courses[0];
+        special.courses = fallbackCourse ? [{ course: Number(fallbackCourse.id), part: -1 }] : [];
+        if (!special.courses.length) {
+          special.allCourses = true;
+        }
+        return;
+      }
+      const courseId = Number(change.courseId);
+      if (!Number.isFinite(courseId)) return;
+      special.allCourses = false;
+      const selected = new Set((special.courses || []).map(entry => Number(entry.course)).filter(Number.isFinite));
+      if (change.visible) {
+        selected.add(courseId);
+      }
+      else {
+        selected.delete(courseId);
+      }
+      special.courses = courses
+        .filter(course => selected.has(Number(course.id)))
+        .map(course => ({ course: Number(course.id), part: -1 }));
+      if (!special.courses.length) {
+        special.allCourses = true;
+      }
+    }, "Change special visibility");
+    this.renderKeys = null;
+    this.render(this.store.snapshot());
   },
 
   updateEventAdjustmentField(field, value) {

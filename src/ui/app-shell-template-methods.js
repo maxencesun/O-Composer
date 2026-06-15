@@ -616,6 +616,105 @@ export function createAppShellTemplateMethods(deps) {
         purple-pen-app .topbar-link + .topbar-link {
           margin-left: 6px !important;
         }
+        purple-pen-app .special-visibility-field {
+          display: grid;
+          gap: 8px;
+          margin: 0;
+          padding: 8px 10px 10px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.72);
+        }
+        purple-pen-app .special-visibility-field legend {
+          padding: 0 4px;
+          font-weight: 600;
+        }
+        purple-pen-app .special-visibility-courses {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          gap: 6px 10px;
+          max-height: 138px;
+          overflow: auto;
+          padding: 2px 1px;
+        }
+        purple-pen-app .special-visibility-course,
+        purple-pen-app .special-visibility-all {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+          line-height: 1.25;
+        }
+        purple-pen-app .special-visibility-course span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        purple-pen-app .special-visibility-course.disabled {
+          color: #9ca3af;
+        }
+        purple-pen-app .special-visibility-help,
+        purple-pen-app .special-visibility-empty {
+          margin: 0;
+        }
+
+        purple-pen-app .constants-panel {
+          display: grid;
+          gap: 10px;
+        }
+        purple-pen-app .constants-help {
+          margin: 0 0 8px;
+          color: #6b7280;
+          font-size: 12px;
+          line-height: 1.35;
+        }
+        purple-pen-app .constants-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 12px;
+        }
+        purple-pen-app .constants-table th,
+        purple-pen-app .constants-table td {
+          border: 1px solid #e5e7eb;
+          padding: 5px 6px;
+          vertical-align: top;
+        }
+        purple-pen-app .constants-table th {
+          background: #f9fafb;
+          text-align: left;
+          font-weight: 600;
+        }
+        purple-pen-app .constants-table input {
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          font: inherit;
+        }
+        purple-pen-app .constants-table code {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 12px;
+        }
+        purple-pen-app .constants-actions {
+          display: flex;
+          justify-content: flex-start;
+        }
+        purple-pen-app .constants-actions button,
+        purple-pen-app .constants-delete {
+          min-height: 26px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          background: #fff;
+          color: #111827;
+          font: inherit;
+          cursor: pointer;
+        }
+        purple-pen-app .constants-actions button {
+          padding: 4px 9px;
+        }
+        purple-pen-app .constants-delete {
+          padding: 2px 7px;
+        }
         purple-pen-app .pdf-export-dialog {
           width: min(760px, calc(100vw - 28px));
           max-width: calc(100vw - 28px);
@@ -852,6 +951,7 @@ export function createAppShellTemplateMethods(deps) {
                   <option value="description">${escapeHtml(this.t("Description"))}</option>
                   <option value="variation">${escapeHtml(this.t("Variation"))}</option>
                   <option value="report">${escapeHtml(this.t("Report"))}</option>
+                  <option value="constants">${escapeHtml(this.t("Constants"))}</option>
                 </select>
               </label>
             </div>
@@ -860,10 +960,12 @@ export function createAppShellTemplateMethods(deps) {
                 <button class="segmented active" data-panel="description">${escapeHtml(this.t("Description"))}</button>
                 <button class="segmented" data-panel="variation">${escapeHtml(this.t("Variation"))}</button>
                 <button class="segmented" data-panel="report">${escapeHtml(this.t("Report"))}</button>
+                <button class="segmented" data-panel="constants">${escapeHtml(this.t("Constants"))}</button>
               </div>
               <div id="descriptionPanel" class="description-panel"></div>
               <div id="variationPanel" class="variation-panel" hidden></div>
               <div id="reportPanel" class="report-panel" hidden></div>
+              <div id="constantsPanel" class="constants-panel" hidden></div>
             </section>
             <section class="panel-block selection-panel">
               <h2>${escapeHtml(this.t("Adjustment"))}</h2>

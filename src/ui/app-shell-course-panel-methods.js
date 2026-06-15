@@ -1,3 +1,5 @@
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js";
+
 export function createAppShellCoursePanelMethods(deps) {
   const {
     Store,
@@ -318,6 +320,9 @@ export function createAppShellCoursePanelMethods(deps) {
     if (shouldRenderReport) {
       this.renderReport(state);
     }
+    if (shouldRenderCourse || shouldRenderReport || !this.renderKeys || this.renderKeys.eventModel !== keys.eventModel) {
+      this.renderConstants(state);
+    }
     this.renderStatus(state);
     this.syncUiModeToggle();
     this.querySelector("#zoomSlider").value = Math.round(state.ui.zoom * 100);
@@ -443,6 +448,66 @@ export function createAppShellCoursePanelMethods(deps) {
         ui.variationCode = variations[0].code;
       }
     }, "Select variation");
+  },
+
+  renderConstants({ eventModel, ui }) {
+    const panel = this.querySelector("#constantsPanel");
+    if (!panel) return;
+    const { builtins, custom } = constantRowsForView(eventModel, ui);
+    const builtinRows = builtins.map(row => `
+      <tr>
+        <td><code>${escapeHtml(row.name)}</code></td>
+        <td>${escapeHtml(this.t(row.description))}</td>
+        <td>${escapeHtml(row.value || "")}</td>
+      </tr>
+    `).join("");
+    const customRows = custom.length ? custom.map((row, index) => `
+      <tr data-constant-index="${index}">
+        <td><input data-constant-field="name" value="${escapeAttr(row.name)}" placeholder="\\name" aria-label="${escapeAttr(this.t("Constant name"))}"></td>
+        <td><input data-constant-field="description" value="${escapeAttr(row.description || "")}" placeholder="${escapeAttr(this.t("Optional"))}" aria-label="${escapeAttr(this.t("Explanation"))}"></td>
+        <td>
+          <input data-constant-field="expression" value="${escapeAttr(row.expression || "")}" placeholder="${escapeAttr(this.t("Value or expression"))}" aria-label="${escapeAttr(this.t("Value or expression"))}">
+          <small>${escapeHtml(this.t("Current value"))}: ${escapeHtml(row.value || "")}</small>
+        </td>
+        <td><button type="button" class="constants-delete" data-constant-delete="${index}" aria-label="${escapeAttr(this.t("Delete"))}">×</button></td>
+      </tr>
+    `).join("") : `<tr><td colspan="4">${escapeHtml(this.t("No custom constants yet."))}</td></tr>`;
+    panel.innerHTML = `
+      <h2>${escapeHtml(this.t("Constants"))}</h2>
+      <p class="constants-help">${escapeHtml(this.t("Use constants such as \\len in text objects. Built-in constants update from the current course or map area; custom constants can be fixed values or expressions that reference other constants."))}</p>
+      <h3>${escapeHtml(this.t("Built-in constants"))}</h3>
+      <table class="constants-table">
+        <thead><tr><th>${escapeHtml(this.t("Constant name"))}</th><th>${escapeHtml(this.t("Explanation"))}</th><th>${escapeHtml(this.t("Current value / range"))}</th></tr></thead>
+        <tbody>${builtinRows}</tbody>
+      </table>
+      <h3>${escapeHtml(this.t("Custom constants"))}</h3>
+      <table class="constants-table">
+        <thead><tr><th>${escapeHtml(this.t("Constant name"))}</th><th>${escapeHtml(this.t("Explanation"))}</th><th>${escapeHtml(this.t("Value or expression"))}</th><th></th></tr></thead>
+        <tbody>${customRows}</tbody>
+      </table>
+      <div class="constants-actions"><button type="button" data-constant-add>${escapeHtml(this.t("Add custom constant"))}</button></div>
+    `;
+  },
+
+  handleConstantsPanelClick(event) {
+    if (event.target.closest("[data-constant-add]")) {
+      this.store.updateEvent(model => addCustomConstant(model), "Add custom constant");
+      return;
+    }
+    const deleteButton = event.target.closest("[data-constant-delete]");
+    if (deleteButton) {
+      const index = Number(deleteButton.dataset.constantDelete);
+      this.store.updateEvent(model => removeCustomConstant(model, index), "Delete custom constant");
+    }
+  },
+
+  handleConstantsPanelChange(event) {
+    const input = event.target.closest("[data-constant-field]");
+    if (!input) return;
+    const row = input.closest("[data-constant-index]");
+    const index = Number(row?.dataset.constantIndex);
+    const field = input.dataset.constantField;
+    this.store.updateEvent(model => updateCustomConstant(model, index, field, input.value), "Update custom constant");
   },
 
   renderDescription({ eventModel, ui }) {

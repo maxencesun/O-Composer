@@ -1,3 +1,4 @@
+import { cloneDeep } from "../domain/clone.js";
 import {
   PAPER_SIZES,
   PAPER_MARGINS,
@@ -251,7 +252,7 @@ export function resizedSpecialObject(eventModel, special, resize, point, selecte
   if (special.kind === "descriptions") {
     return resizedDescriptionSpecial(eventModel, special, resize.anchor || resize, point, selectedCourseId, displayOptions);
   }
-  const replacement = structuredClone(special);
+  const replacement = cloneDeep(special);
   if (special.kind === "text" && resize.handle === "resize-text-font") {
     const anchor = resize.anchor || replacement.locations?.[0];
     if (!anchor) return replacement;

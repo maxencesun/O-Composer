@@ -6,6 +6,7 @@ import {
   findById,
   nextId
 } from "./event-model.js";
+import { cloneDeep } from "./clone.js";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -465,7 +466,7 @@ function positiveMapScale(eventModel) {
 export function duplicateCourse(eventModel, courseId, name) {
   const source = getCourse(eventModel, courseId);
   if (!source) return null;
-  const clone = structuredClone(source);
+  const clone = cloneDeep(source);
   clone.id = nextId(eventModel.courses);
   clone.name = name || `${source.name} Copy`;
   clone.order = eventModel.courses.length + 1;
@@ -475,7 +476,7 @@ export function duplicateCourse(eventModel, courseId, name) {
     .map(id => getCourseControl(eventModel, id))
     .filter(Boolean);
   for (const sourceCourseControl of sourceControls) {
-    const copied = structuredClone(sourceCourseControl);
+    const copied = cloneDeep(sourceCourseControl);
     copied.id = nextId([...eventModel.courseControls, ...idMapValues(idMap)]);
     idMap.set(sourceCourseControl.id, copied);
   }

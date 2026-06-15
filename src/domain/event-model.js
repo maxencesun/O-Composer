@@ -1,3 +1,5 @@
+import { cloneDeep } from "./clone.js";
+
 const DEFAULT_PRINT_AREA = Object.freeze({
   automatic: true,
   restrictToPageSize: true,
@@ -40,7 +42,7 @@ export const SPECIAL_KINDS = [
 ];
 
 export function cloneEvent(event) {
-  return structuredClone(event);
+  return cloneDeep(event);
 }
 
 export function createBlankEvent() {

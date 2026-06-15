@@ -293,6 +293,7 @@ export class PurplePenApp extends HTMLElement {
   connectedCallback() {
     consumeLanguageRefreshParam();
     this.language = getLanguage();
+    this.installViewportMetricSync();
     updateBootLoadingProgress(58, this.t("Building editor UI…"));
     this.store = new Store();
     const initialRenderQuality = readRenderQualityPreference();
@@ -350,6 +351,58 @@ export class PurplePenApp extends HTMLElement {
         this.updateInitialLoadingProgress(94, this.t("Finalizing…"));
       });
     this.hideInitialLoadingWhenReady([cachedSessionReady, symbolsReady]);
+  }
+
+
+  installViewportMetricSync() {
+    this.updateViewportMetrics();
+    if (this.viewportMetricCleanup) return;
+
+    let frame = 0;
+    const refresh = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        this.updateViewportMetrics();
+        if (this.isConnected) {
+          this.applyResponsiveInlineOverrides?.(this.resolvedUiMode?.() === UI_MODES.MOBILE);
+          this.deferMapLayoutRefresh?.();
+        }
+      });
+    };
+
+    const options = { passive: true };
+    window.addEventListener("resize", refresh, options);
+    window.addEventListener("orientationchange", refresh, options);
+    window.visualViewport?.addEventListener("resize", refresh, options);
+    window.visualViewport?.addEventListener("scroll", refresh, options);
+    this.viewportMetricCleanup = () => {
+      window.removeEventListener("resize", refresh, options);
+      window.removeEventListener("orientationchange", refresh, options);
+      window.visualViewport?.removeEventListener("resize", refresh, options);
+      window.visualViewport?.removeEventListener("scroll", refresh, options);
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      this.viewportMetricCleanup = null;
+    };
+  }
+
+  disconnectedCallback() {
+    this.viewportMetricCleanup?.();
+    clearTimeout(this.cacheTimer);
+  }
+
+  updateViewportMetrics() {
+    const root = document.documentElement;
+    const visual = window.visualViewport;
+    const width = Math.max(1, Math.round(Number(visual?.width) || window.innerWidth || root.clientWidth || 1));
+    const height = Math.max(1, Math.round(Number(visual?.height) || window.innerHeight || root.clientHeight || 1));
+    root.style.setProperty("--o-composer-viewport-width", `${width}px`);
+    root.style.setProperty("--o-composer-viewport-height", `${height}px`);
+    this.style.setProperty("--o-composer-viewport-width", `${width}px`);
+    this.style.setProperty("--o-composer-viewport-height", `${height}px`);
+    document.body?.style.setProperty("--o-composer-viewport-width", `${width}px`);
+    document.body?.style.setProperty("--o-composer-viewport-height", `${height}px`);
   }
 
   updateInitialLoadingProgress(percent, detail) {
@@ -515,6 +568,8 @@ export class PurplePenApp extends HTMLElement {
   syncApplicationLanguageControl() {
     const languageSelect = this.querySelector("#appLanguage");
     if (languageSelect) languageSelect.value = this.language;
+    const globalLanguageSelect = this.querySelector("#globalLanguage");
+    if (globalLanguageSelect) globalLanguageSelect.value = this.language;
   }
 
   uiModePreference() {
@@ -556,10 +611,79 @@ export class PurplePenApp extends HTMLElement {
   }
 
   syncRenderQualityControl() {
-    const select = this.querySelector("#renderQualitySelect");
-    if (!select) return;
     const value = this.store?.snapshot?.().ui?.renderQuality || readRenderQualityPreference();
-    select.value = isRenderQualityId(value) ? value : readRenderQualityPreference();
+    const normalizedValue = isRenderQualityId(value) ? value : readRenderQualityPreference();
+    const select = this.querySelector("#renderQualitySelect");
+    if (select) select.value = normalizedValue;
+    const globalSelect = this.querySelector("#globalRenderQuality");
+    if (globalSelect) globalSelect.value = normalizedValue;
+  }
+
+  syncGlobalOptionsForm() {
+    const languageSelect = this.querySelector("#globalLanguage");
+    if (languageSelect) languageSelect.value = this.language;
+
+    const renderQualitySelect = this.querySelector("#globalRenderQuality");
+    if (renderQualitySelect) {
+      const value = this.store?.snapshot?.().ui?.renderQuality || readRenderQualityPreference();
+      renderQualitySelect.value = isRenderQualityId(value) ? value : readRenderQualityPreference();
+    }
+
+    const uiModeSelect = this.querySelector("#globalUiMode");
+    if (uiModeSelect) uiModeSelect.value = this.uiModePreference();
+  }
+
+  openGlobalOptions() {
+    this.syncGlobalOptionsForm();
+    const dialog = this.querySelector("#globalOptionsDialog");
+    if (!dialog) return;
+    dialog.removeAttribute("hidden");
+    if (!dialog.open) {
+      if (dialog.showModal) {
+        dialog.showModal();
+      }
+      else if (dialog.show) {
+        dialog.show();
+      }
+      else {
+        dialog.setAttribute("open", "");
+      }
+    }
+  }
+
+  closeGlobalOptions() {
+    const dialog = this.querySelector("#globalOptionsDialog");
+    if (dialog?.open && dialog.close) {
+      dialog.close();
+    }
+    else {
+      dialog?.removeAttribute("open");
+    }
+    dialog?.setAttribute("hidden", "");
+  }
+
+  applyGlobalOptionsForm() {
+    const language = this.querySelector("#globalLanguage")?.value || this.language;
+    const renderQuality = this.querySelector("#globalRenderQuality")?.value || readRenderQualityPreference();
+    const uiMode = this.querySelector("#globalUiMode")?.value || UI_MODES.AUTO;
+    const previousLanguage = this.language;
+
+    if (isRenderQualityId(renderQuality)) {
+      this.setRenderQuality(renderQuality);
+    }
+
+    if (Object.values(UI_MODES).includes(uiMode)) {
+      setUiModePreference(uiMode);
+      this.syncResponsiveUiClass();
+      this.deferMapLayoutRefresh();
+    }
+
+    saveMetaSetupPreference({ language, renderQuality, uiMode });
+    this.closeGlobalOptions();
+
+    if (SUPPORTED_LANGUAGES.some(([code]) => code === language) && language !== previousLanguage) {
+      this.applyApplicationLanguage(language);
+    }
   }
 
   syncResponsiveUiClass() {
@@ -610,7 +734,8 @@ export class PurplePenApp extends HTMLElement {
     // iPad Safari can still match stylesheet mobile media queries in portrait.
     // Force the whole shell back to a desktop grid from the host down to the
     // canvas. This avoids the map grid track collapsing to a one-pixel slit.
-    const viewportWidth = Math.max(1, window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0);
+    this.updateViewportMetrics();
+    const viewportWidth = Math.max(1, Math.round(Number(window.visualViewport?.width) || window.innerWidth || document.documentElement.clientWidth || 0));
     const saved = Number(localStorage.getItem("purplePenLeftPanelWidth"));
     const maxPanelWidth = Math.max(180, Math.min(340, Math.floor(viewportWidth * 0.42)));
     const defaultPanelWidth = Math.max(200, Math.min(320, Math.floor(viewportWidth * 0.34)));
@@ -619,9 +744,10 @@ export class PurplePenApp extends HTMLElement {
       : defaultPanelWidth;
 
     this.style.display = "block";
-    this.style.width = "100vw";
-    this.style.maxWidth = "100vw";
-    this.style.height = "100dvh";
+    this.style.width = "var(--o-composer-viewport-width, 100vw)";
+    this.style.maxWidth = "var(--o-composer-viewport-width, 100vw)";
+    this.style.height = "var(--o-composer-viewport-height, 100vh)";
+    this.style.maxHeight = "var(--o-composer-viewport-height, 100vh)";
     this.style.minWidth = "0";
     this.style.minHeight = "0";
     this.style.overflow = "hidden";

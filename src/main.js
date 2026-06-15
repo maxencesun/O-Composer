@@ -8,6 +8,90 @@ const bootProgressState = {
   indeterminate: false
 };
 
+
+function ensureViewportMeta() {
+  if (typeof document === "undefined") return;
+  let meta = document.querySelector('meta[name="viewport"]');
+  const content = "width=device-width, initial-scale=1, viewport-fit=cover";
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.setAttribute("name", "viewport");
+    const first = document.head?.firstChild || null;
+    document.head?.insertBefore(meta, first);
+  }
+  if (meta && !/width\s*=\s*device-width/i.test(meta.getAttribute("content") || "")) {
+    meta.setAttribute("content", content);
+  }
+}
+
+function viewportNumber(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function updateRootViewportMetrics() {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  const visual = window.visualViewport;
+  const width = Math.max(1, Math.round(viewportNumber(visual?.width, window.innerWidth || root.clientWidth || 1)));
+  const height = Math.max(1, Math.round(viewportNumber(visual?.height, window.innerHeight || root.clientHeight || 1)));
+  root.style.setProperty("--o-composer-viewport-width", `${width}px`);
+  root.style.setProperty("--o-composer-viewport-height", `${height}px`);
+}
+
+function ensureViewportShellStyle() {
+  if (typeof document === "undefined" || document.getElementById("oComposerViewportShellStyle")) return;
+  const style = document.createElement("style");
+  style.id = "oComposerViewportShellStyle";
+  style.textContent = `
+    html, body {
+      width: 100%;
+      height: var(--o-composer-viewport-height, 100vh);
+      min-height: var(--o-composer-viewport-height, 100vh);
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
+    }
+    body {
+      position: fixed;
+      inset: 0;
+      box-sizing: border-box;
+    }
+    purple-pen-app {
+      display: block;
+      width: var(--o-composer-viewport-width, 100vw);
+      max-width: var(--o-composer-viewport-width, 100vw);
+      height: var(--o-composer-viewport-height, 100vh);
+      max-height: var(--o-composer-viewport-height, 100vh);
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+  `;
+  document.head?.appendChild(style) || document.documentElement.appendChild(style);
+}
+
+function installRootViewportMetrics() {
+  ensureViewportMeta();
+  updateRootViewportMetrics();
+  ensureViewportShellStyle();
+  let frame = 0;
+  const schedule = () => {
+    if (frame) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      updateRootViewportMetrics();
+    });
+  };
+  window.addEventListener("resize", schedule, { passive: true });
+  window.addEventListener("orientationchange", schedule, { passive: true });
+  window.visualViewport?.addEventListener("resize", schedule, { passive: true });
+  window.visualViewport?.addEventListener("scroll", schedule, { passive: true });
+}
+
 function bootText() {
   let language = "en";
   try {
@@ -247,6 +331,7 @@ globalThis.__oComposerBootLoading = {
   update: updateBootLoadingProgress
 };
 
+installRootViewportMetrics();
 ensureBootLoading();
 updateBootLoadingProgress({ percent: 8, detail: text.detail });
 

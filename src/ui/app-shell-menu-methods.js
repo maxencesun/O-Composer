@@ -316,11 +316,20 @@ export function createAppShellMenuMethods(deps) {
       this.store.updateUi(ui => { ui.mapIntensity = Number(event.target.value) / 100; }, "Map intensity");
     });
     this.querySelector("#courseBanner").addEventListener("change", event => this.handleCourseBannerChange(event));
-    this.querySelector("#appLanguage").addEventListener("change", event => {
+    this.querySelector("#appLanguage")?.addEventListener("change", event => {
       this.applyApplicationLanguage(event.target.value);
     });
-    this.querySelector("#uiModeToggle").addEventListener("click", () => this.toggleUiMode());
+    this.querySelector("#uiModeToggle")?.addEventListener("click", () => this.toggleUiMode());
     this.querySelector("#renderQualitySelect")?.addEventListener("change", event => this.setRenderQuality(event.target.value));
+    this.querySelector("#globalOptionsForm")?.addEventListener("submit", event => {
+      event.preventDefault();
+      this.applyGlobalOptionsForm();
+    });
+    this.querySelector("#globalOptionsDialog")?.addEventListener("click", event => {
+      if (event.target.closest("[data-global-options-cancel]")) {
+        this.closeGlobalOptions();
+      }
+    });
     this.querySelector("#appMetaSetupForm")?.addEventListener("submit", event => {
       event.preventDefault();
       this.applyMetaSetupForm();

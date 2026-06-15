@@ -343,6 +343,9 @@ export function createAppShellCommandMethods(deps) {
       case "quality":
         this.cycleRenderQuality();
         break;
+      case "global-options":
+        this.openGlobalOptions();
+        break;
       case "event-adjustment":
         this.store.updateUi(ui => { ui.selection = { type: "event" }; }, "Event adjustment");
         break;

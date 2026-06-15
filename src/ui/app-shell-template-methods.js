@@ -258,8 +258,26 @@ export function createAppShellTemplateMethods(deps) {
   template() {
     return `
       <style id="tabletDesktopLayoutFix">
+        purple-pen-app {
+          display: block;
+          width: var(--o-composer-viewport-width, 100vw);
+          max-width: var(--o-composer-viewport-width, 100vw);
+          height: var(--o-composer-viewport-height, 100vh);
+          max-height: var(--o-composer-viewport-height, 100vh);
+          min-width: 0;
+          min-height: 0;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
         purple-pen-app .app-frame {
           position: relative;
+          display: flex;
+          flex-direction: column;
+          width: 100%;
+          height: 100%;
+          min-width: 0;
+          min-height: 0;
+          overflow: hidden;
         }
         purple-pen-app .sr-only {
           position: absolute;
@@ -376,7 +394,7 @@ export function createAppShellTemplateMethods(deps) {
         }
         purple-pen-app .app-meta-setup-card {
           width: min(520px, calc(100vw - 32px));
-          max-height: calc(100dvh - 32px);
+          max-height: calc(var(--o-composer-viewport-height, 100vh) - 32px);
           overflow: auto;
           padding: 22px;
           border: 1px solid #d8c8f7;
@@ -422,6 +440,41 @@ export function createAppShellTemplateMethods(deps) {
           color: #111827;
           font: inherit;
         }
+        purple-pen-app .global-options-dialog {
+          width: min(520px, calc(100vw - 28px));
+          max-width: calc(100vw - 28px);
+        }
+        purple-pen-app .global-options-form {
+          min-width: min(480px, calc(100vw - 56px));
+        }
+        purple-pen-app .global-options-grid {
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+        }
+        purple-pen-app .global-options-field {
+          display: grid;
+          gap: 5px;
+        }
+        purple-pen-app .global-options-field span {
+          font-weight: 600;
+          font-size: 13px;
+        }
+        purple-pen-app .global-options-field small {
+          color: #6b7280;
+          font-size: 12px;
+          line-height: 1.35;
+        }
+        purple-pen-app .global-options-field select {
+          width: 100%;
+          height: 34px;
+          padding: 5px 30px 5px 9px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          background: #fff;
+          color: #111827;
+          font: inherit;
+        }
         purple-pen-app .app-meta-setup-actions {
           display: flex;
           justify-content: flex-end;
@@ -445,9 +498,10 @@ export function createAppShellTemplateMethods(deps) {
         }
         purple-pen-app.desktop-ui {
           display: block !important;
-          width: 100vw !important;
-          max-width: 100vw !important;
-          height: 100dvh !important;
+          width: var(--o-composer-viewport-width, 100vw) !important;
+          max-width: var(--o-composer-viewport-width, 100vw) !important;
+          height: var(--o-composer-viewport-height, 100vh) !important;
+          max-height: var(--o-composer-viewport-height, 100vh) !important;
           min-width: 0 !important;
           min-height: 0 !important;
           overflow: hidden !important;
@@ -531,28 +585,6 @@ export function createAppShellTemplateMethods(deps) {
           align-items: center;
           min-width: 0;
         }
-        purple-pen-app .render-quality-control {
-          margin-left: auto;
-        }
-        purple-pen-app .render-quality-control select {
-          max-width: min(160px, 28vw);
-          min-width: 92px;
-          height: 28px;
-          padding: 3px 24px 3px 8px;
-          border-radius: 7px;
-          border: 1px solid #d1d5db;
-          background: rgba(255,255,255,.94);
-          color: #1f2937;
-          font: inherit;
-          font-size: 13px;
-          line-height: 1.2;
-        }
-        purple-pen-app .render-quality-control select:hover,
-        purple-pen-app .render-quality-control select:focus-visible {
-          border-color: #9ca3af;
-          background: #fff;
-          outline: none;
-        }
         purple-pen-app .topbar-link {
           flex: 0 0 auto;
           display: inline-flex;
@@ -578,7 +610,9 @@ export function createAppShellTemplateMethods(deps) {
           outline: none;
           text-decoration: none;
         }
-        purple-pen-app .render-quality-control + .topbar-link,
+        purple-pen-app .feedback-link {
+          margin-left: auto !important;
+        }
         purple-pen-app .topbar-link + .topbar-link {
           margin-left: 6px !important;
         }
@@ -654,7 +688,7 @@ export function createAppShellTemplateMethods(deps) {
         <div id="appMetaSetup" class="app-meta-setup" role="dialog" aria-modal="true" aria-labelledby="appMetaSetupTitle" hidden>
           <form id="appMetaSetupForm" class="app-meta-setup-card" autocomplete="off">
             <h1 id="appMetaSetupTitle">${escapeHtml(this.t("Choose your O-Composer setup"))}</h1>
-            <p>${escapeHtml(this.t("These preferences are saved in this browser and can be changed later from the top bar."))}</p>
+            <p>${escapeHtml(this.t("These preferences are saved in this browser and can be changed later from Settings > Global Options."))}</p>
             <div class="app-meta-setup-grid">
               <label class="app-meta-setup-field">
                 <span>${escapeHtml(this.t("Language"))}</span>
@@ -751,7 +785,8 @@ export function createAppShellTemplateMethods(deps) {
             ["tool-regmark", "Registration Mark"],
             ["tool-whiteout", "White Out"]
           ])}
-          ${this.menu("Event", [
+          ${this.menu("Settings", [
+            ["global-options", "Global Options"],
             ["event-adjustment", "Event Adjustment"],
             ["map-info", "Map Info"]
           ])}
@@ -775,13 +810,6 @@ export function createAppShellTemplateMethods(deps) {
             ["about", "About O-Composer"],
             ["help", "Frontend Limitations"]
           ])}
-          <label class="topbar-control render-quality-control" title="${escapeAttr(this.t("Render quality"))}">
-            <span class="sr-only">${escapeHtml(this.t("Render quality"))}</span>
-            <select id="renderQualitySelect" aria-label="${escapeAttr(this.t("Render quality"))}">
-              ${RENDER_QUALITIES.map(profile => `<option value="${escapeAttr(profile.id)}">${escapeHtml(this.t(profile.label))}</option>`).join("")}
-            </select>
-          </label>
-          <button id="uiModeToggle" class="topbar-link ui-mode-toggle" type="button" title="${escapeAttr(this.t("Switch between desktop and mobile UI"))}" aria-label="${escapeAttr(this.t("Switch between desktop and mobile UI"))}"></button>
           <a class="topbar-link feedback-link" href="https://365.kdocs.cn/l/cmBYi18akxdM" target="_blank" rel="noopener noreferrer">${escapeHtml(this.t("Feedback"))}</a>
           <div class="app-brand" aria-label="${escapeAttr(`O-Composer ${APP_VERSION}`)}">
             <strong>O-Composer</strong>
@@ -811,9 +839,6 @@ export function createAppShellTemplateMethods(deps) {
           ${this.toolButton("tool-rectangle", "Rectangle", "rectangle")}
           <span class="separator"></span>
           ${this.toolButton("set-print-area", "Set Export Area", "print-area", "Export Area")}
-          <label class="toolbar-control">${escapeHtml(this.t("Language"))}
-            <select id="appLanguage" autocomplete="off">${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${code}" ${code === this.language ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>
-          </label>
         </section>
         <nav id="courseTabs" class="course-tabs" aria-label="${escapeAttr(this.t("Courses"))}"></nav>
         <main class="workspace">
@@ -895,6 +920,43 @@ export function createAppShellTemplateMethods(deps) {
             <div id="printAreaSummary" class="print-area-summary"></div>
             <footer class="dialog-actions">
               <button type="button" data-print-area-cancel>${escapeHtml(this.t("Cancel"))}</button>
+              <button type="submit" class="primary-button">${escapeHtml(this.t("Apply"))}</button>
+            </footer>
+          </form>
+        </dialog>
+        <dialog id="globalOptionsDialog" class="command-dialog global-options-dialog" hidden>
+          <form id="globalOptionsForm" class="command-form global-options-form" autocomplete="off">
+            <header class="dialog-heading">
+              <h2>${escapeHtml(this.t("Global Options"))}</h2>
+              <button type="button" class="icon-button" id="globalOptionsCloseButton" data-global-options-cancel aria-label="${escapeAttr(this.t("Close"))}">x</button>
+            </header>
+            <div class="command-body global-options-grid">
+              <label class="global-options-field">
+                <span>${escapeHtml(this.t("Language"))}</span>
+                <select id="globalLanguage" name="language">
+                  ${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${escapeAttr(code)}">${escapeHtml(label)}</option>`).join("")}
+                </select>
+                <small>${escapeHtml(this.t("Used for menus, panels, dialogs, and exported UI text."))}</small>
+              </label>
+              <label class="global-options-field">
+                <span>${escapeHtml(this.t("Render quality"))}</span>
+                <select id="globalRenderQuality" name="renderQuality">
+                  ${RENDER_QUALITIES.map(profile => `<option value="${escapeAttr(profile.id)}">${escapeHtml(this.t(profile.label))}</option>`).join("")}
+                </select>
+                <small>${escapeHtml(this.t("Lower quality is smoother on weaker hardware; higher quality is sharper."))}</small>
+              </label>
+              <label class="global-options-field">
+                <span>${escapeHtml(this.t("Interface mode"))}</span>
+                <select id="globalUiMode" name="uiMode">
+                  <option value="${escapeAttr(UI_MODES.AUTO)}">${escapeHtml(this.t("Auto"))}</option>
+                  <option value="${escapeAttr(UI_MODES.DESKTOP)}">${escapeHtml(this.t("Desktop UI"))}</option>
+                  <option value="${escapeAttr(UI_MODES.MOBILE)}">${escapeHtml(this.t("Mobile UI"))}</option>
+                </select>
+                <small>${escapeHtml(this.t("Auto chooses a layout from the current device and window size."))}</small>
+              </label>
+            </div>
+            <footer class="dialog-actions">
+              <button type="button" data-global-options-cancel>${escapeHtml(this.t("Cancel"))}</button>
               <button type="submit" class="primary-button">${escapeHtml(this.t("Apply"))}</button>
             </footer>
           </form>

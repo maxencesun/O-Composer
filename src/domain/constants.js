@@ -1,5 +1,5 @@
 import { courseLength, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js";
-import { relayEntryLabel, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js";
+import { relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js";
 
 export const BUILTIN_CONSTANTS = Object.freeze([
   { name: "\\event", description: "Event name" },
@@ -10,6 +10,7 @@ export const BUILTIN_CONSTANTS = Object.freeze([
   { name: "\\controls", description: "Number of controls" },
   { name: "\\mapscale", description: "Map scale" },
   { name: "\\team", description: "Team name / number" },
+  { name: "\\teamno", description: "Team number" },
   { name: "\\leg", description: "Relay leg" },
   { name: "\\variation", description: "Variation" }
 ]);
@@ -147,7 +148,7 @@ export function builtinConstantsForView(eventModel, ui = {}) {
   const courseName = course ? course.name : rangeText(courses.map(item => item.name));
   const groupName = course ? (course.secondaryTitle || "") : rangeText(courses.map(item => item.secondaryTitle).filter(Boolean));
   const variation = course ? variationDisplayLabel(eventModel, course.id, ui) : "";
-  const teamLabel = course ? relayLabelForConstants(eventModel, course, ui) : "";
+  const relayConstants = course ? relayConstantsForView(eventModel, course, ui) : { team: "", teamNumber: "", teamNumberRaw: "", leg: "", legRaw: "" };
   const lenValue = rangeNumberText(lengthValues, value => formatLength(value));
   const lenRaw = lengthValues.length === 1 ? roundNumber(lengthValues[0]) : rangeNumberText(lengthValues, value => String(roundNumber(value)));
   const controlsValue = rangeNumberText(controlCounts, value => String(value));
@@ -163,8 +164,9 @@ export function builtinConstantsForView(eventModel, ui = {}) {
     constantRow("\\climb", "Climb", climbValue, climbRaw, "m"),
     constantRow("\\controls", "Number of controls", controlsValue, controlsRaw),
     constantRow("\\mapscale", "Map scale", mapScaleText(eventModel), Number(eventModel?.event?.map?.scale) || ""),
-    constantRow("\\team", "Team name / number", teamLabel, teamLabel),
-    constantRow("\\leg", "Relay leg", course ? String(Math.max(1, Number(ui?.relayLeg) || 1)) : "", Math.max(1, Number(ui?.relayLeg) || 1)),
+    constantRow("\\team", "Team name / number", relayConstants.team, relayConstants.team),
+    constantRow("\\teamno", "Team number", relayConstants.teamNumber, relayConstants.teamNumberRaw),
+    constantRow("\\leg", "Relay leg", relayConstants.leg, relayConstants.legRaw),
     constantRow("\\variation", "Variation", variation || "", variation || "")
   ];
 }
@@ -217,9 +219,99 @@ function courseDisplayOptionsForConstants(eventModel, ui = {}) {
   return {};
 }
 
-function relayLabelForConstants(eventModel, course, ui = {}) {
-  if (!course || course.kind !== "team") return "";
-  return relayEntryLabel(course.relay || {}, Math.max(1, Number(ui.relayTeam) || 1), Math.max(1, Number(ui.relayLeg) || 1));
+function relayConstantsForView(eventModel, course, ui = {}) {
+  const relay = course?.relay || {};
+  const teams = Math.max(0, Math.round(Number(relay.teams) || 0));
+  const legs = Math.max(1, Math.round(Number(relay.legs) || 1));
+  const firstTeam = Math.max(1, Math.round(Number(relay.firstTeam) || 1));
+  const hasRelaySettings = teams > 0 || legs > 1 || String(relay.teamPrefix || "") || Number(relay.teamDigits) > 0 || Array.isArray(relay.legNames);
+  if (!course || !hasRelaySettings) {
+    return { team: "", teamNumber: "", teamNumberRaw: "", leg: "", legRaw: "" };
+  }
+
+  const showAllRelayBranches = ui.variationMode === "all";
+
+  if (!showAllRelayBranches) {
+    const current = relayEntryForConstantView(eventModel, course, ui);
+    if (!current) {
+      return { team: "", teamNumber: "", teamNumberRaw: "", leg: "", legRaw: "" };
+    }
+    const teamNumberText = String(current.team);
+    return {
+      team: relayTeamLabel(relay, current.team),
+      teamNumber: teamNumberText,
+      teamNumberRaw: current.team,
+      leg: relayLegName(relay, current.leg),
+      legRaw: current.leg
+    };
+  }
+
+  const lastTeam = teams > 0 ? firstTeam + teams - 1 : firstTeam;
+  const teamRange = firstTeam === lastTeam
+    ? relayTeamLabel(relay, firstTeam)
+    : `${relayTeamLabel(relay, firstTeam)} – ${relayTeamLabel(relay, lastTeam)}`;
+  const teamNumberRange = firstTeam === lastTeam ? String(firstTeam) : `${firstTeam} – ${lastTeam}`;
+  const legRange = legs <= 1
+    ? relayLegName(relay, 1)
+    : `${relayLegName(relay, 1)} – ${relayLegName(relay, legs)}`;
+
+  return {
+    team: teamRange,
+    teamNumber: teamNumberRange,
+    teamNumberRaw: firstTeam === lastTeam ? firstTeam : teamNumberRange,
+    leg: legRange,
+    legRaw: legs <= 1 ? 1 : legRange
+  };
+}
+
+function relayEntryForConstantView(eventModel, course, ui = {}) {
+  const relay = course?.relay || {};
+  const teams = Math.max(0, Math.round(Number(relay.teams) || 0));
+  const legs = Math.max(1, Math.round(Number(relay.legs) || 1));
+  const firstTeam = Math.max(1, Math.round(Number(relay.firstTeam) || 1));
+  const lastTeam = teams > 0 ? firstTeam + teams - 1 : firstTeam;
+
+  if (ui.variationMode === "relay") {
+    return {
+      team: clampInteger(Number(ui.relayTeam) || firstTeam, firstTeam, lastTeam),
+      leg: clampInteger(Number(ui.relayLeg) || 1, 1, legs)
+    };
+  }
+
+  if (ui.variationMode === "variation" && ui.variationCode) {
+    const entry = relayAssignments(eventModel, course.id)
+      .entries
+      .find(candidate => String(candidate.variation?.code || "") === String(ui.variationCode || ""));
+    if (entry) {
+      return {
+        team: clampInteger(Number(entry.team) || firstTeam, firstTeam, lastTeam),
+        leg: clampInteger(Number(entry.leg) || 1, 1, legs)
+      };
+    }
+  }
+
+  const hasExplicitTeam = ui.relayTeam !== undefined && ui.relayTeam !== null && String(ui.relayTeam) !== "";
+  const hasExplicitLeg = ui.relayLeg !== undefined && ui.relayLeg !== null && String(ui.relayLeg) !== "";
+  if (hasExplicitTeam || hasExplicitLeg) {
+    return {
+      team: clampInteger(Number(ui.relayTeam) || firstTeam, firstTeam, lastTeam),
+      leg: clampInteger(Number(ui.relayLeg) || 1, 1, legs)
+    };
+  }
+
+  return null;
+}
+
+function relayTeamLabel(relay = {}, team) {
+  const teamNumber = Math.max(1, Math.round(Number(team) || 1));
+  const digits = Math.max(0, Math.min(8, Math.round(Number(relay.teamDigits) || 0)));
+  const prefix = String(relay.teamPrefix || "");
+  return `${prefix}${digits ? String(teamNumber).padStart(digits, "0") : String(teamNumber)}`;
+}
+
+function clampInteger(value, min, max) {
+  const number = Math.round(Number(value) || min);
+  return Math.min(Math.max(number, min), Math.max(min, max));
 }
 
 function constantRow(name, description, value, raw = value, unit = "") {

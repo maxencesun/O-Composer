@@ -534,7 +534,7 @@ export function createMapViewRenderMethods(deps) {
       if (special?.locations?.length && specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) {
         const sourcePoints = special.kind === "descriptions"
           ? descriptionCornerPoints(eventModel, special, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui)).map(point => this.toScreen(point, ui))
-          : specialSelectionPoints(special, ui, this.scale(ui)).map(point => this.toScreen(point, ui));
+          : specialSelectionPoints(special, ui, this.scale(ui), eventModel).map(point => this.toScreen(point, ui));
         if (sourcePoints.length) {
           const rect = screenRectFromPoints(sourcePoints);
           ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
@@ -625,7 +625,7 @@ export function createMapViewRenderMethods(deps) {
         }
         const sourcePoints = moved.kind === "descriptions"
           ? descriptionCornerPoints(eventModel, moved, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
-          : specialSelectionPoints(moved, ui, this.scale(ui));
+          : specialSelectionPoints(moved, ui, this.scale(ui), eventModel);
         const points = sourcePoints.map(point => this.toScreen(point, ui));
         const rect = screenRectFromPoints(points);
         ctx.strokeStyle = "#2477c9";
@@ -644,7 +644,7 @@ export function createMapViewRenderMethods(deps) {
     drawSpecialObject(ctx, eventModel, preview.special, ui, point => this.toScreen(point, ui), this.scale(ui));
     const sourcePoints = preview.special.kind === "descriptions"
       ? descriptionCornerPoints(eventModel, preview.special, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
-      : specialSelectionPoints(preview.special, ui, this.scale(ui));
+      : specialSelectionPoints(preview.special, ui, this.scale(ui), eventModel);
     const points = sourcePoints.map(point => this.toScreen(point, ui));
     const rect = screenRectFromPoints(points);
     ctx.strokeStyle = "#2477c9";

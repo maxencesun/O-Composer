@@ -6,6 +6,7 @@ import {
   isTeamFreeCourseControl
 } from "../domain/course-service.js";
 import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js";
+import { resolveTextConstants } from "../domain/constants.js";
 import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import {
   createCourseSymbolMetrics,
@@ -139,7 +140,7 @@ export function specialResizeHandles(special, ui, scale, eventModel) {
   if (["text", "rectangle", "ellipse"].includes(special.kind)) {
     if (special.kind === "text") {
       const anchor = special.locations[0];
-      const bounds = specialMapBounds(special, ui, scale);
+      const bounds = specialMapBounds(special, ui, scale, eventModel);
       return anchor && bounds ? [
         { handle: "move-anchor", point: anchor },
         { handle: "resize-text-font", point: { x: bounds.right, y: bounds.bottom }, anchor }
@@ -157,10 +158,10 @@ export function specialResizeHandles(special, ui, scale, eventModel) {
   return [];
 }
 
-export function specialSelectionPoints(special, ui, scale) {
+export function specialSelectionPoints(special, ui, scale, eventModel = null) {
   if (special.kind === "descriptions") return [];
   if (["text", "rectangle", "ellipse"].includes(special.kind)) {
-    const rect = specialMapBounds(special, ui, scale);
+    const rect = specialMapBounds(special, ui, scale, eventModel);
     return rect ? [
       { x: rect.left, y: rect.top },
       { x: rect.right, y: rect.top },
@@ -181,9 +182,9 @@ export function specialSelectionPoints(special, ui, scale) {
   return special.locations || [];
 }
 
-export function specialMapBounds(special, ui, scale) {
+export function specialMapBounds(special, ui, scale, eventModel = null) {
   const rect = special.kind === "text"
-    ? specialTextBounds(special, ui, scale)
+    ? specialTextBounds(special, ui, scale, eventModel)
     : specialRectBounds(special, ui);
   if (!rect) return null;
   return {
@@ -194,7 +195,7 @@ export function specialMapBounds(special, ui, scale) {
   };
 }
 
-export function specialHitDistance(special, point, threshold, ui, scale = 1) {
+export function specialHitDistance(special, point, threshold, ui, scale = 1, eventModel = null) {
   const points = special.locations || [];
   if (!points.length) return Infinity;
   const lineWidthMap = Math.max(0.2, Number(special.lineWidth) || 0.35);
@@ -204,7 +205,7 @@ export function specialHitDistance(special, point, threshold, ui, scale = 1) {
     return distanceToLine <= lineTolerance ? distanceToLine : Infinity;
   }
   if (special.kind === "text") {
-    const rect = specialTextBounds(special, ui, scale);
+    const rect = specialTextBounds(special, ui, scale, eventModel);
     if (!rect) return Infinity;
     if (pointInRect(point, rect)) return 0;
     const distanceToRect = distancePointToRect(point, rect);
@@ -246,10 +247,16 @@ export function specialRectBounds(special, ui) {
   return null;
 }
 
-export function specialTextBounds(special, ui, scale = 1) {
+function textSpecialForView(special, ui = {}, eventModel = null) {
+  const model = eventModel || ui?.__eventModel || null;
+  if (!model || special?.kind !== "text") return special;
+  return { ...special, text: resolveTextConstants(special.text, model, ui) };
+}
+
+export function specialTextBounds(special, ui, scale = 1, eventModel = null) {
   const points = special.locations || [];
   if (!points[0]) return null;
-  const metrics = textMetrics(special, scale);
+  const metrics = textMetrics(textSpecialForView(special, ui, eventModel), scale);
   return {
     left: points[0].x,
     right: points[0].x + metrics.width / Math.max(0.0001, scale),
@@ -1400,7 +1407,7 @@ export function drawSpecialObject(ctx, eventModel, special, ui, project, scale) 
     drawRectSpecial(ctx, special, points[0], points[1], scale, true);
   }
   else if (special.kind === "text" && points.length >= 1) {
-    drawTextSpecial(ctx, special, points, scale);
+    drawTextSpecial(ctx, textSpecialForView(special, ui, eventModel), points, scale);
   }
   else if (special.kind === "descriptions" && points.length >= 2) {
     drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, project, mapCourseDisplayOptions(eventModel, ui));

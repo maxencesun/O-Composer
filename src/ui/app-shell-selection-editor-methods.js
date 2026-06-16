@@ -332,7 +332,6 @@ export function createAppShellSelectionEditorMethods(deps) {
             </select>
           </label>
         </div>
-        <p class="muted">${escapeHtml(this.t("Current standards are shown directly in the selectors above."))}</p>
 
         <h3>${escapeHtml(this.t("Control numbering"))}</h3>
         <div class="form-grid">
@@ -494,7 +493,6 @@ export function createAppShellSelectionEditorMethods(deps) {
           </select>
         </label>
       </div>
-      <p class="muted">${escapeHtml(this.t("Team courses combine mandatory controls drawn like a normal course with free controls drawn like score controls."))}</p>
     `;
   },
 
@@ -522,7 +520,7 @@ export function createAppShellSelectionEditorMethods(deps) {
         </label>
         <label class="check"><input data-field="course.options.hideFromReports" type="checkbox" ${course.options.hideFromReports ? "checked" : ""}> ${escapeHtml(this.t("Hide from reports"))}</label>
       </div>
-      ${course.kind === "team" ? `<p class="muted">${escapeHtml(this.t("Team courses combine mandatory controls drawn like a normal course with free controls drawn without route legs."))}</p>` : `
+      ${course.kind === "team" ? "" : `
         <h3>${escapeHtml(this.t("Relay"))}</h3>
         <div class="form-grid">
           <label>${escapeHtml(this.t("Teams"))} <input data-field="course.relay.teams" type="number" min="0" value="${relay.teams || 0}"></label>
@@ -719,7 +717,6 @@ export function createAppShellSelectionEditorMethods(deps) {
         <div class="special-visibility-courses" aria-label="${escapeAttr(this.t("Selected courses"))}">
           ${courseRows}
         </div>
-        <p class="muted special-visibility-help">${escapeHtml(this.t("Uncheck All courses to choose one or more specific courses."))}</p>
       </fieldset>
     `;
   },
@@ -767,7 +764,6 @@ export function createAppShellSelectionEditorMethods(deps) {
         <label>${escapeHtml(this.t("Columns"))} <select data-field="special.numColumns">${[1, 2, 3, 4, 5, 6].map(value => `<option value="${value}" ${value === Number(special.numColumns || 1) ? "selected" : ""}>${value}</option>`).join("")}</select></label>
         <label>${escapeHtml(this.t("Line height (mm)"))} <input data-field="special.cellSize" type="number" min="1.2" step="0.1" value="${Number(special.cellSize || 5.2).toFixed(1)}"></label>
         <label>${escapeHtml(this.t("Color"))} <select data-field="special.color">${["black", "upper-purple"].map(color => `<option value="${color}" ${color === (special.color || "black") ? "selected" : ""}>${escapeHtml(optionLabel(color))}</option>`).join("")}</select></label>
-        <p class="muted">${escapeHtml(this.t("Drag the block to move it. Drag the lower-right handle to resize; columns and cell size update together."))}</p>
       </div>
     `;
   },

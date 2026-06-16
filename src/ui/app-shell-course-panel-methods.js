@@ -474,7 +474,6 @@ export function createAppShellCoursePanelMethods(deps) {
     `).join("") : `<tr><td colspan="4">${escapeHtml(this.t("No custom constants yet."))}</td></tr>`;
     panel.innerHTML = `
       <h2>${escapeHtml(this.t("Constants"))}</h2>
-      <p class="constants-help">${escapeHtml(this.t("Use constants such as \\len in text objects. Built-in constants update from the current course or map area; custom constants can be fixed values or expressions that reference other constants."))}</p>
       <h3>${escapeHtml(this.t("Built-in constants"))}</h3>
       <table class="constants-table">
         <thead><tr><th>${escapeHtml(this.t("Constant name"))}</th><th>${escapeHtml(this.t("Explanation"))}</th><th>${escapeHtml(this.t("Current value / range"))}</th></tr></thead>

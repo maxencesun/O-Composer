@@ -807,21 +807,18 @@ export function createAppShellTemplateMethods(deps) {
         <div id="appMetaSetup" class="app-meta-setup" role="dialog" aria-modal="true" aria-labelledby="appMetaSetupTitle" hidden>
           <form id="appMetaSetupForm" class="app-meta-setup-card" autocomplete="off">
             <h1 id="appMetaSetupTitle">${escapeHtml(this.t("Choose your O-Composer setup"))}</h1>
-            <p>${escapeHtml(this.t("These preferences are saved in this browser and can be changed later from Settings > Global Options."))}</p>
             <div class="app-meta-setup-grid">
               <label class="app-meta-setup-field">
                 <span>${escapeHtml(this.t("Language"))}</span>
                 <select id="setupLanguage">
                   ${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${escapeAttr(code)}" ${code === this.language ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
                 </select>
-                <small>${escapeHtml(this.t("Used for menus, panels, dialogs, and exported UI text."))}</small>
               </label>
               <label class="app-meta-setup-field">
                 <span>${escapeHtml(this.t("Render quality"))}</span>
                 <select id="setupRenderQuality">
                   ${RENDER_QUALITIES.map(profile => `<option value="${escapeAttr(profile.id)}">${escapeHtml(this.t(profile.label))}</option>`).join("")}
                 </select>
-                <small>${escapeHtml(this.t("Lower quality is smoother on weaker hardware; higher quality is sharper."))}</small>
               </label>
               <label class="app-meta-setup-field">
                 <span>${escapeHtml(this.t("Interface mode"))}</span>
@@ -830,7 +827,6 @@ export function createAppShellTemplateMethods(deps) {
                   <option value="${escapeAttr(UI_MODES.DESKTOP)}">${escapeHtml(this.t("Desktop UI"))}</option>
                   <option value="${escapeAttr(UI_MODES.MOBILE)}">${escapeHtml(this.t("Mobile UI"))}</option>
                 </select>
-                <small>${escapeHtml(this.t("Auto chooses a layout from the current device and window size."))}</small>
               </label>
             </div>
             <div class="app-meta-setup-actions">
@@ -1058,14 +1054,12 @@ export function createAppShellTemplateMethods(deps) {
                 <select id="globalLanguage" name="language">
                   ${SUPPORTED_LANGUAGES.map(([code, label]) => `<option value="${escapeAttr(code)}">${escapeHtml(label)}</option>`).join("")}
                 </select>
-                <small>${escapeHtml(this.t("Used for menus, panels, dialogs, and exported UI text."))}</small>
               </label>
               <label class="global-options-field">
                 <span>${escapeHtml(this.t("Render quality"))}</span>
                 <select id="globalRenderQuality" name="renderQuality">
                   ${RENDER_QUALITIES.map(profile => `<option value="${escapeAttr(profile.id)}">${escapeHtml(this.t(profile.label))}</option>`).join("")}
                 </select>
-                <small>${escapeHtml(this.t("Lower quality is smoother on weaker hardware; higher quality is sharper."))}</small>
               </label>
               <label class="global-options-field">
                 <span>${escapeHtml(this.t("Interface mode"))}</span>
@@ -1074,7 +1068,6 @@ export function createAppShellTemplateMethods(deps) {
                   <option value="${escapeAttr(UI_MODES.DESKTOP)}">${escapeHtml(this.t("Desktop UI"))}</option>
                   <option value="${escapeAttr(UI_MODES.MOBILE)}">${escapeHtml(this.t("Mobile UI"))}</option>
                 </select>
-                <small>${escapeHtml(this.t("Auto chooses a layout from the current device and window size."))}</small>
               </label>
             </div>
             <footer class="dialog-actions">

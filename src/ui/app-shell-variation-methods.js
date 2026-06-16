@@ -293,11 +293,10 @@ export function createAppShellVariationMethods(deps) {
         </label>
         <button type="button" data-add-variation ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Variation"))}</button>
       </div>
-      <p class="muted">${canAddVariation && anchorCourseControl && anchorControl
-        ? escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))
-        : escapeHtml(this.t("Select a non-finish control that has a following control, then add a variation."))}</p>
-      ${selectedBranch ? `<p class="variation-branch-hint">${escapeHtml(this.t("Selected branch"))}: <strong>${escapeHtml(selectedBranchCode || controlDisplayName(getControl(eventModel, getCourseControl(eventModel, selectedBranch.branchCourseControl)?.control)))}</strong>. ${escapeHtml(this.t("New controls will be inserted on this branch."))}</p>` : ""}
-      <p class="muted">${escapeHtml(this.t("Click the stem before a fork to insert before the branch block; click a branch edge or branch label to insert on that branch; click the join checkpoint or an outgoing edge to insert after the branch block."))}</p>
+      ${canAddVariation && anchorCourseControl && anchorControl
+        ? `<p class="muted">${escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))}</p>`
+        : ""}
+      ${selectedBranch ? `<p class="variation-branch-hint">${escapeHtml(this.t("Selected branch"))}: <strong>${escapeHtml(selectedBranchCode || controlDisplayName(getControl(eventModel, getCourseControl(eventModel, selectedBranch.branchCourseControl)?.control)))}</strong></p>` : ""}
       <div class="variation-tree">${topologyHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
       ${variations.length ? `
         <h3>${escapeHtml(this.t("All variations"))}</h3>

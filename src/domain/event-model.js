@@ -47,7 +47,7 @@ export function cloneEvent(event) {
 
 export function createBlankEvent() {
   return {
-    sourceName: "Untitled.ppen",
+    sourceName: "Untitled.ocp",
     dirty: false,
     event: {
       id: 1,

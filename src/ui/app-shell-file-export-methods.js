@@ -9,6 +9,8 @@ export function createAppShellFileExportMethods(deps) {
     saveCachedSession,
     parseOmap,
     parsePpen,
+    serializeNativePpen,
+    serializeOcp,
     serializePpen,
     CONTROL_KINDS,
     cloneEvent,
@@ -273,6 +275,9 @@ export function createAppShellFileExportMethods(deps) {
       catch (error) {
         alert(error.message);
       }
+      finally {
+        this.querySelector("#ppenInput").value = "";
+      }
     };
     reader.readAsText(file);
   },
@@ -409,12 +414,19 @@ export function createAppShellFileExportMethods(deps) {
     reader.readAsText(file);
   },
 
-  downloadPpen() {
+  downloadOcp() {
     const model = cloneEvent(this.store.snapshot().eventModel);
     syncDescriptionLanguageWithApp(model);
-    const fileName = model.sourceName || "Untitled.ppen";
-    download(fileName.endsWith(".ppen") ? fileName : `${baseName(fileName)}.ppen`, serializePpen(model), "application/xml");
+    const fileName = `${baseName(model.sourceName || "Untitled")}.ocp`;
+    download(fileName, serializeOcp(model), "application/xml");
     this.store.markClean(fileName);
+  },
+
+  downloadNativePpen() {
+    const model = cloneEvent(this.store.snapshot().eventModel);
+    syncDescriptionLanguageWithApp(model);
+    const fileName = `${baseName(model.sourceName || "Untitled")}.ppen`;
+    download(fileName, serializeNativePpen(model), "application/xml");
   },
 
   exportPng() {

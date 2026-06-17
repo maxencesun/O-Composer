@@ -17,7 +17,7 @@ import {
 } from "./course-symbols.js";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
-export const LOWER_PURPLE = "rgba(166, 38, 255, 0.46)";
+export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
 export const PURPLE_50_TINT = "#d393ff";
 export const DEFAULT_TEXT_FONT_HEIGHT = 3;
 export const TEXT_MIN_WIDTH_PX = 48;
@@ -1368,6 +1368,10 @@ export function isDragSpecialTool(tool) {
   return ["special:line", "special:rectangle", "special:ellipse"].includes(tool);
 }
 
+export function isAreaSpecialTool(tool) {
+  return ["special:out-of-bounds", "special:dangerous-area", "special:temporary-construction", "special:white-out"].includes(tool);
+}
+
 export function specialShapeForDrag(tool, start, end, state) {
   const kind = tool.slice("special:".length);
   const min = 0.001;
@@ -1469,7 +1473,7 @@ export function drawAreaSpecial(ctx, special, points, scale, metrics = null) {
     ctx.strokeStyle = purple;
     ctx.lineWidth = symbolMmToPx(0.4, metrics, scale);
     ctx.lineCap = "butt";
-    ctx.lineJoin = "bevel";
+    ctx.lineJoin = "miter";
     if (special.lineKind === "dashed") {
       ctx.setLineDash([symbolMmToPx(1.0, metrics, scale), symbolMmToPx(0.5, metrics, scale)]);
     }
@@ -1699,7 +1703,7 @@ export function fillForSpecial(kind) {
     case "out-of-bounds": return "rgba(166, 38, 255, 0)";
     case "dangerous-area": return "rgba(166, 38, 255, 0)";
     case "temporary-construction": return PURPLE_50_TINT;
-    case "white-out": return "rgba(255,255,255,0.88)";
+    case "white-out": return "#ffffff";
     default: return "rgba(143,42,168,0.20)";
   }
 }

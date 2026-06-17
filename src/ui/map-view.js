@@ -104,6 +104,7 @@ import {
   orientation,
   drawFallbackSpecialPoint,
   isDragSpecialTool,
+  isAreaSpecialTool,
   specialShapeForDrag,
   drawSpecialObject,
   drawAreaSpecial,
@@ -152,6 +153,8 @@ export class MapView {
     this.pendingState = null;
     this.lastDrawState = store.snapshot();
     this.toolPreview = null;
+    this.areaSpecialDraft = null;
+    this.suppressNextContextMenu = false;
     this.activePointers = new Map();
     this.pinch = null;
 
@@ -160,6 +163,7 @@ export class MapView {
     this.canvas.addEventListener("pointerup", event => this.pointerUp(event));
     this.canvas.addEventListener("pointercancel", event => this.pointerCancel(event));
     this.canvas.addEventListener("pointerleave", () => this.clearToolPreview());
+    this.canvas.addEventListener("contextmenu", event => this.contextMenu(event));
     this.canvas.addEventListener("dblclick", event => this.doubleClick(event));
     this.canvas.addEventListener("wheel", event => this.wheel(event), { passive: false });
     window.addEventListener("resize", () => {
@@ -298,6 +302,7 @@ const MAP_VIEW_METHOD_DEPS = {
   orientation,
   drawFallbackSpecialPoint,
   isDragSpecialTool,
+  isAreaSpecialTool,
   specialShapeForDrag,
   drawSpecialObject,
   drawAreaSpecial,

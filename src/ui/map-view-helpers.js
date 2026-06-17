@@ -18,6 +18,7 @@ import {
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.46)";
+export const PURPLE_50_TINT = "#d393ff";
 export const DEFAULT_TEXT_FONT_HEIGHT = 3;
 export const TEXT_MIN_WIDTH_PX = 48;
 export const TEXT_MIN_HEIGHT_PX = 20;
@@ -1387,11 +1388,12 @@ export function specialShapeForDrag(tool, start, end, state) {
 
 export function drawSpecialObject(ctx, eventModel, special, ui, project, scale) {
   const points = (special.locations || []).map(project);
+  const metrics = specialSymbolMetrics(eventModel, ui, scale);
   if (["boundary", "line"].includes(special.kind) && points.length >= 2) {
-    drawLineSpecial(ctx, special, points, scale);
+    drawLineSpecial(ctx, special, points, scale, metrics);
   }
   else if (["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(special.kind) && points.length >= 3) {
-    drawAreaSpecial(ctx, special, points, scale);
+    drawAreaSpecial(ctx, special, points, scale, metrics);
   }
   else if (special.kind === "rectangle" && points.length >= 2) {
     drawRectSpecial(ctx, special, points[0], points[1], scale, false);
@@ -1407,11 +1409,11 @@ export function drawSpecialObject(ctx, eventModel, special, ui, project, scale) 
   }
 }
 
-export function drawLineSpecial(ctx, special, points, scale) {
+export function drawLineSpecial(ctx, special, points, scale, metrics = null) {
   const isBoundary = special.kind === "boundary";
-  const width = isBoundary ? Math.max(1, 0.7 * scale) : specialLineWidth(special, scale);
+  const width = isBoundary ? symbolMmToPx(0.4, metrics, scale) : specialLineWidth(special, scale);
   ctx.save();
-  ctx.strokeStyle = isBoundary ? PURPLE : specialColor(special);
+  ctx.strokeStyle = isBoundary ? boundaryColor(metrics) : specialColor(special);
   ctx.lineCap = "butt";
   ctx.lineJoin = isBoundary ? "miter" : "bevel";
   if (!isBoundary && special.lineKind === "double") {
@@ -1429,8 +1431,8 @@ export function drawLineSpecial(ctx, special, points, scale) {
   ctx.restore();
 }
 
-export function drawAreaSpecial(ctx, special, points, scale) {
-  const purple = PURPLE;
+export function drawAreaSpecial(ctx, special, points, scale, metrics = null) {
+  const purple = specialColor({ ...special, color: "upper-purple" });
   ctx.save();
   pathLines(ctx, points, true);
 
@@ -1442,9 +1444,9 @@ export function drawAreaSpecial(ctx, special, points, scale) {
   }
 
   if (special.kind === "temporary-construction") {
-    ctx.fillStyle = "rgba(166, 38, 255, 0.42)";
+    ctx.fillStyle = PURPLE_50_TINT;
     ctx.strokeStyle = purple;
-    ctx.lineWidth = Math.max(1, 0.1 * scale);
+    ctx.lineWidth = symbolMmToPx(0.1, metrics, scale);
     ctx.fill();
     ctx.stroke();
     ctx.restore();
@@ -1453,11 +1455,27 @@ export function drawAreaSpecial(ctx, special, points, scale) {
 
   ctx.clip();
   ctx.strokeStyle = purple;
-  ctx.lineWidth = Math.max(1, 0.2 * scale);
+  const hatchWidth = symbolMmToPx(0.2, metrics, scale);
+  const hatchGap = symbolMmToPx(1.2, metrics, scale);
+  ctx.lineWidth = hatchWidth;
   ctx.lineCap = "butt";
-  const spacing = Math.max(6, 1.2 * scale);
+  const spacing = hatchWidth + hatchGap;
   drawClippedHatching(ctx, points, spacing, 45);
   drawClippedHatching(ctx, points, spacing, 135);
+
+  if (special.lineKind !== "none") {
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = purple;
+    ctx.lineWidth = symbolMmToPx(0.4, metrics, scale);
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "bevel";
+    if (special.lineKind === "dashed") {
+      ctx.setLineDash([symbolMmToPx(1.0, metrics, scale), symbolMmToPx(0.5, metrics, scale)]);
+    }
+    pathLines(ctx, points, true);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -1568,6 +1586,21 @@ export function specialColor(special) {
   return SPECIAL_COLORS[color] || (isCssColorValue(color) ? color : PURPLE);
 }
 
+export function specialSymbolMetrics(eventModel, ui, scale) {
+  const selectedCourseId = ui?.selectedCourseId || "all";
+  const selectedCourse = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
+  return createCourseSymbolMetrics(eventModel, selectedCourse, eventModel?.event?.courseAppearance, scale, selectedCourseId === "all");
+}
+
+export function symbolMmToPx(mm, metrics, scale) {
+  const pixels = courseSymbolMmToMapDistance(mm, metrics, scale) * Math.max(0, Number(scale) || 0);
+  return Math.max(1, pixels || 0);
+}
+
+export function boundaryColor(metrics) {
+  return metrics?.mapStandard === "Spr2019" ? LOWER_PURPLE : PURPLE;
+}
+
 export function isCssColorValue(color) {
   return /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)
     || /^rgba?\(/i.test(color)
@@ -1665,7 +1698,7 @@ export function fillForSpecial(kind) {
     case "first-aid": return "#d43f3a";
     case "out-of-bounds": return "rgba(166, 38, 255, 0)";
     case "dangerous-area": return "rgba(166, 38, 255, 0)";
-    case "temporary-construction": return "rgba(166, 38, 255, 0.42)";
+    case "temporary-construction": return PURPLE_50_TINT;
     case "white-out": return "rgba(255,255,255,0.88)";
     default: return "rgba(143,42,168,0.20)";
   }

@@ -14,7 +14,7 @@ const ICONS = {
   decoration: '<path d="M4 18 10 6l4 12 2-6 4 6"/><circle cx="17.5" cy="6.5" r="2.2"/>',
   "out-of-bounds": '<path d="M5 18 19 6"/><path d="M5 6l14 12"/><path d="M8 4h8l4 4v8l-4 4H8l-4-4V8Z"/>',
   "dangerous-area": '<path d="M12 4 21 19H3Z"/><path d="M9 14h6"/><path d="M12 9v3"/>',
-  construction: '<path d="M5 17h14"/><path d="M7 17 10 7h4l3 10"/><path d="M9 11h6"/>',
+  construction: '<rect x="5" y="6" width="14" height="12" fill="currentColor" opacity=".42"/><rect x="5" y="6" width="14" height="12"/>',
   "forbidden-route": '<path d="M7 7 17 17"/><path d="M17 7 7 17"/>',
   boundary: '<path d="M5 12h14"/><path d="M5 9h14"/><path d="M5 15h14"/>',
   whiteout: '<rect x="5" y="6" width="14" height="12"/><path d="M8 9h8"/><path d="M8 12h8"/><path d="M8 15h8"/>',

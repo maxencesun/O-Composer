@@ -950,9 +950,20 @@ export function createAppShellTemplateMethods(deps) {
           ${this.toolButton("tool-map-issue", "Map Issue", "map-issue")}
           ${this.toolButton("tool-line-cut", "Cut Line", "cut")}
           ${this.toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")}
-          ${this.toolButton("tool-text", "Text", "text")}
-          ${this.toolButton("tool-line", "Line", "line")}
-          ${this.toolButton("tool-rectangle", "Rectangle", "rectangle")}
+          ${this.toolGroup("Restricted Areas", "restricted", [
+            ["tool-oob", "Out of Bounds", "out-of-bounds"],
+            ["tool-danger", "Dangerous Area", "dangerous-area"],
+            ["tool-construction", "Construction", "construction"],
+            ["tool-forbidden", "Forbidden Route", "forbidden-route"],
+            ["tool-boundary", "Boundary", "boundary"],
+            ["tool-whiteout", "White Out", "whiteout"]
+          ])}
+          ${this.toolGroup("Decorations", "decoration", [
+            ["tool-text", "Text", "text"],
+            ["tool-line", "Line", "line"],
+            ["tool-rectangle", "Rectangle", "rectangle"],
+            ["tool-ellipse", "Ellipse", "ellipse"]
+          ])}
           <span class="separator"></span>
           ${this.toolButton("set-print-area", "Set Export Area", "print-area", "Export Area")}
         </section>
@@ -1156,6 +1167,19 @@ export function createAppShellTemplateMethods(deps) {
 
   toolButton(command, title, icon, label = title) {
     return `<button class="tool-button" data-command="${command}" title="${escapeAttr(this.t(title))}" aria-label="${escapeAttr(this.t(title))}">${iconSvg(icon)}<span>${escapeHtml(this.t(label))}</span></button>`;
+  },
+
+  toolGroup(label, icon, items) {
+    return `
+      <details class="tool-group">
+        <summary class="tool-button" title="${escapeAttr(this.t(label))}" aria-label="${escapeAttr(this.t(label))}">
+          ${iconSvg(icon)}<span>${escapeHtml(this.t(label))}</span>
+        </summary>
+        <div class="tool-group-menu">
+          ${items.map(([command, title, itemIcon]) => this.toolButton(command, title, itemIcon)).join("")}
+        </div>
+      </details>
+    `;
   }
 
   };

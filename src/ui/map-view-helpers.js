@@ -1391,14 +1391,7 @@ export function drawSpecialObject(ctx, eventModel, special, ui, project, scale) 
     drawLineSpecial(ctx, special, points, scale);
   }
   else if (["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(special.kind) && points.length >= 3) {
-    ctx.save();
-    ctx.strokeStyle = specialColor(special);
-    ctx.fillStyle = fillForSpecial(special.kind);
-    ctx.lineWidth = specialLineWidth(special, scale);
-    pathLines(ctx, points, true);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    drawAreaSpecial(ctx, special, points, scale);
   }
   else if (special.kind === "rectangle" && points.length >= 2) {
     drawRectSpecial(ctx, special, points[0], points[1], scale, false);
@@ -1415,23 +1408,56 @@ export function drawSpecialObject(ctx, eventModel, special, ui, project, scale) 
 }
 
 export function drawLineSpecial(ctx, special, points, scale) {
-  const width = specialLineWidth(special, scale);
+  const isBoundary = special.kind === "boundary";
+  const width = isBoundary ? Math.max(1, 0.7 * scale) : specialLineWidth(special, scale);
   ctx.save();
-  ctx.strokeStyle = specialColor(special);
+  ctx.strokeStyle = isBoundary ? PURPLE : specialColor(special);
   ctx.lineCap = "butt";
-  ctx.lineJoin = "bevel";
-  if (special.lineKind === "double") {
+  ctx.lineJoin = isBoundary ? "miter" : "bevel";
+  if (!isBoundary && special.lineKind === "double") {
     const gap = Math.max(0, Number(special.gapSize) || 0) * scale;
     drawDoublePolyline(ctx, points, width, gap);
   }
   else {
     ctx.lineWidth = width;
-    if (special.lineKind === "dashed") {
+    if (!isBoundary && special.lineKind === "dashed") {
       ctx.setLineDash(specialDashArray(special, scale));
     }
     pathLines(ctx, points, false);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+export function drawAreaSpecial(ctx, special, points, scale) {
+  const purple = PURPLE;
+  ctx.save();
+  pathLines(ctx, points, true);
+
+  if (special.kind === "white-out") {
+    ctx.fillStyle = fillForSpecial(special.kind);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  if (special.kind === "temporary-construction") {
+    ctx.fillStyle = "rgba(166, 38, 255, 0.42)";
+    ctx.strokeStyle = purple;
+    ctx.lineWidth = Math.max(1, 0.1 * scale);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  ctx.clip();
+  ctx.strokeStyle = purple;
+  ctx.lineWidth = Math.max(1, 0.2 * scale);
+  ctx.lineCap = "butt";
+  const spacing = Math.max(6, 1.2 * scale);
+  drawClippedHatching(ctx, points, spacing, 45);
+  drawClippedHatching(ctx, points, spacing, 135);
   ctx.restore();
 }
 
@@ -1606,13 +1632,40 @@ export function roundRect(ctx, x, y, width, height, radius) {
   ctx.quadraticCurveTo(x, y, x + r, y);
 }
 
+function drawClippedHatching(ctx, points, spacing, degrees) {
+  if (!points.length) return;
+  const xs = points.map(point => point.x);
+  const ys = points.map(point => point.y);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys);
+  const center = { x: (left + right) / 2, y: (top + bottom) / 2 };
+  const diagonal = Math.hypot(right - left, bottom - top) + spacing * 2;
+  const angle = degrees * Math.PI / 180;
+  const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+  const normal = { x: -direction.y, y: direction.x };
+  const step = Math.max(1, spacing);
+
+  for (let offset = -diagonal; offset <= diagonal; offset += step) {
+    const origin = {
+      x: center.x + normal.x * offset,
+      y: center.y + normal.y * offset
+    };
+    ctx.beginPath();
+    ctx.moveTo(origin.x - direction.x * diagonal, origin.y - direction.y * diagonal);
+    ctx.lineTo(origin.x + direction.x * diagonal, origin.y + direction.y * diagonal);
+    ctx.stroke();
+  }
+}
+
 export function fillForSpecial(kind) {
   switch (kind) {
     case "water": return "#3f8fd2";
     case "first-aid": return "#d43f3a";
-    case "out-of-bounds": return "rgba(183, 54, 61, 0.18)";
-    case "dangerous-area": return "rgba(236, 167, 44, 0.28)";
-    case "temporary-construction": return "rgba(123, 95, 64, 0.25)";
+    case "out-of-bounds": return "rgba(166, 38, 255, 0)";
+    case "dangerous-area": return "rgba(166, 38, 255, 0)";
+    case "temporary-construction": return "rgba(166, 38, 255, 0.42)";
     case "white-out": return "rgba(255,255,255,0.88)";
     default: return "rgba(143,42,168,0.20)";
   }

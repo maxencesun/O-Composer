@@ -96,7 +96,8 @@ const ZH = Object.freeze({
   "Ellipse": "椭圆",
   "Out of Bounds": "禁止区域",
   "Dangerous Area": "危险区域",
-  "Construction": "施工区域",
+  "Construction": "临时禁区",
+  "Temporary Closed Area": "临时禁区",
   "Water": "水站",
   "First Aid": "急救",
   "Forbidden Route": "禁止路线",
@@ -558,7 +559,7 @@ const ZH = Object.freeze({
   "line": "线段",
   "out-of-bounds": "禁止区域",
   "dangerous-area": "危险区域",
-  "temporary-construction": "临时建筑",
+  "temporary-construction": "临时禁区",
   "white-out": "涂白区域",
   "rectangle": "矩形",
   "ellipse": "椭圆"

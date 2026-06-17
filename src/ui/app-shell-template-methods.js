@@ -892,8 +892,7 @@ export function createAppShellTemplateMethods(deps) {
             ["tool-rectangle", "Rectangle"],
             ["tool-ellipse", "Ellipse"],
             ["tool-oob", "Out of Bounds"],
-            ["tool-danger", "Dangerous Area"],
-            ["tool-construction", "Construction"],
+            ["tool-construction", "Temporary Closed Area"],
             ["tool-water", "Water"],
             ["tool-first-aid", "First Aid"],
             ["tool-forbidden", "Forbidden Route"],
@@ -952,8 +951,7 @@ export function createAppShellTemplateMethods(deps) {
           ${this.toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")}
           ${this.toolGroup("Restricted Areas", "restricted", [
             ["tool-oob", "Out of Bounds", "out-of-bounds"],
-            ["tool-danger", "Dangerous Area", "dangerous-area"],
-            ["tool-construction", "Construction", "construction"],
+            ["tool-construction", "Temporary Closed Area", "construction"],
             ["tool-forbidden", "Forbidden Route", "forbidden-route"],
             ["tool-boundary", "Boundary", "boundary"],
             ["tool-whiteout", "White Out", "whiteout"]

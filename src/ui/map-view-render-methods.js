@@ -356,10 +356,10 @@ export function createMapViewRenderMethods(deps) {
       const points = (special.locations || []).map(point => this.toScreen(point, ui));
       ctx.save();
       if (["boundary", "line"].includes(special.kind) && points.length >= 2) {
-        drawLineSpecial(ctx, special, points, this.scale(ui));
+        drawLineSpecial(ctx, special, points, this.scale(ui), metrics);
       }
       else if (["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(special.kind) && points.length >= 3) {
-        drawAreaSpecial(ctx, special, points, this.scale(ui));
+        drawAreaSpecial(ctx, special, points, this.scale(ui), metrics);
       }
       else if (special.kind === "rectangle" && points.length >= 2) {
         drawRectSpecial(ctx, special, points[0], points[1], this.scale(ui), false);
@@ -682,7 +682,7 @@ export function createMapViewRenderMethods(deps) {
         const special = this.specialShapePreview;
         const points = special.locations.map(location => this.toScreen(location, ui));
         if (special.kind === "line") {
-          drawLineSpecial(ctx, special, points, this.scale(ui));
+          drawLineSpecial(ctx, special, points, this.scale(ui), metrics);
         }
         else if (special.kind === "rectangle") {
           drawRectSpecial(ctx, special, points[0], points[1], this.scale(ui), false);

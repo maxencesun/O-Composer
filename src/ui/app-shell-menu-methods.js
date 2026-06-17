@@ -274,7 +274,10 @@ export function createAppShellMenuMethods(deps) {
         }
       });
     }
-    window.addEventListener("pointermove", event => this.closeTopMenusWhenPointerLeaves(event));
+    window.addEventListener("pointermove", event => {
+      this.closeTopMenusWhenPointerLeaves(event);
+      this.closeToolbarGroupsWhenPointerLeaves(event);
+    });
 
     this.addEventListener("click", event => {
       if (event.target.closest("[data-print-area-cancel]")) {
@@ -498,15 +501,32 @@ export function createAppShellMenuMethods(deps) {
     this.closeTopMenus();
   },
 
+  closeToolbarGroupsWhenPointerLeaves(event) {
+    if (!this.querySelector(".toolbar .tool-group[open]")) {
+      return;
+    }
+    const target = event.target;
+    if (target instanceof Element && target.closest(".toolbar .tool-group")) {
+      return;
+    }
+    if (this.pointerInOpenPopupBridge(event, ".toolbar .tool-group[open]", "summary", ".tool-group-menu", 10)) {
+      return;
+    }
+    this.closeToolbarGroups();
+  },
+
   pointerInOpenMenuBridge(event) {
+    return this.pointerInOpenPopupBridge(event, ".menubar .menu[open]", "summary", ".menu-list", 6);
+  },
+
+  pointerInOpenPopupBridge(event, rootSelector, anchorSelector, popupSelector, padding) {
     const x = Number(event.clientX);
     const y = Number(event.clientY);
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
       return false;
     }
-    const padding = 6;
-    for (const menu of this.querySelectorAll(".menubar .menu[open]")) {
-      const rects = [menu.querySelector("summary"), menu.querySelector(".menu-list")]
+    for (const menu of this.querySelectorAll(rootSelector)) {
+      const rects = [menu.querySelector(anchorSelector), menu.querySelector(popupSelector)]
         .map(element => element?.getBoundingClientRect?.())
         .filter(rect => rect && rect.width > 0 && rect.height > 0);
       if (!rects.length) continue;

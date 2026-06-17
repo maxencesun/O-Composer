@@ -50,6 +50,9 @@ export function parsePpen(text, sourceName = "Untitled.ocp") {
       case "special-object":
         model.specials.push(parseSpecial(child));
         break;
+      case "ocp-data":
+        model.metadata.ocp = parseOcpData(child);
+        break;
       default:
         model.metadata.unsupported.push(child.nodeName);
         break;
@@ -62,7 +65,8 @@ export function parsePpen(text, sourceName = "Untitled.ocp") {
 
 export function serializePpen(model, options = {}) {
   const saveOptions = {
-    nativePurplePen: !!options.nativePurplePen
+    nativePurplePen: !!options.nativePurplePen,
+    ocpData: options.ocpData || model.metadata?.ocp || null
   };
   const lines = ["<course-scribe-event>"];
   writeEvent(lines, model.event, 1, saveOptions);
@@ -81,12 +85,15 @@ export function serializePpen(model, options = {}) {
   for (const special of model.specials) {
     writeSpecial(lines, special, 1, saveOptions);
   }
+  if (!saveOptions.nativePurplePen && saveOptions.ocpData) {
+    writeOcpData(lines, saveOptions.ocpData, 1);
+  }
   lines.push("</course-scribe-event>");
   return `${lines.join("\n")}\n`;
 }
 
-export function serializeOcp(model) {
-  return serializePpen(model, { nativePurplePen: false });
+export function serializeOcp(model, options = {}) {
+  return serializePpen(model, { ...options, nativePurplePen: false });
 }
 
 export function serializeNativePpen(model) {
@@ -575,6 +582,30 @@ function parseSymbolText(node) {
   };
 }
 
+function parseOcpData(node) {
+  const data = { version: 1 };
+  for (const child of elements(node)) {
+    try {
+      if (child.nodeName === "background") {
+        data.background = JSON.parse(text(child));
+      }
+      else if (child.nodeName === "omap") {
+        data.omap = JSON.parse(text(child));
+      }
+      else if (child.nodeName === "omap-map") {
+        data.omapMap = JSON.parse(text(child));
+      }
+      else if (child.nodeName === "omap-source") {
+        data.omapSourceText = text(child);
+      }
+    }
+    catch {
+      data.parseError = child.nodeName;
+    }
+  }
+  return data;
+}
+
 function scoreColumnFromNode(node, kind) {
   if (kind !== "score") {
     return -1;
@@ -957,6 +988,23 @@ function writeSpecial(lines, special, level, options = {}) {
   }
   close(lines, level + 1, "courses");
   close(lines, level, "special-object");
+}
+
+function writeOcpData(lines, data, level) {
+  open(lines, level, "ocp-data", { version: data.version || 1 });
+  if (data.background) {
+    node(lines, level + 1, "background", JSON.stringify(data.background));
+  }
+  if (data.omap) {
+    node(lines, level + 1, "omap", JSON.stringify(data.omap));
+  }
+  if (data.omapSourceText) {
+    node(lines, level + 1, "omap-source", data.omapSourceText);
+  }
+  if (data.omapMap) {
+    node(lines, level + 1, "omap-map", JSON.stringify(data.omapMap));
+  }
+  close(lines, level, "ocp-data");
 }
 
 function needsAppearance(special) {

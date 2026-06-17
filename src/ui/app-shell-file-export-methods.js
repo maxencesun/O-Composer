@@ -262,6 +262,7 @@ export function createAppShellFileExportMethods(deps) {
     reader.onload = () => {
       try {
         const model = parsePpen(String(reader.result), file.name);
+        const embeddedBaseMap = this.restoreEmbeddedOcpBaseMap(model);
         this.store.setEventModel(model, "Open file", false);
         this.store.markClean(file.name);
         this.store.resetHistory("Loaded file");
@@ -270,6 +271,8 @@ export function createAppShellFileExportMethods(deps) {
           ui.selection = null;
           ui.pan = { x: 0, y: 0 };
           ui.zoom = 1;
+          ui.background = embeddedBaseMap.background;
+          ui.omap = embeddedBaseMap.omap;
         }, "Loaded");
       }
       catch (error) {
@@ -290,6 +293,7 @@ export function createAppShellFileExportMethods(deps) {
         throw new Error(`Could not load sample: ${response.status}`);
       }
       const model = parsePpen(await response.text(), "standalone-sample.ppen");
+      const embeddedBaseMap = this.restoreEmbeddedOcpBaseMap(model);
       this.store.setEventModel(model, "Open sample", false);
       this.store.markClean("standalone-sample.ppen");
       this.store.resetHistory("Loaded sample");
@@ -298,6 +302,8 @@ export function createAppShellFileExportMethods(deps) {
         ui.selection = null;
         ui.pan = { x: 0, y: 0 };
         ui.zoom = 1;
+        ui.background = embeddedBaseMap.background;
+        ui.omap = embeddedBaseMap.omap;
       }, "Sample loaded");
     }
     catch (error) {
@@ -381,8 +387,9 @@ export function createAppShellFileExportMethods(deps) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
+        const sourceText = String(reader.result || "");
         const currentMapScale = positiveScale(this.store.snapshot().eventModel.event?.map?.scale) || 15000;
-        const omap = parseOmap(String(reader.result), file.name, { fallbackScale: currentMapScale });
+        const omap = parseOmap(sourceText, file.name, { fallbackScale: currentMapScale });
         const omapScale = positiveScale(omap.scale);
         this.mapView.setBackground("");
         this.mapView.setOmap(omap);
@@ -394,7 +401,8 @@ export function createAppShellFileExportMethods(deps) {
             name: file.name,
             objectCount: omap.objectCount,
             symbolCount: omap.symbolCount,
-            scale: omapScale || omap.scale
+            scale: omapScale || omap.scale,
+            sourceText
           };
           ui.background = null;
           ui.pan = { x: 0, y: 0 };
@@ -415,10 +423,11 @@ export function createAppShellFileExportMethods(deps) {
   },
 
   downloadOcp() {
-    const model = cloneEvent(this.store.snapshot().eventModel);
+    const state = this.store.snapshot();
+    const model = cloneEvent(state.eventModel);
     syncDescriptionLanguageWithApp(model);
     const fileName = `${baseName(model.sourceName || "Untitled")}.ocp`;
-    download(fileName, serializeOcp(model), "application/xml");
+    download(fileName, serializeOcp(model, { ocpData: this.ocpDataForSave(state) }), "application/xml");
     this.store.markClean(fileName);
   },
 
@@ -427,6 +436,77 @@ export function createAppShellFileExportMethods(deps) {
     syncDescriptionLanguageWithApp(model);
     const fileName = `${baseName(model.sourceName || "Untitled")}.ppen`;
     download(fileName, serializeNativePpen(model), "application/xml");
+  },
+
+  ocpDataForSave(state) {
+    const background = state.ui.background ? ensurePdfBasemapCacheKey(cloneEvent(state.ui.background)) : null;
+    if (background?.pdf) {
+      background.pdf = { ...background.pdf };
+    }
+    const omap = state.ui.omap ? cloneEvent(state.ui.omap) : null;
+    const omapSourceText = omap?.sourceText || "";
+    if (omap) {
+      delete omap.sourceText;
+    }
+    return {
+      version: 1,
+      background,
+      omap,
+      omapSourceText,
+      omapMap: this.mapView?.omapMap || null
+    };
+  },
+
+  restoreEmbeddedOcpBaseMap(model) {
+    const data = model.metadata?.ocp || {};
+    const background = data.background || null;
+    const omap = data.omap || null;
+    const omapSourceText = data.omapSourceText || omap?.sourceText || "";
+    if (background?.url) {
+      this.mapView.setBackground(background.url);
+      this.mapView.setOmap(null);
+      return { background, omap: null };
+    }
+    if (omapSourceText) {
+      try {
+        const omapMap = parseOmap(omapSourceText, omap?.name || "embedded.omap", {
+          fallbackScale: positiveScale(model.event?.map?.scale) || 15000
+        });
+        this.mapView.setBackground("");
+        this.mapView.setOmap(omapMap);
+        return {
+          background: null,
+          omap: {
+            ...(omap || {}),
+            name: omap?.name || omapMap.name,
+            objectCount: omap?.objectCount ?? omapMap.objectCount,
+            symbolCount: omap?.symbolCount ?? omapMap.symbolCount,
+            scale: omap?.scale || omapMap.scale,
+            sourceText: omapSourceText
+          }
+        };
+      }
+      catch {
+        // Fall through to parsed-map fallback below.
+      }
+    }
+    if (data.omapMap) {
+      this.mapView.setBackground("");
+      this.mapView.setOmap(data.omapMap);
+      return {
+        background: null,
+        omap: {
+          ...(omap || {}),
+          name: omap?.name || data.omapMap.name || "embedded.omap",
+          objectCount: omap?.objectCount ?? data.omapMap.objectCount,
+          symbolCount: omap?.symbolCount ?? data.omapMap.symbolCount,
+          scale: omap?.scale || data.omapMap.scale
+        }
+      };
+    }
+    this.mapView.setBackground("");
+    this.mapView.setOmap(null);
+    return { background: null, omap: null };
   },
 
   exportPng() {

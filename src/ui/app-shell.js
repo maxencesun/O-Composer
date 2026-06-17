@@ -8,7 +8,7 @@ import {
   saveCachedSession
 } from "../state/cookie-cache.js";
 import { parseOmap } from "../domain/omap-parser.js";
-import { parsePpen, serializePpen } from "../domain/ppen-parser.js";
+import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js";
 import {
   CONTROL_KINDS,
   cloneEvent,
@@ -917,6 +917,8 @@ const APP_SHELL_METHOD_DEPS = {
   saveCachedSession,
   parseOmap,
   parsePpen,
+  serializeNativePpen,
+  serializeOcp,
   serializePpen,
   CONTROL_KINDS,
   cloneEvent,

@@ -788,7 +788,7 @@ export function createAppShellTemplateMethods(deps) {
         }
       </style>
       <div class="app-frame">
-        <input id="ppenInput" type="file" accept=".ppen,.xml,text/xml" hidden>
+        <input id="ppenInput" type="file" accept=".ocp,.ppen,.xml,application/xml,text/xml" hidden>
         <input id="mapInput" type="file" accept="image/*,application/pdf,.pdf" hidden>
         <input id="omapInput" type="file" hidden>
         <div id="appInitLoading" class="app-init-loading" role="status" aria-live="polite">
@@ -844,9 +844,10 @@ export function createAppShellTemplateMethods(deps) {
           ${this.menu("File", [
             ["new", "New Event"],
             ["open-sample", "Open Sample"],
-            ["open", "Open .ppen"],
-            ["save", "Save .ppen"],
+            ["open", "Open .ocp/.ppen"],
+            ["save", "Save .ocp"],
             ["save-as", "Save As"],
+            ["export-ppen", "Export native .ppen"],
             ["map-image", "Choose Map Image/PDF"],
             ["omap-import", "Import OMAP Map"],
             ["omap-clear", "Clear OMAP Map"],

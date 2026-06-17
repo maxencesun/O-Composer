@@ -776,7 +776,7 @@ export function createAppShellSelectionEditorMethods(deps) {
   renderStatus({ eventModel, ui }) {
     this.querySelector("#statusText").textContent = this.t(ui.status || "Ready");
     const mapName = ui.omap?.name ? ` | OMAP: ${ui.omap.name}` : "";
-    this.querySelector("#dirtyText").textContent = `${eventModel.sourceName || this.t("Untitled.ppen")}${eventModel.dirty ? " *" : ""}${mapName}`;
+    this.querySelector("#dirtyText").textContent = `${eventModel.sourceName || this.t("Untitled.ocp")}${eventModel.dirty ? " *" : ""}${mapName}`;
   },
 
   updateMouseStatus(point) {

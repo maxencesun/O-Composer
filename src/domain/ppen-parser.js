@@ -7,7 +7,7 @@ import {
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
-export function parsePpen(text, sourceName = "Untitled.ppen") {
+export function parsePpen(text, sourceName = "Untitled.ocp") {
   const parser = new DOMParser();
   const doc = parser.parseFromString(text, "application/xml");
   const parserError = doc.querySelector("parsererror");
@@ -17,7 +17,7 @@ export function parsePpen(text, sourceName = "Untitled.ppen") {
 
   const root = doc.documentElement;
   if (!root || root.nodeName !== "course-scribe-event") {
-    throw new Error("This is not a Purple Pen .ppen file.");
+    throw new Error("This is not an O-Composer .ocp or Purple Pen .ppen file.");
   }
 
   const model = createBlankEvent();
@@ -60,26 +60,37 @@ export function parsePpen(text, sourceName = "Untitled.ppen") {
   return model;
 }
 
-export function serializePpen(model) {
+export function serializePpen(model, options = {}) {
+  const saveOptions = {
+    nativePurplePen: !!options.nativePurplePen
+  };
   const lines = ["<course-scribe-event>"];
-  writeEvent(lines, model.event, 1);
+  writeEvent(lines, model.event, 1, saveOptions);
   for (const control of model.controls) {
-    writeControl(lines, control, 1);
+    writeControl(lines, control, 1, saveOptions);
   }
   for (const course of model.courses) {
-    writeCourse(lines, course, 1);
+    writeCourse(lines, course, 1, saveOptions);
   }
   for (const courseControl of model.courseControls) {
-    writeCourseControl(lines, courseControl, 1);
+    writeCourseControl(lines, courseControl, 1, saveOptions);
   }
   for (const leg of model.legs) {
-    writeLeg(lines, leg, 1);
+    writeLeg(lines, leg, 1, saveOptions);
   }
   for (const special of model.specials) {
-    writeSpecial(lines, special, 1);
+    writeSpecial(lines, special, 1, saveOptions);
   }
   lines.push("</course-scribe-event>");
   return `${lines.join("\n")}\n`;
+}
+
+export function serializeOcp(model) {
+  return serializePpen(model, { nativePurplePen: false });
+}
+
+export function serializeNativePpen(model) {
+  return serializePpen(model, { nativePurplePen: true });
 }
 
 function parseEvent(node) {
@@ -576,7 +587,7 @@ function scoreColumnFromNode(node, kind) {
   return raw in columns ? columns[raw] : normalizeNumber(raw, 0);
 }
 
-function writeEvent(lines, event, level) {
+function writeEvent(lines, event, level, options = {}) {
   open(lines, level, "event", { id: event.id || 1 });
   node(lines, level + 1, "title", event.title || "");
   if (event.notes) {
@@ -680,7 +691,7 @@ function writeEvent(lines, event, level) {
     }
     close(lines, level + 1, "custom-symbol-text");
   }
-  if (event.constants?.length) {
+  if (!options.nativePurplePen && event.constants?.length) {
     open(lines, level + 1, "constants");
     for (const constant of event.constants || []) {
       empty(lines, level + 2, "constant", {
@@ -697,7 +708,7 @@ function writeEvent(lines, event, level) {
   close(lines, level, "event");
 }
 
-function writeControl(lines, control, level) {
+function writeControl(lines, control, level, options = {}) {
   const attrs = { id: control.id, kind: control.kind };
   if (control.kind === "crossing-point") {
     attrs.orientation = control.orientation || 0;
@@ -744,15 +755,15 @@ function writeControl(lines, control, level) {
   close(lines, level, "control");
 }
 
-function writeCourse(lines, course, level) {
-  open(lines, level, "course", { id: course.id, kind: course.kind, order: course.order });
+function writeCourse(lines, course, level, saveOptions = {}) {
+  open(lines, level, "course", { id: course.id, kind: courseKindForSave(course, saveOptions), order: course.order });
   node(lines, level + 1, "name", course.name, {
     "hide-variations-on-map": course.hideVariationsOnMap || undefined
   });
   if (course.secondaryTitle) {
     node(lines, level + 1, "secondary-title", course.secondaryTitle);
   }
-  empty(lines, level + 1, "labels", { "label-kind": course.labelKind });
+  empty(lines, level + 1, "labels", { "label-kind": courseLabelKindForSave(course.labelKind, saveOptions) });
   if (course.firstCourseControl) {
     empty(lines, level + 1, "first", {
       "course-control": course.firstCourseControl,
@@ -765,29 +776,31 @@ function writeCourse(lines, course, level) {
   for (const partArea of course.partPrintAreas || []) {
     writePrintArea(lines, partArea.area, level + 1, partArea.part);
   }
-  const options = course.options || {};
+  const courseOptions = course.options || {};
   empty(lines, level + 1, "options", {
-    "print-scale": options.printScale || 15000,
-    climb: options.climb >= 0 ? options.climb : undefined,
-    load: options.load >= 0 ? options.load : undefined,
-    "course-length": options.courseLength || undefined,
-    "hide-from-reports": !!options.hideFromReports,
-    "score-column": course.kind === "score" ? options.scoreColumn ?? 7 : undefined,
-    "score-finish-control": course.kind === "score" ? options.scoreFinishControl || undefined : undefined,
-    "description-kind": options.descriptionKind || "symbols"
+    "print-scale": courseOptions.printScale || 15000,
+    climb: courseOptions.climb >= 0 ? courseOptions.climb : undefined,
+    load: courseOptions.load >= 0 ? courseOptions.load : undefined,
+    "course-length": courseOptions.courseLength || undefined,
+    "hide-from-reports": !!courseOptions.hideFromReports,
+    "score-column": course.kind === "score" ? scoreColumnForSave(courseOptions.scoreColumn ?? 7) : undefined,
+    "score-finish-control": !saveOptions.nativePurplePen && course.kind === "score" ? courseOptions.scoreFinishControl || undefined : undefined,
+    "description-kind": courseOptions.descriptionKind || "symbols"
   });
   if ((course.relay?.teams || 0) > 0
     || (course.relay?.legs || 1) > 1
-    || course.relay?.teamPrefix
-    || (course.relay?.teamDigits || 0) > 0
-    || (course.relay?.legNames || []).some(Boolean)) {
+    || (!saveOptions.nativePurplePen && (
+      course.relay?.teamPrefix
+      || (course.relay?.teamDigits || 0) > 0
+      || (course.relay?.legNames || []).some(Boolean)
+    ))) {
     empty(lines, level + 1, "relay", {
       "first-team": course.relay.firstTeam || 1,
       teams: course.relay.teams || 0,
       legs: course.relay.legs || 1,
-      "team-prefix": course.relay.teamPrefix || "",
-      "team-digits": course.relay.teamDigits || 0,
-      "leg-names": (course.relay.legNames || []).join("|")
+      "team-prefix": saveOptions.nativePurplePen ? undefined : course.relay.teamPrefix || "",
+      "team-digits": saveOptions.nativePurplePen ? undefined : course.relay.teamDigits || 0,
+      "leg-names": saveOptions.nativePurplePen ? undefined : (course.relay.legNames || []).join("|")
     });
   }
   for (const branch of course.relay?.branches || []) {
@@ -799,7 +812,39 @@ function writeCourse(lines, course, level) {
   close(lines, level, "course");
 }
 
-function writeCourseControl(lines, courseControl, level) {
+function courseKindForSave(course, options = {}) {
+  if (options.nativePurplePen && course.kind === "team") {
+    return "normal";
+  }
+  return course.kind || "normal";
+}
+
+function courseLabelKindForSave(labelKind, options = {}) {
+  if (!options.nativePurplePen) {
+    return labelKind || "sequence";
+  }
+  return {
+    "sequence-and-code-slash": "sequence-and-code",
+    "code-and-score-brackets": "code-and-score",
+    "code-and-score-dash": "code-and-score",
+    "code-and-score-parens": "code-and-score"
+  }[labelKind] || labelKind || "sequence";
+}
+
+function scoreColumnForSave(scoreColumn) {
+  const value = String(scoreColumn ?? "").trim().toUpperCase();
+  if (value === "A" || value === "B" || value === "H" || value === "NONE") {
+    return value === "NONE" ? "none" : value;
+  }
+  const number = Number(scoreColumn);
+  if (number === -1) return "none";
+  if (number === 0) return "A";
+  if (number === 1) return "B";
+  if (number === 7) return "H";
+  return number;
+}
+
+function writeCourseControl(lines, courseControl, level, options = {}) {
   const attrs = {
     id: courseControl.id,
     control: courseControl.control
@@ -811,7 +856,7 @@ function writeCourseControl(lines, courseControl, level) {
   if (courseControl.mapExchange) attrs["map-exchange"] = true;
   if (courseControl.mapFlip) attrs["map-flip"] = true;
   if (courseControl.points && courseControl.teamRole !== "free") attrs.points = courseControl.points;
-  if (courseControl.teamRole === "free") attrs["team-role"] = "free";
+  if (!options.nativePurplePen && courseControl.teamRole === "free") attrs["team-role"] = "free";
 
   open(lines, level, "course-control", attrs);
   if (courseControl.nextCourseControl) {
@@ -832,7 +877,7 @@ function writeCourseControl(lines, courseControl, level) {
   close(lines, level, "course-control");
 }
 
-function writeLeg(lines, leg, level) {
+function writeLeg(lines, leg, level, options = {}) {
   open(lines, level, "leg", {
     id: leg.id,
     "start-control": leg.startControl,
@@ -864,7 +909,7 @@ function writeLeg(lines, leg, level) {
   close(lines, level, "leg");
 }
 
-function writeSpecial(lines, special, level) {
+function writeSpecial(lines, special, level, options = {}) {
   const attrs = { id: special.id, kind: special.kind };
   if (special.kind === "optional-crossing-point") {
     attrs.orientation = special.orientation || 0;

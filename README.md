@@ -14,14 +14,15 @@ User guide: [USER_GUIDE.md](USER_GUIDE.md)
 
 ## What It Does
 
-- Create, open, edit, and save Purple Pen `.ppen` event files.
+- Create, open, edit, and save full O-Composer `.ocp` event files.
+- Import native Purple Pen `.ppen` files and export native `.ppen` files for exchange with Purple Pen.
 - Add, move, delete, duplicate, order, and edit courses and controls.
 - Support normal courses, score courses with per-control points, team/free-control courses, map exchanges, map issue markers, flagged legs, manual leg cuts, and bend points.
 - Design relay/forked courses with a visual variation tree, branch selection, and automatic relay team assignment tables.
 - Edit IOF control descriptions, including symbols, text, score values, multi-column description tables, and black or upper-purple description-table rendering.
 - Import OpenOrienteering Mapper `.omap`/`.xmap` XML maps for direct browser rendering.
 - Import image or PDF basemaps, store original PDF basemap data when available, and calibrate basemap scale with two picked points.
-- Export IOF XML 2.0.3/3.0, GPX, KML, RouteGadget-style XML, SVG overlays, PNG images, `.ppen`, and vector PDF files.
+- Export IOF XML 2.0.3/3.0, GPX, KML, RouteGadget-style XML, SVG overlays, PNG images, native `.ppen`, and vector PDF files.
 - Export multiple PDFs as a ZIP, including relay variation folders and optional filtering to used variation codes.
 - Pre-cache app resources such as fonts and Purple Pen symbol XML, with versioned cache storage tied to the app version.
 
@@ -47,7 +48,7 @@ PDF export is vector-first and does **not** fall back to full-page raster PDF ge
 
 - `index.html` loads the static app shell.
 - `src/ui/` contains UI modules, map interaction, course drawing, PDF/export dialogs, OMAP rendering, and mobile/desktop layout behavior.
-- `src/domain/` contains the event model, Purple Pen `.ppen` parser/serializer, OMAP parser, control-description logic, print-area logic, course queries, actions, and exporters.
+- `src/domain/` contains the event model, `.ocp`/Purple Pen `.ppen` parser/serializers, OMAP parser, control-description logic, print-area logic, course queries, actions, and exporters.
 - `src/state/` contains undo/redo and browser persistence helpers.
 - `assets/` contains bundled fonts and Purple Pen symbol XML used by rendering/export.
 - `samples/` contains local sample `.ppen` and `.omap` files.

@@ -98,15 +98,12 @@ export function createMapViewRenderMethods(deps) {
     isDragSpecialTool,
     specialShapeForDrag,
     drawSpecialObject,
+    drawAreaSpecial,
     drawLineSpecial,
     drawRectSpecial,
     drawTextSpecial,
-    specialLineWidth,
-    specialColor,
-    pathLines,
     screenRectFromPoints,
     descriptionCornerPoints,
-    fillForSpecial,
     specialCategoryForHitTest,
     symbolApparentRadiusControl,
     clamp,
@@ -362,12 +359,7 @@ export function createMapViewRenderMethods(deps) {
         drawLineSpecial(ctx, special, points, this.scale(ui));
       }
       else if (["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(special.kind) && points.length >= 3) {
-        ctx.strokeStyle = specialColor(special);
-        ctx.fillStyle = fillForSpecial(special.kind);
-        ctx.lineWidth = specialLineWidth(special, this.scale(ui));
-        pathLines(ctx, points, true);
-        ctx.fill();
-        ctx.stroke();
+        drawAreaSpecial(ctx, special, points, this.scale(ui));
       }
       else if (special.kind === "rectangle" && points.length >= 2) {
         drawRectSpecial(ctx, special, points[0], points[1], this.scale(ui), false);

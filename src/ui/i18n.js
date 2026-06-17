@@ -88,6 +88,8 @@ const ZH = Object.freeze({
   "Add Control Description Table": "添加检查点说明表",
   "This course already has a control description table.": "这条路线已经有检查点说明表。",
   "Descriptions": "检查点说明",
+  "Restricted Areas": "禁区",
+  "Decorations": "装饰",
   "Text": "文字",
   "Line": "线",
   "Rectangle": "矩形",

@@ -265,6 +265,13 @@ export function createAppShellMenuMethods(deps) {
     for (const menuList of this.querySelectorAll(".menubar .menu-list")) {
       this.bindMobileMenuScroll(menuList);
     }
+    for (const group of this.querySelectorAll(".toolbar .tool-group")) {
+      group.addEventListener("toggle", () => {
+        if (group.open) {
+          this.closeToolbarGroups(group);
+        }
+      });
+    }
     window.addEventListener("pointermove", event => this.closeTopMenusWhenPointerLeaves(event));
 
     this.addEventListener("click", event => {
@@ -301,6 +308,7 @@ export function createAppShellMenuMethods(deps) {
       if (command) {
         this.runCommand(command);
         this.closeTopMenus();
+        this.closeToolbarGroups();
       }
     });
 
@@ -434,6 +442,14 @@ export function createAppShellMenuMethods(deps) {
     for (const menu of this.querySelectorAll(".menubar .menu[open]")) {
       if (menu !== except) {
         menu.open = false;
+      }
+    }
+  },
+
+  closeToolbarGroups(except = null) {
+    for (const group of this.querySelectorAll(".toolbar .tool-group[open]")) {
+      if (group !== except) {
+        group.open = false;
       }
     }
   },

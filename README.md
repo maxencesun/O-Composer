@@ -10,6 +10,8 @@ Live site:
 https://maxencesun.github.io/O-Composer/
 ```
 
+User guide: [USER_GUIDE.md](USER_GUIDE.md)
+
 ## What It Does
 
 - Create, open, edit, and save Purple Pen `.ppen` event files.

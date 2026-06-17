@@ -332,7 +332,7 @@ export class PurplePenApp extends HTMLElement {
     installAppResourceFetchCache(APP_RESOURCE_CACHE_NAME, APP_RESOURCE_URLS);
     this.startResourcePrecache();
     this.deferMapLayoutRefresh();
-    const cachedSessionReady = Promise.resolve(this.restoreCachedSession())
+    const cachedSessionReady = Promise.resolve(this.restoreInitialEvent())
       .then(result => {
         this.updateInitialLoadingProgress(84, this.t("Loading control symbols…"));
         return result;
@@ -877,6 +877,22 @@ export class PurplePenApp extends HTMLElement {
       this.mapView.setOmap(cached.omapMap);
     }
     this.cacheReady = true;
+  }
+
+  async restoreInitialEvent() {
+    try {
+      if (await this.loadLinkedOcpFromUrl()) {
+        this.cacheReady = true;
+        return;
+      }
+    }
+    catch (error) {
+      console.warn(error);
+      this.store.updateUi(ui => {
+        ui.status = error.message || this.t("Could not load linked OCP.");
+      }, "Linked OCP load failed");
+    }
+    await this.restoreCachedSession();
   }
 
   scheduleSessionCache(state) {

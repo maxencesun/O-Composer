@@ -619,6 +619,27 @@ export function createAppShellTemplateMethods(deps) {
         purple-pen-app .topbar-link + .topbar-link {
           margin-left: 6px !important;
         }
+        purple-pen-app .topbar-submit-button {
+          flex: 0 0 auto;
+          min-height: 24px;
+          padding: 0 9px;
+          border: 1px solid #8f1fe0;
+          border-radius: 5px;
+          background: #a626ff;
+          color: #fff;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+          line-height: 1;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        purple-pen-app .topbar-submit-button:hover,
+        purple-pen-app .topbar-submit-button:focus-visible {
+          border-color: #7419b8;
+          background: #8f1fe0;
+          outline: none;
+        }
         purple-pen-app .special-visibility-field {
           display: grid;
           gap: 8px;
@@ -778,6 +799,21 @@ export function createAppShellTemplateMethods(deps) {
           grid-column: 1 / -1;
           min-height: 1.2em;
         }
+        purple-pen-app .submit-dialog {
+          width: min(420px, calc(100vw - 28px));
+        }
+        purple-pen-app .submit-grid {
+          display: grid;
+          gap: 10px;
+        }
+        purple-pen-app .submit-grid label {
+          display: grid;
+          gap: 4px;
+        }
+        purple-pen-app .submit-grid input {
+          width: 100%;
+          box-sizing: border-box;
+        }
         @media (max-width: 700px) {
           purple-pen-app .pdf-export-layout {
             grid-template-columns: 1fr;
@@ -929,6 +965,7 @@ export function createAppShellTemplateMethods(deps) {
           <div class="app-brand" aria-label="${escapeAttr(`O-Composer ${APP_VERSION}`)}">
             <strong>O-Composer</strong>
             <span>${escapeHtml(APP_VERSION)}</span>
+            <button type="button" class="topbar-submit-button" data-submit-save>${escapeHtml(this.t("Save and Submit"))}</button>
             <div id="resourceProgress" class="resource-progress" hidden aria-live="polite">
               <progress id="resourceProgressBar" max="100" value="0"></progress>
               <span id="resourceProgressText"></span>
@@ -1127,6 +1164,24 @@ export function createAppShellTemplateMethods(deps) {
             <footer class="dialog-actions">
               <button type="button" data-pdf-export-cancel>${escapeHtml(this.t("Cancel"))}</button>
               <button type="submit" class="primary-button" id="pdfExportCreateButton">${escapeHtml(this.t("Create"))}</button>
+            </footer>
+          </form>
+        </dialog>
+        <dialog id="submitDialog" class="command-dialog submit-dialog" hidden>
+          <form id="submitForm" class="command-form" autocomplete="off">
+            <header class="dialog-heading">
+              <h2>${escapeHtml(this.t("Save and Submit"))}</h2>
+              <button type="button" class="icon-button" data-submit-cancel aria-label="${escapeAttr(this.t("Close"))}">x</button>
+            </header>
+            <div class="command-body submit-grid">
+              <label>${escapeHtml(this.t("Name"))}<input id="submitName" name="name" type="text" required></label>
+              <label>${escapeHtml(this.t("Phone or WeChat"))}<input id="submitContact" name="contact" type="text" required></label>
+              <label>${escapeHtml(this.t("Organization"))}<input id="submitOrganization" name="organization" type="text" required></label>
+            </div>
+            <div id="submitMessage" class="command-message" hidden></div>
+            <footer class="dialog-actions">
+              <button type="button" data-submit-cancel>${escapeHtml(this.t("Cancel"))}</button>
+              <button type="submit" class="primary-button">${escapeHtml(this.t("Download OCP"))}</button>
             </footer>
           </form>
         </dialog>

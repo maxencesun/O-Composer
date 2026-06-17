@@ -288,6 +288,14 @@ export function createAppShellMenuMethods(deps) {
         this.closeCommandDialog();
         return;
       }
+      if (event.target.closest("[data-submit-save]")) {
+        this.openSubmitDialog();
+        return;
+      }
+      if (event.target.closest("[data-submit-cancel]")) {
+        this.closeSubmitDialog();
+        return;
+      }
       if (event.target.closest("[data-cookie-accept]")) {
         acceptCookieConsent();
         this.querySelector("#cookieBanner").hidden = true;
@@ -403,6 +411,10 @@ export function createAppShellMenuMethods(deps) {
     this.querySelector("#pdfExportDialog").addEventListener("click", event => this.handlePdfExportDialogClick(event));
     this.querySelector("#pdfExportDialog").addEventListener("input", () => this.updatePdfExportDialogSummary());
     this.querySelector("#pdfExportDialog").addEventListener("change", () => this.updatePdfExportDialogSummary());
+    this.querySelector("#submitForm").addEventListener("submit", event => {
+      event.preventDefault();
+      this.downloadSubmittedOcp();
+    });
     this.querySelector("#commandForm").addEventListener("submit", event => {
       event.preventDefault();
       this.applyCommandDialog();
@@ -414,6 +426,7 @@ export function createAppShellMenuMethods(deps) {
     this.querySelector("#commandDialog").addEventListener("pointerout", event => this.hideSymbolTooltip(event));
     this.enablePanelDrag(this.querySelector("#printAreaDialog"));
     this.enablePanelDrag(this.querySelector("#pdfExportDialog"));
+    this.enablePanelDrag(this.querySelector("#submitDialog"));
     this.enablePanelDrag(this.querySelector("#commandDialog"));
     window.addEventListener("keydown", event => this.handleKey(event));
     window.addEventListener("pointerdown", () => this.ensureMobileLandscapeMode(), { passive: true });

@@ -262,18 +262,7 @@ export function createAppShellFileExportMethods(deps) {
     reader.onload = () => {
       try {
         const model = parsePpen(String(reader.result), file.name);
-        const embeddedBaseMap = this.restoreEmbeddedOcpBaseMap(model);
-        this.store.setEventModel(model, "Open file", false);
-        this.store.markClean(file.name);
-        this.store.resetHistory("Loaded file");
-        this.store.updateUi(ui => {
-          ui.selectedCourseId = sortedCourses(model)[0]?.id || "all";
-          ui.selection = null;
-          ui.pan = { x: 0, y: 0 };
-          ui.zoom = 1;
-          ui.background = embeddedBaseMap.background;
-          ui.omap = embeddedBaseMap.omap;
-        }, "Loaded");
+        this.loadParsedOcpModel(model, file.name, "Open file");
       }
       catch (error) {
         alert(error.message);
@@ -293,22 +282,64 @@ export function createAppShellFileExportMethods(deps) {
         throw new Error(`Could not load sample: ${response.status}`);
       }
       const model = parsePpen(await response.text(), "standalone-sample.ppen");
-      const embeddedBaseMap = this.restoreEmbeddedOcpBaseMap(model);
-      this.store.setEventModel(model, "Open sample", false);
-      this.store.markClean("standalone-sample.ppen");
-      this.store.resetHistory("Loaded sample");
-      this.store.updateUi(ui => {
-        ui.selectedCourseId = sortedCourses(model)[0]?.id || "all";
-        ui.selection = null;
-        ui.pan = { x: 0, y: 0 };
-        ui.zoom = 1;
-        ui.background = embeddedBaseMap.background;
-        ui.omap = embeddedBaseMap.omap;
-      }, "Sample loaded");
+      this.loadParsedOcpModel(model, "standalone-sample.ppen", "Open sample");
     }
     catch (error) {
       alert(error.message);
     }
+  },
+
+  async loadLinkedOcpFromUrl() {
+    const sourceUrl = this.linkedOcpUrlFromLocation();
+    if (!sourceUrl) return false;
+    this.store.updateUi(ui => {
+      ui.status = this.t("Loading linked OCP…");
+    }, "Linked OCP loading");
+    const response = await fetch(sourceUrl, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(this.t("Could not load linked OCP: {status}", { status: response.status }));
+    }
+    const model = parsePpen(await response.text(), sourceUrl.split("/").pop() || "linked.ocp");
+    this.loadParsedOcpModel(model, model.sourceName || "linked.ocp", "Open linked OCP");
+    this.store.updateUi(ui => {
+      ui.status = this.t("Linked OCP loaded.");
+    }, "Linked OCP loaded");
+    return true;
+  },
+
+  linkedOcpUrlFromLocation() {
+    const url = new URL(window.location.href);
+    const param = url.searchParams.get("ocp") || url.searchParams.get("file") || url.searchParams.get("src");
+    if (param) return new URL(param, window.location.href).href;
+    const hash = decodeURIComponent(url.hash.replace(/^#/, ""));
+    if (hash) {
+      const hashParams = new URLSearchParams(hash.startsWith("?") ? hash.slice(1) : hash);
+      const hashParam = hashParams.get("ocp") || hashParams.get("file") || hashParams.get("src");
+      if (hashParam) return new URL(hashParam, window.location.href).href;
+      if (/^https?:\/\//i.test(hash) || /\.ocp(?:$|[?#])/i.test(hash)) {
+        return new URL(hash, window.location.href).href;
+      }
+    }
+    const lastSegment = decodeURIComponent(url.pathname.split("/").filter(Boolean).pop() || "");
+    if (/^https?:\/\//i.test(lastSegment) || /\.ocp(?:$|[?#])/i.test(lastSegment)) {
+      return new URL(lastSegment, window.location.href).href;
+    }
+    return "";
+  },
+
+  loadParsedOcpModel(model, sourceName, actionLabel) {
+    const embeddedBaseMap = this.restoreEmbeddedOcpBaseMap(model);
+    this.store.setEventModel(model, actionLabel, false);
+    this.store.markClean(sourceName);
+    this.store.resetHistory("Loaded file");
+    this.store.updateUi(ui => {
+      ui.selectedCourseId = sortedCourses(model)[0]?.id || "all";
+      ui.selection = null;
+      ui.pan = { x: 0, y: 0 };
+      ui.zoom = 1;
+      ui.background = embeddedBaseMap.background;
+      ui.omap = embeddedBaseMap.omap;
+    }, "Loaded");
   },
 
   async openMapFile(file) {
@@ -422,13 +453,57 @@ export function createAppShellFileExportMethods(deps) {
     reader.readAsText(file);
   },
 
-  downloadOcp() {
+  downloadOcp(options = {}) {
     const state = this.store.snapshot();
     const model = cloneEvent(state.eventModel);
     syncDescriptionLanguageWithApp(model);
     const fileName = `${baseName(model.sourceName || "Untitled")}.ocp`;
-    download(fileName, serializeOcp(model, { ocpData: this.ocpDataForSave(state) }), "application/xml");
+    download(fileName, serializeOcp(model, { ocpData: this.ocpDataForSave(state, options) }), "application/xml");
     this.store.markClean(fileName);
+  },
+
+  openSubmitDialog() {
+    const dialog = this.querySelector("#submitDialog");
+    const submission = this.store.snapshot().eventModel.metadata?.ocp?.submission || {};
+    this.querySelector("#submitName").value = submission.name || "";
+    this.querySelector("#submitContact").value = submission.contact || "";
+    this.querySelector("#submitOrganization").value = submission.organization || "";
+    const message = this.querySelector("#submitMessage");
+    if (message) {
+      message.hidden = true;
+      message.textContent = "";
+    }
+    openFloatingPalette(dialog);
+    this.querySelector("#submitName")?.focus();
+  },
+
+  closeSubmitDialog() {
+    closeFloatingPalette(this.querySelector("#submitDialog"));
+  },
+
+  downloadSubmittedOcp() {
+    const submission = {
+      name: this.querySelector("#submitName").value.trim(),
+      contact: this.querySelector("#submitContact").value.trim(),
+      organization: this.querySelector("#submitOrganization").value.trim(),
+      submittedAt: new Date().toISOString(),
+      sourceUrl: window.location.href
+    };
+    if (!submission.name || !submission.contact || !submission.organization) {
+      const message = this.querySelector("#submitMessage");
+      if (message) {
+        message.hidden = false;
+        message.textContent = this.t("Please complete all fields.");
+      }
+      return;
+    }
+    this.store.updateEvent(model => {
+      model.metadata ||= {};
+      model.metadata.ocp ||= {};
+      model.metadata.ocp.submission = submission;
+    }, "Save submission metadata");
+    this.downloadOcp({ submission });
+    this.closeSubmitDialog();
   },
 
   downloadNativePpen() {
@@ -438,7 +513,7 @@ export function createAppShellFileExportMethods(deps) {
     download(fileName, serializeNativePpen(model), "application/xml");
   },
 
-  ocpDataForSave(state) {
+  ocpDataForSave(state, options = {}) {
     const background = state.ui.background ? ensurePdfBasemapCacheKey(cloneEvent(state.ui.background)) : null;
     if (background?.pdf) {
       background.pdf = { ...background.pdf };
@@ -453,7 +528,8 @@ export function createAppShellFileExportMethods(deps) {
       background,
       omap,
       omapSourceText,
-      omapMap: this.mapView?.omapMap || null
+      omapMap: this.mapView?.omapMap || null,
+      submission: options.submission || state.eventModel.metadata?.ocp?.submission || null
     };
   },
 

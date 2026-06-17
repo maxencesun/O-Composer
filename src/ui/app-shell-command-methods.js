@@ -283,6 +283,8 @@ export function createAppShellCommandMethods(deps) {
         this.openBundledSample();
         break;
       case "save":
+        this.openSubmitDialog();
+        break;
       case "save-as":
         this.downloadOcp();
         break;

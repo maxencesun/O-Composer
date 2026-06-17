@@ -598,6 +598,9 @@ function parseOcpData(node) {
       else if (child.nodeName === "omap-source") {
         data.omapSourceText = text(child);
       }
+      else if (child.nodeName === "submission") {
+        data.submission = JSON.parse(text(child));
+      }
     }
     catch {
       data.parseError = child.nodeName;
@@ -1003,6 +1006,9 @@ function writeOcpData(lines, data, level) {
   }
   if (data.omapMap) {
     node(lines, level + 1, "omap-map", JSON.stringify(data.omapMap));
+  }
+  if (data.submission) {
+    node(lines, level + 1, "submission", JSON.stringify(data.submission));
   }
   close(lines, level, "ocp-data");
 }

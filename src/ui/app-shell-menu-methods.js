@@ -259,6 +259,7 @@ export function createAppShellMenuMethods(deps) {
       menu.addEventListener("toggle", () => {
         if (menu.open) {
           this.closeTopMenus(menu);
+          this.closeToolbarGroups();
         }
       });
     }
@@ -269,6 +270,7 @@ export function createAppShellMenuMethods(deps) {
       group.addEventListener("toggle", () => {
         if (group.open) {
           this.closeToolbarGroups(group);
+          this.closeTopMenus();
         }
       });
     }

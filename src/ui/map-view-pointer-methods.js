@@ -94,6 +94,7 @@ export function createMapViewPointerMethods(deps) {
     orientation,
     drawFallbackSpecialPoint,
     isDragSpecialTool,
+    isAreaSpecialTool,
     specialShapeForDrag,
     drawSpecialObject,
     drawLineSpecial,
@@ -111,6 +112,10 @@ export function createMapViewPointerMethods(deps) {
   } = deps;
   return {
   pointerDown(event) {
+    if (event.button === 2) {
+      this.finishAreaSpecialDraft(event);
+      return;
+    }
     this.canvas.setPointerCapture(event.pointerId);
     const screen = pointerPosition(event);
     this._dragRect = event.currentTarget?.getBoundingClientRect?.() || null;
@@ -121,6 +126,10 @@ export function createMapViewPointerMethods(deps) {
     }
     const state = this.store.snapshot();
     const mapPoint = this.toMap(screen, state.ui);
+    if (isAreaSpecialTool(state.ui.tool)) {
+      this.addAreaSpecialDraftPoint(state.ui.tool, mapPoint);
+      return;
+    }
     if (state.ui.tool === "print-area-frame") {
       const frameCenter = printAreaCenter(state.ui.printAreaEdit?.preview || state.ui.printAreaEdit?.area || effectivePrintArea(state.eventModel, state.ui.selectedCourseId));
       this.drag = {
@@ -415,6 +424,45 @@ export function createMapViewPointerMethods(deps) {
     }
   },
 
+  addAreaSpecialDraftPoint(tool, point) {
+    if (!this.areaSpecialDraft || this.areaSpecialDraft.tool !== tool) {
+      this.areaSpecialDraft = { tool, points: [] };
+    }
+    this.areaSpecialDraft.points.push({ x: point.x, y: point.y });
+    this.toolPreview = { tool, point: { x: point.x, y: point.y } };
+    this.requestDraw(this.store.snapshot());
+  },
+
+  finishAreaSpecialDraft(event) {
+    const state = this.store.snapshot();
+    if (!this.areaSpecialDraft && !isAreaSpecialTool(state.ui.tool)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.suppressNextContextMenu = true;
+    const draft = this.areaSpecialDraft;
+    if (draft?.points?.length >= 3) {
+      this.callbacks.onToolPoint?.(draft.tool, draft.points[0], { locations: draft.points });
+    }
+    this.areaSpecialDraft = null;
+    this.toolPreview = null;
+    this.cancelDrag();
+    this.requestDraw(this.store.snapshot());
+  },
+
+  contextMenu(event) {
+    if (this.suppressNextContextMenu) {
+      this.suppressNextContextMenu = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (this.areaSpecialDraft || isAreaSpecialTool(this.store.snapshot().ui.tool)) {
+      this.finishAreaSpecialDraft(event);
+    }
+  },
+
   cancelDrag() {
     if (this.drag?.hit) {
       this.callbacks.onMoveSelectionPreview?.(null, null);
@@ -422,6 +470,9 @@ export function createMapViewPointerMethods(deps) {
     }
     this.descriptionDragPreview = null;
     this.specialShapePreview = null;
+    if (!this.store.snapshot().ui.tool || !isAreaSpecialTool(this.store.snapshot().ui.tool)) {
+      this.areaSpecialDraft = null;
+    }
     this.drag = null;
     this._dragRect = null;
   },
@@ -430,7 +481,11 @@ export function createMapViewPointerMethods(deps) {
     const previewable = typeof tool === "string" && (tool.startsWith("control:") || tool.startsWith("special:"));
     if (!previewable) {
       this.clearToolPreview();
+      this.areaSpecialDraft = null;
       return;
+    }
+    if (this.areaSpecialDraft && this.areaSpecialDraft.tool !== tool) {
+      this.areaSpecialDraft = null;
     }
     this.toolPreview = {
       tool,

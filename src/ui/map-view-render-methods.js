@@ -670,7 +670,38 @@ export function createMapViewRenderMethods(deps) {
     }
     else if (ui.tool.startsWith("special:")) {
       const kind = ui.tool.slice("special:".length);
-      if (kind === "descriptions") {
+      if (this.areaSpecialDraft?.tool === ui.tool) {
+        const hoverPoint = this.toolPreview?.tool === ui.tool ? this.toolPreview.point : null;
+        const lastDraftPoint = this.areaSpecialDraft.points[this.areaSpecialDraft.points.length - 1] || null;
+        const includeHover = hoverPoint && (!lastDraftPoint || Math.hypot(hoverPoint.x - lastDraftPoint.x, hoverPoint.y - lastDraftPoint.y) > 0.001);
+        const draftLocations = [
+          ...this.areaSpecialDraft.points,
+          ...(includeHover ? [hoverPoint] : [])
+        ];
+        const points = draftLocations.map(location => this.toScreen(location, ui));
+        const special = { id: 0, kind, locations: draftLocations, color: "upper-purple", lineKind: kind === "white-out" ? "none" : "single" };
+        if (draftLocations.length >= 3) {
+          drawAreaSpecial(ctx, special, points, this.scale(ui), metrics);
+        }
+        else if (points.length >= 1) {
+          ctx.strokeStyle = metrics.color;
+          ctx.fillStyle = metrics.color;
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          for (let i = 1; i < points.length; i += 1) {
+            ctx.lineTo(points[i].x, points[i].y);
+          }
+          ctx.stroke();
+          for (const p of points) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+      else if (kind === "descriptions") {
         const special = this.descriptionDragPreview || {
           id: 0,
           kind,

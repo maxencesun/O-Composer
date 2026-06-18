@@ -457,7 +457,7 @@ export function createAppShellFileExportMethods(deps) {
     const state = this.store.snapshot();
     const model = cloneEvent(state.eventModel);
     syncDescriptionLanguageWithApp(model);
-    const fileName = `${baseName(model.sourceName || "Untitled")}.ocp`;
+    const fileName = options.fileName || `${baseName(model.sourceName || "Untitled")}.ocp`;
     download(fileName, serializeOcp(model, { ocpData: this.ocpDataForSave(state, options) }), "application/xml");
     this.store.markClean(fileName);
   },
@@ -502,7 +502,12 @@ export function createAppShellFileExportMethods(deps) {
       model.metadata.ocp ||= {};
       model.metadata.ocp.submission = submission;
     }, "Save submission metadata");
-    this.downloadOcp({ submission });
+    const submittedFileName = [
+      submission.name,
+      submission.organization,
+      submission.contact
+    ].map(value => safeFilePart(value)).join("-");
+    this.downloadOcp({ submission, fileName: `${submittedFileName}.ocp` });
     this.closeSubmitDialog();
   },
 

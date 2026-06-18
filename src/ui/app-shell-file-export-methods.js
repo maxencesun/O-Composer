@@ -268,21 +268,10 @@ export function createAppShellFileExportMethods(deps) {
         this.store.markClean(file.name);
         this.store.resetHistory("Loaded file");
         this.store.updateUi(ui => {
-          const selectedCourseId = applyCourseSelectionUi(model, ui, sortedCourses(model)[0]?.id || "all", { selection: null });
-          const savedPrintArea = this.savedPrintAreaForInitialView(model, selectedCourseId);
+          applyCourseSelectionUi(model, ui, sortedCourses(model)[0]?.id || "all", { selection: null });
           ui.pan = { x: 0, y: 0 };
           ui.zoom = 1;
-          ui.showPrintArea = !!savedPrintArea || this.modelHasSavedPrintArea(model);
-          if (savedPrintArea) {
-            ui.printAreaEdit = {
-              target: selectedCourseId === "all"
-                ? { scope: PRINT_AREA_SCOPES.ALL_CONTROLS }
-                : { scope: PRINT_AREA_SCOPES.COURSE, courseId: selectedCourseId },
-              area: savedPrintArea,
-              preview: savedPrintArea,
-              loadedPreview: true
-            };
-          }
+          ui.showPrintArea = this.modelHasSavedPrintArea(model);
           ui.background = embeddedBaseMap.background;
           ui.omap = embeddedBaseMap.omap;
         }, "Loaded");
@@ -310,21 +299,10 @@ export function createAppShellFileExportMethods(deps) {
       this.store.markClean("standalone-sample.ppen");
       this.store.resetHistory("Loaded sample");
       this.store.updateUi(ui => {
-        const selectedCourseId = applyCourseSelectionUi(model, ui, sortedCourses(model)[0]?.id || "all", { selection: null });
-        const savedPrintArea = this.savedPrintAreaForInitialView(model, selectedCourseId);
+        applyCourseSelectionUi(model, ui, sortedCourses(model)[0]?.id || "all", { selection: null });
         ui.pan = { x: 0, y: 0 };
         ui.zoom = 1;
-        ui.showPrintArea = !!savedPrintArea || this.modelHasSavedPrintArea(model);
-        if (savedPrintArea) {
-          ui.printAreaEdit = {
-            target: selectedCourseId === "all"
-              ? { scope: PRINT_AREA_SCOPES.ALL_CONTROLS }
-              : { scope: PRINT_AREA_SCOPES.COURSE, courseId: selectedCourseId },
-            area: savedPrintArea,
-            preview: savedPrintArea,
-            loadedPreview: true
-          };
-        }
+        ui.showPrintArea = this.modelHasSavedPrintArea(model);
         ui.background = embeddedBaseMap.background;
         ui.omap = embeddedBaseMap.omap;
       }, "Sample loaded");
@@ -332,16 +310,6 @@ export function createAppShellFileExportMethods(deps) {
     catch (error) {
       alert(error.message);
     }
-  },
-
-  savedPrintAreaForInitialView(model, selectedCourseId) {
-    const course = selectedCourseId === "all" ? null : getCourse(model, selectedCourseId);
-    const area = course?.printArea?.automatic === false
-      ? course.printArea
-      : model.event?.printArea?.automatic === false
-        ? model.event.printArea
-        : null;
-    return area ? normalizePrintArea(area) : null;
   },
 
   modelHasSavedPrintArea(model) {

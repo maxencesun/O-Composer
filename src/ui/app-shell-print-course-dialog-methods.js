@@ -122,6 +122,7 @@ export function createAppShellPrintCourseDialogMethods(deps) {
     objectForSelection,
     teamCourseDescriptionPanelRows,
     courseDisplayOptions,
+    applyCourseSelectionUi,
     TOPOLOGY_HEIGHT_UNIT,
     layoutVariationTopology,
     topologyLegPath,
@@ -684,8 +685,7 @@ export function createAppShellPrintCourseDialogMethods(deps) {
         }, "Add course");
         const selection = this.store.snapshot().eventModel.metadata.pendingSelection;
         this.store.updateUi(ui => {
-          ui.selectedCourseId = selection.id;
-          ui.selection = selection;
+          applyCourseSelectionUi(this.store.snapshot().eventModel, ui, selection.id, { selection });
         }, "Select course");
       }
     });
@@ -713,7 +713,7 @@ export function createAppShellPrintCourseDialogMethods(deps) {
           return;
         }
         this.store.updateEvent(model => deleteSelection(model, { type: "course", id: state.ui.selectedCourseId }), "Delete course");
-        this.store.updateUi(ui => { ui.selectedCourseId = "all"; ui.selection = null; }, "All controls");
+        this.store.updateUi(ui => { applyCourseSelectionUi(this.store.snapshot().eventModel, ui, "all"); }, "All controls");
       }
     });
   },
@@ -789,8 +789,7 @@ export function createAppShellPrintCourseDialogMethods(deps) {
         }, "Duplicate course");
         const selection = this.store.snapshot().eventModel.metadata.pendingSelection;
         this.store.updateUi(ui => {
-          ui.selectedCourseId = selection.id;
-          ui.selection = selection;
+          applyCourseSelectionUi(this.store.snapshot().eventModel, ui, selection.id, { selection });
         }, "Select course");
       }
     });

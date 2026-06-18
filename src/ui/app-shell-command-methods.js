@@ -122,6 +122,7 @@ export function createAppShellCommandMethods(deps) {
     objectForSelection,
     teamCourseDescriptionPanelRows,
     courseDisplayOptions,
+    applyCourseSelectionUi,
     TOPOLOGY_HEIGHT_UNIT,
     layoutVariationTopology,
     topologyLegPath,
@@ -341,9 +342,7 @@ export function createAppShellCommandMethods(deps) {
         break;
       case "toggle-all-controls":
         this.store.updateUi(ui => {
-          ui.selectedCourseId = "all";
-          ui.showAllControls = true;
-          ui.selection = null;
+          applyCourseSelectionUi(eventModel, ui, "all");
         }, "All controls");
         break;
       case "quality":

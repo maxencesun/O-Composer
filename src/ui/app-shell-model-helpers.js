@@ -45,7 +45,7 @@ import {
   getCourseControl,
   isTeamFreeCourseControl
 } from "../domain/course-service.js";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
+import { courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import { t } from "./i18n.js";
 import { safeFilePart } from "./app-shell-pdf-helpers.js";
 import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js";
@@ -120,6 +120,33 @@ export function courseDisplayOptions(eventModel, ui = {}) {
     } : {};
   }
   return {};
+}
+
+export function applyCourseSelectionUi(eventModel, ui, courseId, options = {}) {
+  const requestedCourseId = courseId === "all" ? "all" : Number(courseId);
+  const course = requestedCourseId === "all" ? null : getCourse(eventModel, requestedCourseId);
+  const selectedCourseId = course ? Number(course.id) : "all";
+  ui.selectedCourseId = selectedCourseId;
+  ui.showAllControls = selectedCourseId === "all";
+  if (options.selection !== undefined) {
+    ui.selection = options.selection;
+  }
+  else {
+    ui.selection = selectedCourseId === "all" ? null : { type: "course", id: selectedCourseId };
+  }
+
+  const hasVariations = selectedCourseId !== "all" && courseHasVariations(eventModel, selectedCourseId);
+  ui.variationMode = hasVariations ? "all" : "default";
+  ui.variationCode = "";
+  ui.variationBranch = null;
+  ui.variationAnchorCourseControl = null;
+  ui.variationInsertAfterCourseControl = null;
+  ui.variationInsertBeforeCourseControl = null;
+  ui.variationSelectedSegment = "";
+  ui.relayTeam = 1;
+  ui.relayLeg = 1;
+  ui.printAreaEdit = null;
+  return selectedCourseId;
 }
 
 export function safeCachedUi(ui = {}) {

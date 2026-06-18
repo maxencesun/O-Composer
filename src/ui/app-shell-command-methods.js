@@ -146,6 +146,7 @@ export function createAppShellCommandMethods(deps) {
     formatSvgNumber,
     insertionCourseControlId,
     insertionBeforeCourseControlId,
+    selectedLegCourseControlPair,
     variationAnchorCourseControl,
     canAddVariationAtCourseControl,
     normalizedVariationBranch,
@@ -496,6 +497,7 @@ export function createAppShellCommandMethods(deps) {
   applyTool(tool, point, toolOptions = {}) {
     const state = this.store.snapshot();
     const selectedCourseId = state.ui.selectedCourseId;
+    const selectedLegCourseControls = selectedLegCourseControlPair(state);
     const afterCourseControl = insertionCourseControlId(state);
     const beforeCourseControl = insertionBeforeCourseControlId(state);
     if (tool === "background-calibration") {
@@ -525,6 +527,11 @@ export function createAppShellCommandMethods(deps) {
         this.store.updateUi(ui => { ui.status = this.t("Free controls cannot be start or finish."); }, "Add control failed");
         return;
       }
+      const blockedMessage = this.controlInsertionBlockedMessage(state, kind, selectedLegCourseControls, afterCourseControl);
+      if (blockedMessage) {
+        this.store.updateUi(ui => { ui.status = blockedMessage; }, "Add control failed");
+        return;
+      }
       const snapped = snappedControlForPlacement(state, kind, point, this.mapView);
       if (snapped) {
         if (selectedCourseId && selectedCourseId !== "all" && !snapped.usedInSelectedCourse) {
@@ -540,7 +547,13 @@ export function createAppShellCommandMethods(deps) {
       }
       try {
         this.store.updateEvent(model => {
-          const selection = addControlAt(model, kind, point, selectedCourseId, { afterCourseControl, beforeCourseControl, teamRole: teamAddRole });
+          const selection = addControlAt(model, kind, point, selectedCourseId, {
+            afterCourseControl,
+            beforeCourseControl,
+            fromCourseControl: selectedLegCourseControls?.from?.id || null,
+            toCourseControl: selectedLegCourseControls?.to?.id || null,
+            teamRole: teamAddRole
+          });
           model.metadata.pendingSelection = selection;
         }, `Add ${kind}`);
       }
@@ -551,7 +564,7 @@ export function createAppShellCommandMethods(deps) {
       const pending = this.store.snapshot().eventModel.metadata.pendingSelection;
       this.store.updateUi(ui => {
         ui.selection = pending;
-        if ((afterCourseControl || beforeCourseControl || ui.variationBranch) && pending?.courseControl) {
+        if ((afterCourseControl || beforeCourseControl || selectedLegCourseControls || ui.variationBranch) && pending?.courseControl) {
           ui.variationInsertAfterCourseControl = pending.courseControl;
           ui.variationInsertBeforeCourseControl = null;
           ui.variationAnchorCourseControl = pending.courseControl;
@@ -598,6 +611,7 @@ export function createAppShellCommandMethods(deps) {
   addExistingControlToCurrentCourse(selection, options = {}) {
     const state = this.store.snapshot();
     if (!selection?.id || !state.ui.selectedCourseId || state.ui.selectedCourseId === "all") return;
+    const selectedLegCourseControls = selectedLegCourseControlPair(state);
     const afterCourseControl = insertionCourseControlId(state);
     const beforeCourseControl = insertionBeforeCourseControlId(state);
     const course = getCourse(state.eventModel, state.ui.selectedCourseId);
@@ -607,9 +621,20 @@ export function createAppShellCommandMethods(deps) {
       this.store.updateUi(ui => { ui.status = this.t("Free controls cannot be start or finish."); }, "Add existing control failed");
       return;
     }
+    const blockedMessage = this.controlInsertionBlockedMessage(state, control?.kind, selectedLegCourseControls, afterCourseControl);
+    if (blockedMessage) {
+      this.store.updateUi(ui => { ui.status = blockedMessage; }, "Add existing control failed");
+      return;
+    }
     try {
       this.store.updateEvent(model => {
-        const nextSelection = addExistingControlToCourse(model, state.ui.selectedCourseId, selection.id, { afterCourseControl, beforeCourseControl, teamRole });
+        const nextSelection = addExistingControlToCourse(model, state.ui.selectedCourseId, selection.id, {
+          afterCourseControl,
+          beforeCourseControl,
+          fromCourseControl: selectedLegCourseControls?.from?.id || null,
+          toCourseControl: selectedLegCourseControls?.to?.id || null,
+          teamRole
+        });
         model.metadata.pendingSelection = nextSelection || selection;
       }, "Add existing control");
     }
@@ -620,7 +645,7 @@ export function createAppShellCommandMethods(deps) {
     const pending = this.store.snapshot().eventModel.metadata.pendingSelection;
     this.store.updateUi(ui => {
       ui.selection = pending || selection;
-      if ((afterCourseControl || beforeCourseControl || ui.variationBranch) && pending?.courseControl) {
+      if ((afterCourseControl || beforeCourseControl || selectedLegCourseControls || ui.variationBranch) && pending?.courseControl) {
         ui.variationInsertAfterCourseControl = pending.courseControl;
         ui.variationInsertBeforeCourseControl = null;
         ui.variationAnchorCourseControl = pending.courseControl;
@@ -628,6 +653,18 @@ export function createAppShellCommandMethods(deps) {
       }
       ui.tool = "select";
     }, "Select mode");
+  },
+
+  controlInsertionBlockedMessage(state, kind, selectedLegCourseControls, afterCourseControl) {
+    if (!["normal", "crossing-point", "map-exchange"].includes(kind)) return "";
+    if (selectedLegCourseControls?.fromControl?.kind === "map-issue"
+      && selectedLegCourseControls?.toControl?.kind === "start") {
+      return this.t("Controls cannot be added between map issue and start.");
+    }
+    const afterControl = getControl(state.eventModel, getCourseControl(state.eventModel, afterCourseControl)?.control);
+    return afterControl?.kind === "finish"
+      ? this.t("Controls cannot be added after finish.")
+      : "";
   },
 
   addDescriptionSpecial(point, options) {

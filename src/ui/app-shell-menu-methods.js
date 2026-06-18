@@ -280,6 +280,16 @@ export function createAppShellMenuMethods(deps) {
       this.closeToolbarGroupsWhenPointerLeaves(event);
     });
 
+    this.addEventListener("contextmenu", event => {
+      const saveOcpCommand = event.target.closest('.menubar [data-command="save"]');
+      if (!saveOcpCommand) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.downloadOcp();
+      this.closeTopMenus();
+      this.closeToolbarGroups();
+    });
+
     this.addEventListener("click", event => {
       if (event.target.closest("[data-print-area-cancel]")) {
         this.closePrintAreaDialog();

@@ -128,10 +128,10 @@ export function createMapViewRenderMethods(deps) {
     this.drawGrid(ctx, width, height, ui);
     this.drawBackground(ctx, width, height, ui);
     this.drawOmap(ctx, ui);
+    this.drawSpecials(ctx, eventModel, ui);
     if (ui.showPrintArea) {
       this.drawPrintArea(ctx, eventModel, ui);
     }
-    this.drawSpecials(ctx, eventModel, ui);
     this.drawCourse(ctx, eventModel, ui);
     this.drawAddableControls(ctx, eventModel, ui);
     this.drawSelection(ctx, eventModel, ui);

@@ -38,6 +38,8 @@ export function addControlAt(eventModel, kind, location, selectedCourseId = null
       mapFlip: !!options.mapFlip,
       afterCourseControl: coursePlacement ? null : options.afterCourseControl,
       beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
+      fromCourseControl: coursePlacement ? null : options.fromCourseControl,
+      toCourseControl: coursePlacement ? null : options.toCourseControl,
       placement: coursePlacement,
       teamRole: options.teamRole
     });
@@ -56,6 +58,8 @@ export function addExistingControlToCourse(eventModel, courseId, controlId, opti
   const courseControl = appendControlToCourse(eventModel, Number(courseId), Number(controlId), {
     afterCourseControl: coursePlacement ? null : options.afterCourseControl,
     beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
+    fromCourseControl: coursePlacement ? null : options.fromCourseControl,
+    toCourseControl: coursePlacement ? null : options.toCourseControl,
     placement: coursePlacement,
     beforeFinish: options.beforeFinish,
     teamRole: options.teamRole
@@ -153,6 +157,26 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
       course.firstCourseControl = newCourseControl.id;
     }
     return newCourseControl;
+  }
+
+  const insertFrom = options.fromCourseControl ? getCourseControl(eventModel, options.fromCourseControl) : null;
+  const insertTo = options.toCourseControl ? getCourseControl(eventModel, options.toCourseControl) : null;
+  if (insertFrom && insertTo
+    && courseContainsCourseControl(eventModel, courseId, insertFrom.id)
+    && courseContainsCourseControl(eventModel, courseId, insertTo.id)) {
+    if (Number(insertFrom.nextCourseControl) === Number(insertTo.id)) {
+      newCourseControl.nextCourseControl = insertTo.id;
+      insertFrom.nextCourseControl = newCourseControl.id;
+      return newCourseControl;
+    }
+    const branchIndex = (insertFrom.variationCourseControls || [])
+      .map(Number)
+      .indexOf(Number(insertTo.id));
+    if (branchIndex >= 0) {
+      newCourseControl.nextCourseControl = insertTo.id;
+      insertFrom.variationCourseControls[branchIndex] = newCourseControl.id;
+      return newCourseControl;
+    }
   }
 
   const insertBefore = options.beforeCourseControl ? getCourseControl(eventModel, options.beforeCourseControl) : null;

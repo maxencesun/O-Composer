@@ -1174,7 +1174,7 @@ export function createAppShellTemplateMethods(deps) {
               <button type="button" class="icon-button" data-submit-cancel aria-label="${escapeAttr(this.t("Close"))}">x</button>
             </header>
             <div class="command-body submit-grid">
-              <label>${escapeHtml(this.t("Name"))}<input id="submitName" name="name" type="text" required></label>
+              <label>${escapeHtml(this.t("Entrant name"))}<input id="submitName" name="name" type="text" required></label>
               <label>${escapeHtml(this.t("Phone or WeChat"))}<input id="submitContact" name="contact" type="text" required></label>
               <label>${escapeHtml(this.t("Organization"))}<input id="submitOrganization" name="organization" type="text" required></label>
             </div>

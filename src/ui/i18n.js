@@ -46,6 +46,7 @@ const ZH = Object.freeze({
   "Save and Submit": "保存并提交",
   "Download OCP": "下载 OCP",
   "Name": "姓名",
+  "Entrant name": "姓名",
   "Phone or WeChat": "电话或微信号",
   "Organization": "单位",
   "Please complete all fields.": "请完整填写所有字段。",

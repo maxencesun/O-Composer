@@ -337,9 +337,16 @@ export function createAppShellFileExportMethods(deps) {
       applyCourseSelectionUi(model, ui, sortedCourses(model)[0]?.id || "all", { selection: null });
       ui.pan = { x: 0, y: 0 };
       ui.zoom = 1;
+      ui.showPrintArea = this.modelHasSavedPrintArea(model);
       ui.background = embeddedBaseMap.background;
       ui.omap = embeddedBaseMap.omap;
     }, "Loaded");
+  },
+
+  modelHasSavedPrintArea(model) {
+    if (model.event?.printArea && model.event.printArea.automatic === false) return true;
+    return (model.courses || []).some(course => course.printArea?.automatic === false
+      || (course.partPrintAreas || []).some(partArea => partArea.area?.automatic === false));
   },
 
   async openMapFile(file) {

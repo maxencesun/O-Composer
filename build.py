@@ -39,7 +39,7 @@ def validate_imports() -> None:
             specifier = match.group(1)
             if not specifier.startswith("."):
                 continue
-            target = (path.parent / specifier).resolve()
+            target = (path.parent / specifier.split("?", 1)[0]).resolve()
             if not target.exists():
                 raise SystemExit(f"Unresolved import in {path.relative_to(ROOT)}: {specifier}")
 

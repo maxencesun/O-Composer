@@ -36,6 +36,7 @@ import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../do
 import {
   controlKindLabel,
   controlsUsedByCourse,
+  courseLegs,
   courseView,
   findLeg,
   getControl,
@@ -513,9 +514,7 @@ export function insertionCourseControlId(state) {
       ?.courseControl?.id || null;
   }
   if (selection.type === "leg" || selection.type === "leg-bend") {
-    return courseView(state.eventModel, courseId, { allBranches: false })
-      .find(row => Number(row.control?.id) === Number(selection.startControl))
-      ?.courseControl?.id || null;
+    return selectedLegCourseControlPair(state)?.from?.id || null;
   }
   return null;
 }
@@ -523,10 +522,60 @@ export function insertionCourseControlId(state) {
 export function insertionBeforeCourseControlId(state) {
   const courseId = state.ui.selectedCourseId;
   if (!courseId || courseId === "all") return null;
+  const selection = state.ui.selection;
+  const selectedLeg = selectedLegCourseControlPair(state);
+  if (selectedLeg?.to?.id) return Number(selectedLeg.to.id);
+  if (selection?.type === "control-number" && selection.courseControl) {
+    const courseControl = getCourseControl(state.eventModel, selection.courseControl);
+    const control = getControl(state.eventModel, courseControl?.control);
+    if (control?.kind === "finish") return Number(courseControl.id);
+  }
+  if (selection?.type === "control") {
+    const row = courseView(state.eventModel, courseId, { allBranches: false })
+      .find(item => Number(item.control?.id) === Number(selection.id));
+    if (row?.control?.kind === "finish") return Number(row.courseControl?.id) || null;
+  }
   const explicitInsertion = Number(state.ui.variationInsertBeforeCourseControl) || null;
   return explicitInsertion && courseControlTopologyIds(state.eventModel, courseId).has(explicitInsertion)
     ? explicitInsertion
     : null;
+}
+
+export function selectedLegCourseControlPair(state) {
+  const selection = state.ui.selection;
+  const courseId = state.ui.selectedCourseId;
+  if (!["leg", "leg-gap", "leg-bend"].includes(selection?.type) || !courseId || courseId === "all") {
+    return null;
+  }
+  const topologyIds = courseControlTopologyIds(state.eventModel, courseId);
+  const selectedStartCourseControl = Number(selection.startCourseControl) || 0;
+  const selectedEndCourseControl = Number(selection.endCourseControl) || 0;
+  if (selectedStartCourseControl && selectedEndCourseControl) {
+    const from = getCourseControl(state.eventModel, selectedStartCourseControl);
+    const to = getCourseControl(state.eventModel, selectedEndCourseControl);
+    if (from && to
+      && topologyIds.has(Number(from.id))
+      && topologyIds.has(Number(to.id))
+      && Number(from.control) === Number(selection.startControl)
+      && Number(to.control) === Number(selection.endControl)) {
+      return {
+        from,
+        to,
+        fromControl: getControl(state.eventModel, from.control),
+        toControl: getControl(state.eventModel, to.control)
+      };
+    }
+  }
+  const leg = courseLegs(state.eventModel, courseId, { allBranches: true })
+    .find(item => Number(item.from.control?.id) === Number(selection.startControl)
+      && Number(item.to.control?.id) === Number(selection.endControl));
+  if (!leg?.from?.courseControl || !leg?.to?.courseControl) return null;
+  return {
+    from: leg.from.courseControl,
+    to: leg.to.courseControl,
+    fromControl: leg.from.control,
+    toControl: leg.to.control
+  };
 }
 
 export function variationAnchorCourseControl(eventModel, courseId, ui = {}) {

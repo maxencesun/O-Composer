@@ -194,6 +194,8 @@ const ZH = Object.freeze({
   "Free control labels": "自由点标号",
   "New normal controls": "新添加普通检查点",
   "Free controls cannot be start or finish.": "自由点不能添加起点或终点。",
+  "Controls cannot be added between map issue and start.": "发图点到起点之间不可添加检查点。",
+  "Controls cannot be added after finish.": "终点后不可添加检查点。",
   "Teams": "队伍数",
   "Total teams": "总队数",
   "Leg": "棒次",

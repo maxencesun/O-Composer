@@ -124,6 +124,7 @@ export function createAppShellFileExportMethods(deps) {
     objectForSelection,
     teamCourseDescriptionPanelRows,
     courseDisplayOptions,
+    applyCourseSelectionUi,
     TOPOLOGY_HEIGHT_UNIT,
     layoutVariationTopology,
     topologyLegPath,
@@ -267,8 +268,7 @@ export function createAppShellFileExportMethods(deps) {
         this.store.markClean(file.name);
         this.store.resetHistory("Loaded file");
         this.store.updateUi(ui => {
-          ui.selectedCourseId = sortedCourses(model)[0]?.id || "all";
-          ui.selection = null;
+          applyCourseSelectionUi(model, ui, sortedCourses(model)[0]?.id || "all", { selection: null });
           ui.pan = { x: 0, y: 0 };
           ui.zoom = 1;
           ui.background = embeddedBaseMap.background;
@@ -298,8 +298,7 @@ export function createAppShellFileExportMethods(deps) {
       this.store.markClean("standalone-sample.ppen");
       this.store.resetHistory("Loaded sample");
       this.store.updateUi(ui => {
-        ui.selectedCourseId = sortedCourses(model)[0]?.id || "all";
-        ui.selection = null;
+        applyCourseSelectionUi(model, ui, sortedCourses(model)[0]?.id || "all", { selection: null });
         ui.pan = { x: 0, y: 0 };
         ui.zoom = 1;
         ui.background = embeddedBaseMap.background;

@@ -128,6 +128,7 @@ export function createAppShellCoursePanelMethods(deps) {
     objectForSelection,
     teamCourseDescriptionPanelRows,
     courseDisplayOptions,
+    applyCourseSelectionUi,
     TOPOLOGY_HEIGHT_UNIT,
     layoutVariationTopology,
     topologyLegPath,
@@ -356,22 +357,9 @@ export function createAppShellCoursePanelMethods(deps) {
   },
 
   selectCourse(courseId) {
-    const nextCourseId = courseId === "all" ? "all" : Number(courseId);
-    const nextCourseHasVariations = nextCourseId !== "all" && courseHasVariations(this.store.snapshot().eventModel, nextCourseId);
+    const eventModel = this.store.snapshot().eventModel;
     this.store.updateUi(ui => {
-      ui.selectedCourseId = nextCourseId;
-      ui.selection = courseId === "all" ? null : { type: "course", id: Number(courseId) };
-      ui.showAllControls = courseId === "all";
-      ui.variationMode = nextCourseHasVariations ? "all" : "default";
-      ui.variationCode = "";
-      ui.variationBranch = null;
-      ui.variationAnchorCourseControl = null;
-      ui.variationInsertAfterCourseControl = null;
-      ui.variationInsertBeforeCourseControl = null;
-      ui.variationSelectedSegment = "";
-      ui.relayTeam = 1;
-      ui.relayLeg = 1;
-      ui.printAreaEdit = null;
+      applyCourseSelectionUi(eventModel, ui, courseId);
       if (ui.tool === "print-area" || ui.tool === "print-area-frame") {
         ui.tool = "select";
       }

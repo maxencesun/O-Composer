@@ -288,7 +288,7 @@ export function descriptionLanguageForEvent(eventModel) {
 
 export function getIscdSymbolOptions(column, language = currentAppLanguage()) {
   if (!symbolDb) {
-    return (ISCD_SYMBOLS[column] || []).map(([value, label]) => [value, localizedFallbackLabel(label, language)]);
+    return [];
   }
   const allowedKinds = column === "D" ? new Set(["D", "A", "Y"]) : new Set([column]);
   return symbolDb.order

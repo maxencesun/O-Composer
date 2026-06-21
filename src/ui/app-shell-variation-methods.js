@@ -729,7 +729,17 @@ export function createAppShellVariationMethods(deps) {
     }, "Add variation");
   },
 
-  openIscdSymbolPicker(controlId, box, selectedValue = "") {
+  async openIscdSymbolPicker(controlId, box, selectedValue = "") {
+    try {
+      await ensureIscdSymbolDb();
+    }
+    catch (error) {
+      console.error(error);
+      this.store.updateUi(ui => {
+        ui.status = this.t("Could not load control symbols.");
+      }, "Control symbols unavailable");
+      return;
+    }
     const columnLabel = this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box);
     this.openCommandDialog({
       title: `${box}: ${columnLabel}`,

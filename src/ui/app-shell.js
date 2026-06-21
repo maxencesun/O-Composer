@@ -36,6 +36,7 @@ import {
   ISCD_COLUMNS,
   columnFDescriptionDisplayValue,
   columnFDescriptionPickerValue,
+  columnFOptionDisplayValue,
   createDescriptionSpecialOptions,
   descriptionLanguageForEvent,
   drawIscdSymbol,
@@ -48,7 +49,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=innerTest-20260621-3";
+} from "../domain/control-descriptions.js?v=innerTest-20260621-4";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -109,12 +110,12 @@ import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from ".
 import { iconSvg } from "./icons.js";
 import { MapView } from "./map-view.js";
 import { createAppShellTemplateMethods } from "./app-shell-template-methods.js";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=innerTest-20260621-3";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=innerTest-20260621-3";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=innerTest-20260621-3";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=innerTest-20260621-3";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=innerTest-20260621-3";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=innerTest-20260621-3";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=innerTest-20260621-4";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=innerTest-20260621-4";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=innerTest-20260621-4";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=innerTest-20260621-4";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=innerTest-20260621-4";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=innerTest-20260621-4";
 import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js";
 import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js";
 import {
@@ -964,6 +965,7 @@ const APP_SHELL_METHOD_DEPS = {
   ISCD_COLUMNS,
   columnFDescriptionDisplayValue,
   columnFDescriptionPickerValue,
+  columnFOptionDisplayValue,
   createDescriptionSpecialOptions,
   descriptionLanguageForEvent,
   drawIscdSymbol,

@@ -110,7 +110,7 @@ import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-metho
 import { createAppShellVariationMethods } from "./app-shell-variation-methods.js";
 import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js";
 import { createAppShellCommandMethods } from "./app-shell-command-methods.js";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=innerTest-20260618-1";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=innerTest-20260621-1";
 import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js";
 import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js";
 import {

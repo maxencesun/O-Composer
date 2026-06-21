@@ -61,14 +61,41 @@
   font-family: "Source Sans Pro", "Segoe UI", system-ui, sans-serif;
 }
 
+html {
+  width: 100%;
+  height: var(--o-composer-viewport-height, 100dvh);
+  min-height: var(--o-composer-viewport-height, 100dvh);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: var(--o-composer-viewport-height, 100dvh);
+  min-height: var(--o-composer-viewport-height, 100dvh);
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
   color: var(--ink);
   background: #dfe4e8;
+}
+
+purple-pen-app {
+  display: block;
+  width: var(--o-composer-viewport-width, 100dvw);
+  max-width: var(--o-composer-viewport-width, 100dvw);
+  height: var(--o-composer-viewport-height, 100dvh);
+  max-height: var(--o-composer-viewport-height, 100dvh);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 button,
@@ -93,8 +120,12 @@ button:hover {
 .app-frame {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-  height: 100vh;
+  width: 100%;
+  height: var(--o-composer-viewport-height, 100dvh);
+  max-height: var(--o-composer-viewport-height, 100dvh);
   min-width: 900px;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .menubar {

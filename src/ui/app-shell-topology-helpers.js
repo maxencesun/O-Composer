@@ -31,7 +31,7 @@ import {
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js";
+} from "../domain/control-descriptions.js?v=innerTest-20260621-11";
 import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js";
 import {
   controlKindLabel,
@@ -45,7 +45,7 @@ import {
   isTeamFreeCourseControl
 } from "../domain/course-service.js";
 import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
-import { t } from "./i18n.js";
+import { t } from "./i18n.js?v=innerTest-20260621-11";
 import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js";
 
 export const TOPOLOGY_WIDTH_UNIT = 104;

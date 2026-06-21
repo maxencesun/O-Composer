@@ -32,6 +32,8 @@ export function createAppShellCoursePanelMethods(deps) {
     updateControlDescription,
     DESCRIPTION_KINDS,
     ISCD_COLUMNS,
+    columnFDescriptionDisplayValue,
+    columnFDescriptionPickerValue,
     createDescriptionSpecialOptions,
     descriptionLanguageForEvent,
     drawIscdSymbol,
@@ -567,13 +569,15 @@ export function createAppShellCoursePanelMethods(deps) {
         if (isScoreCourse && box === "H") {
           return this.scoreDescriptionCell(row);
         }
-        const value = descriptions.get(box)?.ref || descriptions.get(box)?.text || "";
+        const description = descriptions.get(box) || {};
+        const value = box === "F" ? columnFDescriptionDisplayValue(description) : description.ref || description.text || "";
+        const pickerValue = box === "F" ? columnFDescriptionPickerValue(description) : value;
         const isColumnFText = box === "F" && isColumnFTextValue(value);
         if (isColumnFText) {
           const textValue = normalizeColumnFText(value);
           return `<td>
             <div class="iscd-cell-with-input">
-              <button type="button" class="iscd-cell-button compact" data-iscd-cell data-control-id="${row.control.id}" data-box="${box}" data-value="${escapeAttr(value)}" data-symbol-tooltip="${escapeAttr(this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box))}: ${escapeAttr(iscdSymbolLabel(box, value, language) || this.t("Not specified"))}">
+              <button type="button" class="iscd-cell-button compact" data-iscd-cell data-control-id="${row.control.id}" data-box="${box}" data-value="${escapeAttr(pickerValue)}" data-symbol-tooltip="${escapeAttr(this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box))}: ${escapeAttr(iscdSymbolLabel(box, value, language) || this.t("Not specified"))}">
                 <canvas class="iscd-symbol-canvas" width="24" height="24" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
               </button>
               <input class="column-f-text-input" data-column-f-text data-control-id="${row.control.id}" value="${escapeAttr(textValue)}" inputmode="decimal">
@@ -659,7 +663,8 @@ export function createAppShellCoursePanelMethods(deps) {
     this.store.updateEvent(model => {
       const control = getControl(model, controlId);
       if (!control) return;
-      updateControlDescription(control, "F", "", value);
+      const existing = control.descriptions?.find(description => description.box === "F");
+      updateControlDescription(control, "F", existing?.ref || "", value);
     }, "Change column F text");
   }
 

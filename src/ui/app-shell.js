@@ -34,6 +34,8 @@ import {
 import {
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
+  columnFDescriptionDisplayValue,
+  columnFDescriptionPickerValue,
   createDescriptionSpecialOptions,
   descriptionLanguageForEvent,
   drawIscdSymbol,
@@ -46,7 +48,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=innerTest-20260621-2";
+} from "../domain/control-descriptions.js";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -942,6 +944,8 @@ const APP_SHELL_METHOD_DEPS = {
   updateControlDescription,
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
+  columnFDescriptionDisplayValue,
+  columnFDescriptionPickerValue,
   createDescriptionSpecialOptions,
   descriptionLanguageForEvent,
   drawIscdSymbol,

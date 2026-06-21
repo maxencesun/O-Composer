@@ -38,7 +38,9 @@ export function createAppShellCoursePanelMethods(deps) {
     ensureIscdSymbolDb,
     existingDescriptionSpecialForTarget,
     getIscdSymbolOptions,
+    isColumnFTextValue,
     iscdSymbolLabel,
+    normalizeColumnFText,
     scoreCourseDescriptionRows,
     storageForIscdSelection,
     resizedDescriptionSpecial,
@@ -554,6 +556,18 @@ export function createAppShellCoursePanelMethods(deps) {
           return this.scoreDescriptionCell(row);
         }
         const value = descriptions.get(box)?.ref || descriptions.get(box)?.text || "";
+        const isColumnFText = box === "F" && isColumnFTextValue(value);
+        if (isColumnFText) {
+          const textValue = normalizeColumnFText(value);
+          return `<td>
+            <div class="iscd-cell-with-input">
+              <button type="button" class="iscd-cell-button compact" data-iscd-cell data-control-id="${row.control.id}" data-box="${box}" data-value="${escapeAttr(value)}" data-symbol-tooltip="${escapeAttr(this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box))}: ${escapeAttr(iscdSymbolLabel(box, value, language) || this.t("Not specified"))}">
+                <canvas class="iscd-symbol-canvas" width="24" height="24" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
+              </button>
+              <input class="column-f-text-input" data-column-f-text data-control-id="${row.control.id}" value="${escapeAttr(textValue)}" inputmode="decimal">
+            </div>
+          </td>`;
+        }
         return `<td>
           <button type="button" class="iscd-cell-button" data-iscd-cell data-control-id="${row.control.id}" data-box="${box}" data-value="${escapeAttr(value)}" data-symbol-tooltip="${escapeAttr(this.t(ISCD_COLUMNS.find(([id]) => id === box)?.[1] || box))}: ${escapeAttr(iscdSymbolLabel(box, value, language) || this.t("Not specified"))}">
             <canvas class="iscd-symbol-canvas" width="24" height="24" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
@@ -588,6 +602,9 @@ export function createAppShellCoursePanelMethods(deps) {
     if (event.target.closest("[data-field='courseControl.points']")) {
       return;
     }
+    if (event.target.closest("[data-column-f-text]")) {
+      return;
+    }
     const cell = event.target.closest("[data-iscd-cell]");
     const row = event.target.closest("[data-control-id]");
     if (!row) return;
@@ -607,6 +624,11 @@ export function createAppShellCoursePanelMethods(deps) {
       }, "Team add control role");
       return;
     }
+    const columnFInput = event.target.closest("[data-column-f-text]");
+    if (columnFInput) {
+      this.updateColumnFTextInput(columnFInput);
+      return;
+    }
     const pointsInput = event.target.closest("[data-field='courseControl.points']");
     if (!pointsInput) return;
     const courseControlId = Number(pointsInput.dataset.courseControlId);
@@ -616,6 +638,17 @@ export function createAppShellCoursePanelMethods(deps) {
       if (!courseControl) return;
       courseControl.points = Math.max(0, Number(pointsInput.value) || 0);
     }, "Change points");
+  },
+
+  updateColumnFTextInput(input) {
+    const controlId = Number(input.dataset.controlId);
+    if (!controlId) return;
+    const value = normalizeColumnFText(input.value);
+    this.store.updateEvent(model => {
+      const control = getControl(model, controlId);
+      if (!control) return;
+      updateControlDescription(control, "F", "", value);
+    }, "Change column F text");
   }
 
   };

@@ -761,6 +761,12 @@ button:hover {
   font-size: 11px;
 }
 
+.iscd-cell-button.compact {
+  width: 28px;
+  min-height: 24px;
+  padding: 0;
+}
+
 .iscd-cell-button:hover,
 .description-table tr.selected .iscd-cell-button:hover {
   background: #fff;
@@ -774,6 +780,24 @@ button:hover {
 
 .score-cell {
   text-align: center;
+}
+
+.iscd-cell-with-input {
+  display: grid;
+  grid-template-columns: 28px minmax(38px, 1fr);
+  align-items: center;
+  gap: 3px;
+}
+
+.column-f-text-input {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  border: 1px solid #cfd6dc;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 12px;
+  line-height: 1;
 }
 
 .points-input {

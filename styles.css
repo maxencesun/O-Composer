@@ -1396,7 +1396,10 @@ button:hover {
   body {
     width: 100%;
     max-width: 100%;
-    overflow-x: hidden;
+    height: var(--o-composer-viewport-height, 100dvh);
+    max-height: var(--o-composer-viewport-height, 100dvh);
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   .app-frame {

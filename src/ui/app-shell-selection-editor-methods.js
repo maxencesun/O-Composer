@@ -30,6 +30,8 @@ export function createAppShellSelectionEditorMethods(deps) {
     updateControlDescription,
     DESCRIPTION_KINDS,
     ISCD_COLUMNS,
+    columnFDescriptionDisplayValue,
+    columnFDescriptionPickerValue,
     createDescriptionSpecialOptions,
     descriptionLanguageForEvent,
     drawIscdSymbol,
@@ -434,8 +436,9 @@ export function createAppShellSelectionEditorMethods(deps) {
       <div class="description-edit">
         ${ISCD_COLUMNS.map(([box, label]) => {
           const description = descriptions.get(box) || {};
-          const selectedValue = description.ref || description.text || "";
-          const isColumnFText = box === "F" && isColumnFTextValue(selectedValue);
+          const selectedValue = box === "F" ? columnFDescriptionPickerValue(description) : description.ref || description.text || "";
+          const displayValue = box === "F" ? columnFDescriptionDisplayValue(description) : selectedValue;
+          const isColumnFText = box === "F" && isColumnFTextValue(displayValue);
           return `
             <label>${box}
               <select data-description-box="${box}" data-description-part="ref" title="${escapeAttr(this.t(label))}">
@@ -444,7 +447,7 @@ export function createAppShellSelectionEditorMethods(deps) {
                   return `<option value="${escapeAttr(value)}" ${selected ? "selected" : ""}>${escapeHtml(optionText === "Not specified" ? this.t(optionText) : optionText)}</option>`;
                 }).join("")}
               </select>
-              ${isColumnFText ? `<input data-description-text-box="F" class="column-f-text-input" value="${escapeAttr(normalizeColumnFText(selectedValue))}" inputmode="decimal">` : ""}
+              ${isColumnFText ? `<input data-description-text-box="F" class="column-f-text-input" value="${escapeAttr(normalizeColumnFText(displayValue))}" inputmode="decimal">` : ""}
             </label>`;
         }).join("")}
       </div>

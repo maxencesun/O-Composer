@@ -308,9 +308,15 @@ export function iscdSymbolLabel(column, value, language = currentAppLanguage()) 
 
 export function storageForIscdSelection(column, value) {
   const normalized = normalizeIscdSymbolId(value);
-  const columnFText = column === "F" ? columnFTextForSymbolId(normalized) || normalizeColumnFText(value) : "";
-  if (column === "F" && isColumnFTextValue(columnFText)) {
-    return { ref: "", text: columnFText };
+  if (column === "F") {
+    const symbolText = columnFTextForSymbolId(normalized);
+    if (symbolText) {
+      return { ref: normalized, text: symbolText };
+    }
+    const columnFText = normalizeColumnFText(value);
+    if (isColumnFTextValue(columnFText)) {
+      return { ref: "", text: columnFText };
+    }
   }
   return { ref: value, text: "" };
 }
@@ -1185,7 +1191,7 @@ function arrow(ctx, cx, cy, r, degrees, both = false) { const a = degrees * Math
 
 function descriptionValue(control, box) {
   const desc = control.descriptions?.find(description => description.box === box);
-  if (box === "F" && desc?.text && !desc?.ref) {
+  if (box === "F" && desc?.text && (isColumnFTextValue(desc.text) || isColumnFTextValue(desc.ref))) {
     return COLUMN_F_TEXT_PREFIX + desc.text;
   }
   return normalizeIscdSymbolId(desc?.ref || desc?.text || "");
@@ -1300,10 +1306,6 @@ function formatDirectiveDistance(lengthMeters) {
 }
 
 function symbolOptionValue(column, symbol) {
-  if (column === "F") {
-    const columnFText = columnFTextForSymbolId(symbol.id);
-    return columnFText ? COLUMN_F_TEXT_PREFIX + columnFText : symbol.id;
-  }
   return symbol.id;
 }
 
@@ -1331,6 +1333,19 @@ export function isColumnFTextValue(value) {
   if (existingSymbol && (existingSymbol.strokes || []).length) return false;
   const text = normalizeColumnFText(value);
   return /^[0-9]+(?:[.,][0-9]+)?m?(?:[xX/|][0-9]+(?:[.,][0-9]+)?m?)*$/.test(text);
+}
+
+export function columnFDescriptionDisplayValue(description) {
+  const ref = description?.ref || "";
+  const text = description?.text || "";
+  if (text && (isColumnFTextValue(text) || isColumnFTextValue(ref))) {
+    return COLUMN_F_TEXT_PREFIX + text;
+  }
+  return ref || text;
+}
+
+export function columnFDescriptionPickerValue(description) {
+  return description?.ref || columnFDescriptionDisplayValue(description);
 }
 
 function columnFTextLabel(value, language = currentAppLanguage()) {

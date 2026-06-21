@@ -255,6 +255,7 @@ export function createAppShellMenuMethods(deps) {
   } = deps;
   return {
   bindEvents() {
+    this.bindRootScrollLock();
     for (const menu of this.querySelectorAll(".menubar .menu")) {
       menu.addEventListener("toggle", () => {
         if (menu.open) {
@@ -563,6 +564,72 @@ export function createAppShellMenuMethods(deps) {
       event.stopPropagation();
       lockRootScroll();
     }, { passive: false });
+  },
+
+  bindRootScrollLock() {
+    const lock = () => this.lockRootScrollPosition();
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+    window.addEventListener("scroll", lock, { passive: true });
+    document.addEventListener("wheel", event => {
+      if (this.shouldAllowRootScrollEvent(event, event.deltaY, event.deltaX)) {
+        requestAnimationFrame(lock);
+        return;
+      }
+      event.preventDefault();
+      lock();
+    }, { capture: true, passive: false });
+    document.addEventListener("touchstart", event => {
+      lastTouchX = event.touches[0]?.clientX || 0;
+      lastTouchY = event.touches[0]?.clientY || 0;
+    }, { capture: true, passive: true });
+    document.addEventListener("touchmove", event => {
+      const touchX = event.touches[0]?.clientX || lastTouchX;
+      const touchY = event.touches[0]?.clientY || lastTouchY;
+      const deltaX = lastTouchX - touchX;
+      const deltaY = lastTouchY - touchY;
+      lastTouchX = touchX;
+      lastTouchY = touchY;
+      if (this.shouldAllowRootScrollEvent(event, deltaY, deltaX)) {
+        requestAnimationFrame(lock);
+        return;
+      }
+      event.preventDefault();
+      lock();
+    }, { capture: true, passive: false });
+  },
+
+  shouldAllowRootScrollEvent(event, deltaY = 0, deltaX = 0) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return false;
+    if (target.closest(".map-canvas")) return true;
+    if (Math.abs(deltaX) > Math.abs(deltaY)) return true;
+    const scroller = target.closest([
+      "#selectionPanel",
+      ".panel-block",
+      ".menubar",
+      ".menu-list",
+      ".command-body",
+      ".print-area-form",
+      ".pdf-export-options",
+      ".variation-tree"
+    ].join(","));
+    return scroller ? canScrollElement(scroller, deltaY) : false;
+  },
+
+  lockRootScrollPosition() {
+    const root = document.documentElement;
+    if (window.scrollX || window.scrollY) {
+      window.scrollTo(0, 0);
+    }
+    if (root.scrollLeft || root.scrollTop) {
+      root.scrollLeft = 0;
+      root.scrollTop = 0;
+    }
+    if (document.body && (document.body.scrollLeft || document.body.scrollTop)) {
+      document.body.scrollLeft = 0;
+      document.body.scrollTop = 0;
+    }
   },
 
   closeTopMenusWhenPointerLeaves(event) {

@@ -850,7 +850,8 @@ export function createAppShellCommandMethods(deps) {
       const value = box === "F" ? normalizeColumnFText(target.value) : target.value;
       this.store.updateEvent(model => {
         const control = getControl(model, selection.id);
-        updateControlDescription(control, box, "", value);
+        const existing = control?.descriptions?.find(description => description.box === box);
+        updateControlDescription(control, box, existing?.ref || "", value);
       }, "Change description text");
       return;
     }

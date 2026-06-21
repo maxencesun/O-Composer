@@ -28,7 +28,7 @@ export const ISCD_SYMBOLS = Object.freeze({
   C: [["", "Not specified"], ["north", "Northern"], ["north-east", "North-eastern"], ["east", "Eastern"], ["south-east", "South-eastern"], ["south", "Southern"], ["south-west", "South-western"], ["west", "Western"], ["north-west", "North-western"], ["upper", "Upper"], ["lower", "Lower"], ["middle", "Middle"]],
   D: [["", "Not specified"], ["terrace", "Terrace"], ["spur", "Spur"], ["reentrant", "Re-entrant"], ["earth-bank", "Earth bank"], ["earth-wall", "Earth wall"], ["erosion-gully", "Erosion gully"], ["knoll", "Small knoll"], ["depression", "Depression"], ["pit", "Pit"], ["cliff", "Cliff"], ["rock-pillar", "Rock pillar"], ["cave", "Cave"], ["boulder", "Boulder"], ["boulder-cluster", "Boulder cluster"], ["stony-ground", "Stony ground"], ["lake", "Lake"], ["pond", "Pond"], ["waterhole", "Waterhole"], ["river", "River"], ["stream", "Stream"], ["ditch", "Ditch"], ["marsh", "Marsh"], ["narrow-marsh", "Narrow marsh"], ["well", "Well"], ["spring", "Spring"], ["open-land", "Open land"], ["forest-corner", "Forest corner"], ["clearing", "Clearing"], ["thicket", "Thicket"], ["hedge", "Hedge"], ["vegetation-boundary", "Vegetation boundary"], ["copse", "Copse"], ["prominent-tree", "Prominent tree"], ["rootstock", "Rootstock"], ["road", "Road"], ["track", "Track"], ["path", "Path"], ["ride", "Ride"], ["bridge", "Bridge"], ["power-line", "Power line"], ["pylon", "Pylon"], ["tunnel", "Tunnel"], ["wall", "Wall"], ["fence", "Fence"], ["crossing-point", "Crossing point"], ["building", "Building"], ["paved-area", "Paved area"], ["ruin", "Ruin"], ["pipeline", "Pipeline"], ["tower", "Tower"], ["cairn", "Cairn"], ["monument", "Monument"], ["railway", "Railway / tramway"]],
   E: [["", "Not specified"], ["low", "Low"], ["shallow", "Shallow"], ["deep", "Deep"], ["overgrown", "Overgrown"], ["open", "Open"], ["rocky", "Rocky"], ["marshy", "Marshy"], ["sandy", "Sandy"], ["ruined", "Ruined"]],
-  F: [["", "Not specified"], ["height", "Height"], ["length", "Length"], ["width", "Width"], ["height-width", "Height and width"], ["junction", "Junction"], ["crossing", "Crossing"], ["bend", "Bend"], ["fork", "Fork"], ["between", "Between"]],
+  F: [["", "Not specified"], ["9.1high", "Height of feature"], ["9.1deep", "Depth of feature"], ["9.2", "Size of feature"], ["9.3high", "Height of feature on slope"], ["9.3deep", "Depth of feature on slope"], ["9.4", "Size of two features"], ["height", "Height"], ["length", "Length"], ["width", "Width"], ["height-width", "Height and width"], ["junction", "Junction"], ["crossing", "Crossing"], ["bend", "Bend"], ["fork", "Fork"], ["between", "Between"]],
   G: [["", "Not specified"], ["north-side", "North side"], ["north-east-side", "North-east side"], ["east-side", "East side"], ["south-east-side", "South-east side"], ["south-side", "South side"], ["south-west-side", "South-west side"], ["west-side", "West side"], ["north-west-side", "North-west side"], ["top", "Top"], ["foot", "Foot"], ["beneath", "Beneath"], ["edge", "Edge"], ["end", "End"], ["inside-corner", "Inside corner"], ["outside-corner", "Outside corner"], ["between", "Between"]],
   H: [["", "Not specified"], ["taped-route", "Taped route"], ["marked-route", "Marked route"], ["mandatory-crossing", "Mandatory crossing"], ["refreshment", "Refreshment"], ["radio", "Radio control"], ["first-aid", "First aid"], ["map-exchange", "Map exchange"], ["map-flip", "Map flip"]]
 });
@@ -143,6 +143,12 @@ const FALLBACK_ISCD_LABEL_TRANSLATIONS = Object.freeze({
     "Sandy": "沙质",
     "Ruined": "毁坏",
     "Height": "高度",
+    "Height of feature": "特征物高度",
+    "Depth of feature": "特征物深度",
+    "Size of feature": "特征物尺寸",
+    "Height of feature on slope": "坡上特征物高度",
+    "Depth of feature on slope": "坡上特征物深度",
+    "Size of two features": "两个特征物尺寸",
     "Length": "长度",
     "Width": "宽度",
     "Height and width": "高度和宽度",

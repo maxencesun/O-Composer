@@ -1339,6 +1339,13 @@ export function columnFOptionDisplayValue(value) {
   return text ? COLUMN_F_TEXT_PREFIX + text : value;
 }
 
+export function columnFOptionVisualKey(value) {
+  const normalized = normalizeIscdSymbolId(value);
+  const text = columnFTextForSymbolId(normalized);
+  if (text) return `text:${normalizeColumnFText(text)}`;
+  return `symbol:${COLUMN_F_VISUAL_ALIASES[normalized] || normalized}`;
+}
+
 export function normalizeColumnFText(value) {
   const text = String(value || "").trim();
   const unprefixed = text.startsWith(COLUMN_F_TEXT_PREFIX) ? text.slice(COLUMN_F_TEXT_PREFIX.length) : text;

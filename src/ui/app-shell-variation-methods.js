@@ -31,6 +31,7 @@ export function createAppShellVariationMethods(deps) {
     DESCRIPTION_KINDS,
     ISCD_COLUMNS,
     columnFOptionDisplayValue,
+    columnFOptionVisualKey,
     createDescriptionSpecialOptions,
     descriptionLanguageForEvent,
     drawIscdSymbol,
@@ -754,9 +755,17 @@ export function createAppShellVariationMethods(deps) {
     const language = descriptionLanguageForEvent(this.store.snapshot().eventModel);
     const options = symbolOptionsForColumn(box, language);
     const selectedColumnFText = box === "F" && isColumnFTextValue(selectedValue);
+    const seenPreviewKeys = new Set();
+    const pickerOptions = options.filter(([value]) => {
+      if (box !== "F") return true;
+      const key = columnFOptionVisualKey(value);
+      if (seenPreviewKeys.has(key)) return false;
+      seenPreviewKeys.add(key);
+      return true;
+    });
     return `
       <div class="iscd-picker-grid">
-        ${options.map(([value, label]) => {
+        ${pickerOptions.map(([value, label]) => {
           const selected = value === selectedValue || (selectedColumnFText && normalizeColumnFText(value) === normalizeColumnFText(selectedValue));
           const previewValue = box === "F" ? columnFOptionDisplayValue(value) : value;
           return `

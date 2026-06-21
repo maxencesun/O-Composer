@@ -37,6 +37,7 @@ import {
   columnFDescriptionDisplayValue,
   columnFDescriptionPickerValue,
   columnFOptionDisplayValue,
+  columnFOptionVisualKey,
   createDescriptionSpecialOptions,
   descriptionLanguageForEvent,
   drawIscdSymbol,
@@ -49,7 +50,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=innerTest-20260621-7";
+} from "../domain/control-descriptions.js?v=innerTest-20260621-8";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -106,16 +107,16 @@ import {
   variationDisplayLabel,
   variationForCode
 } from "../domain/relay-variations.js";
-import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=innerTest-20260621-7";
+import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=innerTest-20260621-8";
 import { iconSvg } from "./icons.js";
 import { MapView } from "./map-view.js";
 import { createAppShellTemplateMethods } from "./app-shell-template-methods.js";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=innerTest-20260621-7";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=innerTest-20260621-7";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=innerTest-20260621-7";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=innerTest-20260621-7";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=innerTest-20260621-7";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=innerTest-20260621-7";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=innerTest-20260621-8";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=innerTest-20260621-8";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=innerTest-20260621-8";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=innerTest-20260621-8";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=innerTest-20260621-8";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=innerTest-20260621-8";
 import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js";
 import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js";
 import {
@@ -966,6 +967,7 @@ const APP_SHELL_METHOD_DEPS = {
   columnFDescriptionDisplayValue,
   columnFDescriptionPickerValue,
   columnFOptionDisplayValue,
+  columnFOptionVisualKey,
   createDescriptionSpecialOptions,
   descriptionLanguageForEvent,
   drawIscdSymbol,

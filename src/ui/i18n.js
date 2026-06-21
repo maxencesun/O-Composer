@@ -25,6 +25,7 @@ const ZH = Object.freeze({
   "Preparing map view…": "正在准备地图视图…",
   "Restoring cached session…": "正在恢复缓存会话…",
   "Loading control symbols…": "正在加载检查点符号…",
+  "Could not load control symbols.": "无法加载检查点符号。",
   "Finalizing…": "正在完成初始化…",
   "Ready.": "准备完成。",
   "Desktop UI": "电脑版",

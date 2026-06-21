@@ -1319,6 +1319,11 @@ function columnFTextForSymbolId(id) {
   return COLUMN_F_TEXT_SYMBOL_EXAMPLES[id] || "";
 }
 
+export function columnFOptionDisplayValue(value) {
+  const text = columnFTextForSymbolId(normalizeIscdSymbolId(value));
+  return text ? COLUMN_F_TEXT_PREFIX + text : value;
+}
+
 export function normalizeColumnFText(value) {
   const text = String(value || "").trim();
   const unprefixed = text.startsWith(COLUMN_F_TEXT_PREFIX) ? text.slice(COLUMN_F_TEXT_PREFIX.length) : text;

@@ -509,6 +509,10 @@ export function insertionCourseControlId(state) {
     return selection.courseControl;
   }
   if (selection.type === "control") {
+    const selectedCourseControl = Number(selection.courseControl) || 0;
+    if (selectedCourseControl && courseControlTopologyIds(state.eventModel, courseId).has(selectedCourseControl)) {
+      return selectedCourseControl;
+    }
     return courseView(state.eventModel, courseId, { allBranches: false })
       .find(row => Number(row.control?.id) === Number(selection.id))
       ?.courseControl?.id || null;
@@ -531,6 +535,12 @@ export function insertionBeforeCourseControlId(state) {
     if (control?.kind === "finish") return Number(courseControl.id);
   }
   if (selection?.type === "control") {
+    const selectedCourseControl = Number(selection.courseControl) || 0;
+    if (selectedCourseControl && courseControlTopologyIds(state.eventModel, courseId).has(selectedCourseControl)) {
+      const courseControl = getCourseControl(state.eventModel, selectedCourseControl);
+      const control = getControl(state.eventModel, courseControl?.control);
+      if (control?.kind === "finish") return selectedCourseControl;
+    }
     const row = courseView(state.eventModel, courseId, { allBranches: false })
       .find(item => Number(item.control?.id) === Number(selection.id));
     if (row?.control?.kind === "finish") return Number(row.courseControl?.id) || null;
@@ -590,6 +600,9 @@ export function variationAnchorCourseControl(eventModel, courseId, ui = {}) {
     return variationAnchorIsUsable(eventModel, candidate) ? candidate : null;
   }
   if (selection?.type === "control") {
+    const selectedCourseControl = Number(selection.courseControl) || 0;
+    const courseControl = rowCourseControls.get(selectedCourseControl) || null;
+    if (variationAnchorIsUsable(eventModel, courseControl)) return courseControl;
     const candidate = rows.find(row => Number(row.control?.id) === Number(selection.id))?.courseControl || null;
     return variationAnchorIsUsable(eventModel, candidate) ? candidate : null;
   }

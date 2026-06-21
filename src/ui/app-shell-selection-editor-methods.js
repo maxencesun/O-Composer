@@ -36,7 +36,9 @@ export function createAppShellSelectionEditorMethods(deps) {
     ensureIscdSymbolDb,
     existingDescriptionSpecialForTarget,
     getIscdSymbolOptions,
+    isColumnFTextValue,
     iscdSymbolLabel,
+    normalizeColumnFText,
     scoreCourseDescriptionRows,
     storageForIscdSelection,
     resizedDescriptionSpecial,
@@ -430,12 +432,21 @@ export function createAppShellSelectionEditorMethods(deps) {
       ${teamControl}
       <h3>${escapeHtml(this.t("Descriptions"))}</h3>
       <div class="description-edit">
-        ${ISCD_COLUMNS.map(([box, label]) => `
-          <label>${box}
-            <select data-description-box="${box}" data-description-part="ref" title="${escapeAttr(this.t(label))}">
-              ${symbolOptionsForColumn(box, language).map(([value, optionText]) => `<option value="${escapeAttr(value)}" ${value === (descriptions.get(box)?.ref || "") ? "selected" : ""}>${escapeHtml(optionText === "Not specified" ? this.t(optionText) : optionText)}</option>`).join("")}
-            </select>
-          </label>`).join("")}
+        ${ISCD_COLUMNS.map(([box, label]) => {
+          const description = descriptions.get(box) || {};
+          const selectedValue = description.ref || description.text || "";
+          const isColumnFText = box === "F" && isColumnFTextValue(selectedValue);
+          return `
+            <label>${box}
+              <select data-description-box="${box}" data-description-part="ref" title="${escapeAttr(this.t(label))}">
+                ${symbolOptionsForColumn(box, language).map(([value, optionText]) => {
+                  const selected = value === selectedValue || (isColumnFText && normalizeColumnFText(value) === normalizeColumnFText(selectedValue));
+                  return `<option value="${escapeAttr(value)}" ${selected ? "selected" : ""}>${escapeHtml(optionText === "Not specified" ? this.t(optionText) : optionText)}</option>`;
+                }).join("")}
+              </select>
+              ${isColumnFText ? `<input data-description-text-box="F" class="column-f-text-input" value="${escapeAttr(normalizeColumnFText(selectedValue))}" inputmode="decimal">` : ""}
+            </label>`;
+        }).join("")}
       </div>
       <label class="stacked">${escapeHtml(this.t("Punch pattern"))}
         <textarea data-field="control.punchPatternText" rows="5">${escapeHtml(control.punchPattern?.rows?.join("\n") || "")}</textarea>

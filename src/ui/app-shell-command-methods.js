@@ -37,6 +37,7 @@ export function createAppShellCommandMethods(deps) {
     existingDescriptionSpecialForTarget,
     getIscdSymbolOptions,
     iscdSymbolLabel,
+    normalizeColumnFText,
     scoreCourseDescriptionRows,
     storageForIscdSelection,
     resizedDescriptionSpecial,
@@ -805,6 +806,16 @@ export function createAppShellCommandMethods(deps) {
       return;
     }
     if (!selection) return;
+
+    if (target.dataset.descriptionTextBox && selection.type === "control") {
+      const box = target.dataset.descriptionTextBox;
+      const value = box === "F" ? normalizeColumnFText(target.value) : target.value;
+      this.store.updateEvent(model => {
+        const control = getControl(model, selection.id);
+        updateControlDescription(control, box, "", value);
+      }, "Change description text");
+      return;
+    }
 
     if (target.dataset.descriptionBox && selection.type === "control") {
       const storage = storageForIscdSelection(target.dataset.descriptionBox, target.value);

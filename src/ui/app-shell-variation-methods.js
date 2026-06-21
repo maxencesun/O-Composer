@@ -36,7 +36,9 @@ export function createAppShellVariationMethods(deps) {
     ensureIscdSymbolDb,
     existingDescriptionSpecialForTarget,
     getIscdSymbolOptions,
+    isColumnFTextValue,
     iscdSymbolLabel,
+    normalizeColumnFText,
     scoreCourseDescriptionRows,
     storageForIscdSelection,
     resizedDescriptionSpecial,
@@ -740,13 +742,17 @@ export function createAppShellVariationMethods(deps) {
   iscdSymbolPickerHtml(controlId, box, selectedValue = "") {
     const language = descriptionLanguageForEvent(this.store.snapshot().eventModel);
     const options = symbolOptionsForColumn(box, language);
+    const selectedColumnFText = box === "F" && isColumnFTextValue(selectedValue);
     return `
       <div class="iscd-picker-grid">
-        ${options.map(([value, label]) => `
-          <button type="button" class="iscd-picker-option ${value === selectedValue ? "selected" : ""}" data-iscd-symbol="${escapeAttr(value)}" data-control-id="${controlId}" data-box="${box}" data-symbol-tooltip="${escapeAttr(label === "Not specified" ? this.t(label) : label)}">
+        ${options.map(([value, label]) => {
+          const selected = value === selectedValue || (selectedColumnFText && normalizeColumnFText(value) === normalizeColumnFText(selectedValue));
+          return `
+          <button type="button" class="iscd-picker-option ${selected ? "selected" : ""}" data-iscd-symbol="${escapeAttr(value)}" data-control-id="${controlId}" data-box="${box}" data-symbol-tooltip="${escapeAttr(label === "Not specified" ? this.t(label) : label)}">
             <canvas class="iscd-picker-canvas" width="36" height="36" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
           </button>
-        `).join("")}
+        `;
+        }).join("")}
       </div>
     `;
   },

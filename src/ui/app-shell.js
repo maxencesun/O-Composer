@@ -40,11 +40,13 @@ import {
   ensureIscdSymbolDb,
   existingDescriptionSpecialForTarget,
   getIscdSymbolOptions,
+  isColumnFTextValue,
   iscdSymbolLabel,
+  normalizeColumnFText,
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js";
+} from "../domain/control-descriptions.js?v=innerTest-20260621-2";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -946,7 +948,9 @@ const APP_SHELL_METHOD_DEPS = {
   ensureIscdSymbolDb,
   existingDescriptionSpecialForTarget,
   getIscdSymbolOptions,
+  isColumnFTextValue,
   iscdSymbolLabel,
+  normalizeColumnFText,
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial,

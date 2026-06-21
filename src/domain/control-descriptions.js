@@ -1317,13 +1317,13 @@ function columnFTextForSymbolId(id) {
   return COLUMN_F_TEXT_SYMBOL_EXAMPLES[id] || "";
 }
 
-function normalizeColumnFText(value) {
+export function normalizeColumnFText(value) {
   const text = String(value || "").trim();
   const unprefixed = text.startsWith(COLUMN_F_TEXT_PREFIX) ? text.slice(COLUMN_F_TEXT_PREFIX.length) : text;
   return COLUMN_F_TEXT_SYMBOL_EXAMPLES[normalizeIscdSymbolId(unprefixed)] || unprefixed.replace(/\s+/g, "");
 }
 
-function isColumnFTextValue(value) {
+export function isColumnFTextValue(value) {
   const raw = String(value || "").trim();
   if (raw.startsWith(COLUMN_F_TEXT_PREFIX)) return true;
   const normalized = normalizeIscdSymbolId(raw);

@@ -291,9 +291,18 @@ export function getIscdSymbolOptions(column, language = currentAppLanguage()) {
     return [];
   }
   const allowedKinds = column === "D" ? new Set(["D", "A", "Y"]) : new Set([column]);
+  const seenColumnFText = new Set();
   return symbolDb.order
     .map(id => symbolDb.symbols.get(id))
     .filter(symbol => symbol && allowedKinds.has(symbol.kind) && symbolInDescriptionStandard(symbol, DESCRIPTION_STANDARD))
+    .filter(symbol => {
+      if (column !== "F") return true;
+      const text = columnFTextForSymbolId(symbol.id);
+      if (!text) return true;
+      if (seenColumnFText.has(text)) return false;
+      seenColumnFText.add(text);
+      return true;
+    })
     .map(symbol => [symbolOptionValue(column, symbol), symbolOptionLabel(column, symbol, language)]);
 }
 

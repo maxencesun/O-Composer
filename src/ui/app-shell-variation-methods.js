@@ -30,6 +30,7 @@ export function createAppShellVariationMethods(deps) {
     updateControlDescription,
     DESCRIPTION_KINDS,
     ISCD_COLUMNS,
+    columnFOptionDisplayValue,
     createDescriptionSpecialOptions,
     descriptionLanguageForEvent,
     drawIscdSymbol,
@@ -747,9 +748,10 @@ export function createAppShellVariationMethods(deps) {
       <div class="iscd-picker-grid">
         ${options.map(([value, label]) => {
           const selected = value === selectedValue || (selectedColumnFText && normalizeColumnFText(value) === normalizeColumnFText(selectedValue));
+          const previewValue = box === "F" ? columnFOptionDisplayValue(value) : value;
           return `
           <button type="button" class="iscd-picker-option ${selected ? "selected" : ""}" data-iscd-symbol="${escapeAttr(value)}" data-control-id="${controlId}" data-box="${box}" data-symbol-tooltip="${escapeAttr(label === "Not specified" ? this.t(label) : label)}">
-            <canvas class="iscd-picker-canvas" width="36" height="36" data-column="${box}" data-symbol="${escapeAttr(value)}"></canvas>
+            <canvas class="iscd-picker-canvas" width="36" height="36" data-column="${box}" data-symbol="${escapeAttr(previewValue)}"></canvas>
           </button>
         `;
         }).join("")}

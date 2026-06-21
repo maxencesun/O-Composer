@@ -36,6 +36,7 @@ import {
   ISCD_COLUMNS,
   columnFDescriptionDisplayValue,
   columnFDescriptionPickerValue,
+  columnFOptionDisplayValue,
   createDescriptionSpecialOptions,
   descriptionLanguageForEvent,
   drawIscdSymbol,
@@ -157,6 +158,7 @@ import {
   objectForSelection,
   teamCourseDescriptionPanelRows,
   courseDisplayOptions,
+  applyCourseSelectionUi,
   TOPOLOGY_HEIGHT_UNIT,
   layoutVariationTopology,
   topologyLegPath,
@@ -180,6 +182,7 @@ import {
   formatSvgNumber,
   insertionCourseControlId,
   insertionBeforeCourseControlId,
+  selectedLegCourseControlPair,
   variationAnchorCourseControl,
   canAddVariationAtCourseControl,
   normalizedVariationBranch,
@@ -336,7 +339,7 @@ export class PurplePenApp extends HTMLElement {
     installAppResourceFetchCache(APP_RESOURCE_CACHE_NAME, APP_RESOURCE_URLS);
     this.startResourcePrecache();
     this.deferMapLayoutRefresh();
-    const cachedSessionReady = Promise.resolve(this.restoreCachedSession())
+    const cachedSessionReady = Promise.resolve(this.restoreInitialEvent())
       .then(result => {
         this.updateInitialLoadingProgress(84, this.t("Loading control symbols…"));
         return result;
@@ -883,6 +886,22 @@ export class PurplePenApp extends HTMLElement {
     this.cacheReady = true;
   }
 
+  async restoreInitialEvent() {
+    try {
+      if (await this.loadLinkedOcpFromUrl()) {
+        this.cacheReady = true;
+        return;
+      }
+    }
+    catch (error) {
+      console.warn(error);
+      this.store.updateUi(ui => {
+        ui.status = error.message || this.t("Could not load linked OCP.");
+      }, "Linked OCP load failed");
+    }
+    await this.restoreCachedSession();
+  }
+
   scheduleSessionCache(state) {
     if (!this.cacheReady || !hasCookieConsent()) return;
     clearTimeout(this.cacheTimer);
@@ -946,6 +965,7 @@ const APP_SHELL_METHOD_DEPS = {
   ISCD_COLUMNS,
   columnFDescriptionDisplayValue,
   columnFDescriptionPickerValue,
+  columnFOptionDisplayValue,
   createDescriptionSpecialOptions,
   descriptionLanguageForEvent,
   drawIscdSymbol,
@@ -1040,6 +1060,7 @@ const APP_SHELL_METHOD_DEPS = {
   objectForSelection,
   teamCourseDescriptionPanelRows,
   courseDisplayOptions,
+  applyCourseSelectionUi,
   TOPOLOGY_HEIGHT_UNIT,
   layoutVariationTopology,
   topologyLegPath,
@@ -1063,6 +1084,7 @@ const APP_SHELL_METHOD_DEPS = {
   formatSvgNumber,
   insertionCourseControlId,
   insertionBeforeCourseControlId,
+  selectedLegCourseControlPair,
   variationAnchorCourseControl,
   canAddVariationAtCourseControl,
   normalizedVariationBranch,

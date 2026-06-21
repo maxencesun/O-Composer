@@ -27,7 +27,7 @@ const COLUMN_F_VISUAL_ALIASES = Object.freeze({
 export const ISCD_SYMBOLS = Object.freeze({
   C: [["", "Not specified"], ["north", "Northern"], ["north-east", "North-eastern"], ["east", "Eastern"], ["south-east", "South-eastern"], ["south", "Southern"], ["south-west", "South-western"], ["west", "Western"], ["north-west", "North-western"], ["upper", "Upper"], ["lower", "Lower"], ["middle", "Middle"]],
   D: [["", "Not specified"], ["terrace", "Terrace"], ["spur", "Spur"], ["reentrant", "Re-entrant"], ["earth-bank", "Earth bank"], ["earth-wall", "Earth wall"], ["erosion-gully", "Erosion gully"], ["knoll", "Small knoll"], ["depression", "Depression"], ["pit", "Pit"], ["cliff", "Cliff"], ["rock-pillar", "Rock pillar"], ["cave", "Cave"], ["boulder", "Boulder"], ["boulder-cluster", "Boulder cluster"], ["stony-ground", "Stony ground"], ["lake", "Lake"], ["pond", "Pond"], ["waterhole", "Waterhole"], ["river", "River"], ["stream", "Stream"], ["ditch", "Ditch"], ["marsh", "Marsh"], ["narrow-marsh", "Narrow marsh"], ["well", "Well"], ["spring", "Spring"], ["open-land", "Open land"], ["forest-corner", "Forest corner"], ["clearing", "Clearing"], ["thicket", "Thicket"], ["hedge", "Hedge"], ["vegetation-boundary", "Vegetation boundary"], ["copse", "Copse"], ["prominent-tree", "Prominent tree"], ["rootstock", "Rootstock"], ["road", "Road"], ["track", "Track"], ["path", "Path"], ["ride", "Ride"], ["bridge", "Bridge"], ["power-line", "Power line"], ["pylon", "Pylon"], ["tunnel", "Tunnel"], ["wall", "Wall"], ["fence", "Fence"], ["crossing-point", "Crossing point"], ["building", "Building"], ["paved-area", "Paved area"], ["ruin", "Ruin"], ["pipeline", "Pipeline"], ["tower", "Tower"], ["cairn", "Cairn"], ["monument", "Monument"], ["railway", "Railway / tramway"]],
-  E: [["", "Not specified"], ["low", "Low"], ["shallow", "Shallow"], ["deep", "Deep"], ["overgrown", "Overgrown"], ["open", "Open"], ["rocky", "Rocky"], ["marshy", "Marshy"], ["sandy", "Sandy"], ["ruined", "Ruined"]],
+  E: [["", "Not specified"], ["low", "Low"], ["shallow", "Shallow"], ["deep", "Deep"], ["overgrown", "Overgrown"], ["open", "Open"], ["rocky", "Rocky"], ["marshy", "Marshy"], ["sandy", "Sandy"], ["needle-leaved", "Needle-leaved"], ["broad-leaved", "Broad-leaved"], ["ruined", "Ruined"]],
   F: [["", "Not specified"], ["9.1high", "Height of feature"], ["9.1deep", "Depth of feature"], ["9.2", "Size of feature"], ["9.3high", "Height of feature on slope"], ["9.3deep", "Depth of feature on slope"], ["9.4", "Size of two features"], ["height", "Height"], ["length", "Length"], ["width", "Width"], ["height-width", "Height and width"], ["junction", "Junction"], ["crossing", "Crossing"], ["bend", "Bend"], ["fork", "Fork"], ["between", "Between"]],
   G: [["", "Not specified"], ["north-side", "North side"], ["north-east-side", "North-east side"], ["east-side", "East side"], ["south-east-side", "South-east side"], ["south-side", "South side"], ["south-west-side", "South-west side"], ["west-side", "West side"], ["north-west-side", "North-west side"], ["top", "Top"], ["foot", "Foot"], ["beneath", "Beneath"], ["edge", "Edge"], ["end", "End"], ["inside-corner", "Inside corner"], ["outside-corner", "Outside corner"], ["between", "Between"]],
   H: [["", "Not specified"], ["taped-route", "Taped route"], ["marked-route", "Marked route"], ["mandatory-crossing", "Mandatory crossing"], ["refreshment", "Refreshment"], ["radio", "Radio control"], ["first-aid", "First aid"], ["map-exchange", "Map exchange"], ["map-flip", "Map flip"]]
@@ -141,7 +141,12 @@ const FALLBACK_ISCD_LABEL_TRANSLATIONS = Object.freeze({
     "Rocky": "多石",
     "Marshy": "沼泽",
     "Sandy": "沙质",
-    "Ruined": "毁坏",
+    "Needle-leaved": "针叶",
+    "Broad-leaved": "阔叶",
+    "Ruined": "倒下 / 毁坏",
+    "針葉的": "针叶",
+    "闊葉的": "阔叶",
+    "倒塌毀壞的": "倒下 / 毁坏",
     "Height": "高度",
     "Height of feature": "特征物高度",
     "Depth of feature": "特征物深度",
@@ -242,7 +247,7 @@ const TEXT_LINE_FONT = 0.56;
 const LEGACY_ID_ALIASES = Object.freeze({
   north: "0.1N", "north-east": "0.2NE", east: "0.1E", "south-east": "0.2SE", south: "0.1S", "south-west": "0.2SW", west: "0.1W", "north-west": "0.2NW", upper: "0.3", lower: "0.4", middle: "0.5",
   terrace: "1.1", spur: "1.2", reentrant: "1.3", "earth-bank": "1.4", "earth-wall": "1.5", "erosion-gully": "1.6", knoll: "1.7", depression: "1.10", pit: "1.11", cliff: "2.1", "rock-pillar": "2.2", cave: "2.3", boulder: "2.4", "boulder-cluster": "2.5", "stony-ground": "2.6", lake: "3.1", pond: "3.2", waterhole: "3.3", river: "3.4", stream: "3.5", ditch: "3.6", marsh: "3.7", "narrow-marsh": "3.8", well: "3.9", spring: "3.10", "open-land": "4.1", "forest-corner": "4.2", clearing: "4.3", thicket: "4.4", hedge: "4.5", "vegetation-boundary": "4.6", copse: "4.7", "prominent-tree": "4.8", rootstock: "4.9", road: "5.1", track: "5.2", path: "5.3", ride: "5.4", bridge: "5.5", "power-line": "5.6", pylon: "5.7", tunnel: "5.8", wall: "5.9", fence: "5.10", "crossing-point": "5.11", building: "5.12", "paved-area": "5.13", ruin: "5.14", pipeline: "5.15", tower: "5.16", cairn: "5.17", monument: "5.18", railway: "5.25",
-  low: "8.1", shallow: "8.2", deep: "8.3", overgrown: "8.4", open: "8.5", rocky: "8.6", marshy: "8.7", sandy: "8.8", ruined: "8.9",
+  low: "8.1", shallow: "8.2", deep: "8.3", overgrown: "8.4", open: "8.5", rocky: "8.6", marshy: "8.7", sandy: "8.8", "needle-leaved": "8.9", "broad-leaved": "8.10", ruined: "8.11",
   height: "9.1high", length: "10.1", width: "10.2", "height-width": "9.4", junction: "11.15", crossing: "11.15", bend: "11.7", fork: "11.10", between: "11.15",
   "north-side": "11.1N", "north-east-side": "11.1NE", "east-side": "11.1E", "south-east-side": "11.1SE", "south-side": "11.1S", "south-west-side": "11.1SW", "west-side": "11.1W", "north-west-side": "11.1NW", top: "11.7", foot: "11.8N", beneath: "11.9", edge: "11.10", end: "11.11", "inside-corner": "11.12", "outside-corner": "11.13",
   "first-aid": "12.1", refreshment: "12.2", radio: "12.4", "map-exchange": "13.5", "map-flip": "15.6", "taped-route": "13.1", "marked-route": "13.1", "mandatory-crossing": "13.3"
@@ -290,20 +295,27 @@ export function getIscdSymbolOptions(column, language = currentAppLanguage()) {
   if (!symbolDb) {
     return [];
   }
-  const allowedKinds = column === "D" ? new Set(["D", "A", "Y"]) : new Set([column]);
+  const allowedKindsBySection = column === "D"
+    ? [["D", "A", "Y"]]
+    : column === "E"
+    ? [["E"], ["D"]]
+    : [[column]];
   const seenColumnFText = new Set();
-  return symbolDb.order
-    .map(id => symbolDb.symbols.get(id))
-    .filter(symbol => symbol && allowedKinds.has(symbol.kind) && symbolInDescriptionStandard(symbol, DESCRIPTION_STANDARD))
-    .filter(symbol => {
-      if (column !== "F") return true;
-      const text = columnFTextForSymbolId(symbol.id);
-      if (!text) return true;
-      if (seenColumnFText.has(text)) return false;
-      seenColumnFText.add(text);
-      return true;
-    })
-    .map(symbol => [symbolOptionValue(column, symbol), symbolOptionLabel(column, symbol, language)]);
+  return allowedKindsBySection.flatMap(kinds => {
+    const allowedKinds = new Set(kinds);
+    return symbolDb.order
+      .map(id => symbolDb.symbols.get(id))
+      .filter(symbol => symbol && allowedKinds.has(symbol.kind) && symbolInDescriptionStandard(symbol, DESCRIPTION_STANDARD))
+      .filter(symbol => {
+        if (column !== "F") return true;
+        const text = columnFTextForSymbolId(symbol.id);
+        if (!text) return true;
+        if (seenColumnFText.has(text)) return false;
+        seenColumnFText.add(text);
+        return true;
+      })
+      .map(symbol => [symbolOptionValue(column, symbol), symbolOptionLabel(column, symbol, language)]);
+  });
 }
 
 export function iscdSymbolLabel(column, value, language = currentAppLanguage()) {

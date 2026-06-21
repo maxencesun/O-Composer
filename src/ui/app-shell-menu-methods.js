@@ -366,8 +366,10 @@ export function createAppShellMenuMethods(deps) {
       this.applyMetaSetupForm();
     });
 
-    this.querySelector("#selectionPanel").addEventListener("change", event => this.updateSelectionField(event));
-    this.querySelector("#selectionPanel").addEventListener("click", event => this.handleSelectionPanelClick(event));
+    const selectionPanel = this.querySelector("#selectionPanel");
+    selectionPanel.addEventListener("change", event => this.updateSelectionField(event));
+    selectionPanel.addEventListener("click", event => this.handleSelectionPanelClick(event));
+    this.bindContainedScroll(selectionPanel);
     this.bindWorkspaceResizer();
     this.querySelector("#descriptionPanel").addEventListener("click", event => this.handleDescriptionPanelClick(event));
     this.querySelector("#descriptionPanel").addEventListener("change", event => this.handleDescriptionPanelChange(event));
@@ -502,6 +504,43 @@ export function createAppShellMenuMethods(deps) {
     menuList.addEventListener("wheel", event => {
       if (!isNarrowMobileViewport()) return;
       if (canScrollElement(menuList, event.deltaY)) {
+        event.stopPropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    }, { passive: false });
+  },
+
+  bindContainedScroll(scroller) {
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+    scroller.addEventListener("touchstart", event => {
+      lastTouchX = event.touches[0]?.clientX || 0;
+      lastTouchY = event.touches[0]?.clientY || 0;
+    }, { passive: true });
+    scroller.addEventListener("touchmove", event => {
+      const touchX = event.touches[0]?.clientX || lastTouchX;
+      const touchY = event.touches[0]?.clientY || lastTouchY;
+      const deltaX = lastTouchX - touchX;
+      const deltaY = lastTouchY - touchY;
+      lastTouchX = touchX;
+      lastTouchY = touchY;
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        return;
+      }
+      if (canScrollElement(scroller, deltaY)) {
+        event.stopPropagation();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    }, { passive: false });
+    scroller.addEventListener("wheel", event => {
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        return;
+      }
+      if (canScrollElement(scroller, event.deltaY)) {
         event.stopPropagation();
         return;
       }

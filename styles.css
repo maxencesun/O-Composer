@@ -456,6 +456,7 @@ button:hover {
 .panel-block {
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   border-bottom: 1px solid var(--line);
 }
 
@@ -494,11 +495,15 @@ button:hover {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 #selectionPanel {
+  flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 

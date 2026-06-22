@@ -253,28 +253,39 @@ const LEGACY_ID_ALIASES = Object.freeze({
   "first-aid": "12.1", refreshment: "12.2", radio: "12.4", "map-exchange": "13.5", "map-flip": "15.6", "taped-route": "13.1", "marked-route": "13.1", "mandatory-crossing": "13.3"
 });
 
-let symbolDb = null;
-let symbolDbPromise = null;
+const ISCD_SYMBOL_STATE_KEY = "__oComposerIscdSymbolState";
+const iscdSymbolState = (() => {
+  const fallback = { symbolDb: null, symbolDbPromise: null };
+  try {
+    if (!globalThis[ISCD_SYMBOL_STATE_KEY]) {
+      globalThis[ISCD_SYMBOL_STATE_KEY] = fallback;
+    }
+    return globalThis[ISCD_SYMBOL_STATE_KEY];
+  }
+  catch {
+    return fallback;
+  }
+})();
 
 export async function ensureIscdSymbolDb(url = "./assets/purple-pen-symbols.xml") {
-  if (symbolDb) return symbolDb;
-  if (!symbolDbPromise) {
-    symbolDbPromise = fetch(url)
+  if (iscdSymbolState.symbolDb) return iscdSymbolState.symbolDb;
+  if (!iscdSymbolState.symbolDbPromise) {
+    iscdSymbolState.symbolDbPromise = fetch(url)
       .then(response => {
         if (!response.ok) throw new Error(`Could not load Purple Pen symbols: ${response.status}`);
         return response.text();
       })
       .then(parsePurplePenSymbols)
       .then(db => {
-        symbolDb = db;
+        iscdSymbolState.symbolDb = db;
         return db;
       });
   }
-  return symbolDbPromise;
+  return iscdSymbolState.symbolDbPromise;
 }
 
 export function hasIscdSymbolDb() {
-  return !!symbolDb;
+  return !!iscdSymbolState.symbolDb;
 }
 
 export function getDescriptionLanguageOptions() {
@@ -292,6 +303,7 @@ export function descriptionLanguageForEvent(eventModel) {
 }
 
 export function getIscdSymbolOptions(column, language = currentAppLanguage()) {
+  const symbolDb = iscdSymbolState.symbolDb;
   if (!symbolDb) {
     return [];
   }
@@ -324,6 +336,7 @@ export function iscdSymbolLabel(column, value, language = currentAppLanguage()) 
   if (column === "F" && isColumnFTextValue(value)) {
     return columnFTextLabel(value, language);
   }
+  const symbolDb = iscdSymbolState.symbolDb;
   if (symbolDb?.symbols.has(id)) {
     const symbol = symbolDb.symbols.get(id);
     const localized = localizedSymbolName(symbol, language);
@@ -972,6 +985,7 @@ export function drawIscdSymbol(ctx, column, value, cx, cy, r) {
     drawColumnFText(ctx, normalizeColumnFText(value), cx, cy, r);
     return;
   }
+  const symbolDb = iscdSymbolState.symbolDb;
   if (symbolDb?.symbols.has(normalized)) {
     const symbol = symbolDb.symbols.get(normalized);
     const columnFText = column === "F" ? columnFTextForSymbolId(symbol.id) : "";
@@ -1283,6 +1297,7 @@ function directiveText(symbolId, distance, language) {
 
 function symbolText(id, fallback = "", language = currentAppLanguage()) {
   const normalizedLanguage = normalizeDescriptionLanguage(language);
+  const symbolDb = iscdSymbolState.symbolDb;
   const symbol = symbolDb?.symbols.get(id);
   const localized = hasLocalizedValue(symbol?.texts, normalizedLanguage)
     ? localizedText(symbol.texts, normalizedLanguage)
@@ -1368,6 +1383,7 @@ export function isColumnFTextValue(value) {
   const raw = String(value || "").trim();
   if (raw.startsWith(COLUMN_F_TEXT_PREFIX)) return true;
   const normalized = normalizeIscdSymbolId(raw);
+  const symbolDb = iscdSymbolState.symbolDb;
   const existingSymbol = symbolDb?.symbols.get(normalized);
   if (existingSymbol && (existingSymbol.strokes || []).length) return false;
   const text = normalizeColumnFText(value);

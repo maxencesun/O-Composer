@@ -586,6 +586,7 @@ export function createAppShellMenuMethods(deps) {
       ".panel-block",
       ".menubar",
       ".menu-list",
+      ".iscd-picker-grid",
       ".command-body",
       ".print-area-form",
       ".pdf-export-options",

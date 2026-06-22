@@ -382,7 +382,16 @@ export function selectedLegForSelection(eventModel, ui) {
   const selected = ui.selection;
   if (!["leg", "leg-gap", "leg-bend"].includes(selected?.type)) return null;
   return courseLegs(eventModel, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui))
-    .find(leg => Number(leg.from.control.id) === Number(selected.startControl) && Number(leg.to.control.id) === Number(selected.endControl)) || null;
+    .find(leg => {
+      const sameControls = Number(leg.from.control.id) === Number(selected.startControl)
+        && Number(leg.to.control.id) === Number(selected.endControl);
+      if (!sameControls) return false;
+      const startCourseControl = Number(selected.startCourseControl) || 0;
+      const endCourseControl = Number(selected.endCourseControl) || 0;
+      if (startCourseControl && Number(leg.from.courseControl?.id) !== startCourseControl) return false;
+      if (endCourseControl && Number(leg.to.courseControl?.id) !== endCourseControl) return false;
+      return true;
+    }) || null;
 }
 
 export function selectedControlNumberRow(eventModel, ui) {
@@ -418,7 +427,9 @@ export function legSelection(leg) {
   return {
     type: "leg",
     startControl: leg.from.control.id,
-    endControl: leg.to.control.id
+    endControl: leg.to.control.id,
+    startCourseControl: leg.from.courseControl?.id || null,
+    endCourseControl: leg.to.courseControl?.id || null
   };
 }
 
@@ -427,6 +438,8 @@ export function legGapSelection(leg, gapIndex) {
     type: "leg-gap",
     startControl: leg.from.control.id,
     endControl: leg.to.control.id,
+    startCourseControl: leg.from.courseControl?.id || null,
+    endCourseControl: leg.to.courseControl?.id || null,
     gapIndex
   };
 }
@@ -436,6 +449,8 @@ export function legBendSelection(leg, bendIndex) {
     type: "leg-bend",
     startControl: leg.from.control.id,
     endControl: leg.to.control.id,
+    startCourseControl: leg.from.courseControl?.id || null,
+    endCourseControl: leg.to.courseControl?.id || null,
     bendIndex
   };
 }

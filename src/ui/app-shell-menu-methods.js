@@ -604,18 +604,12 @@ export function createAppShellMenuMethods(deps) {
     if (!target) return false;
     if (target.closest(".map-canvas")) return true;
     if (Math.abs(deltaX) > Math.abs(deltaY)) return true;
-    const scroller = target.closest([
-      "#selectionPanel",
-      ".panel-block",
-      ".menubar",
-      ".menu-list",
-      ".iscd-picker-grid",
-      ".command-body",
-      ".print-area-form",
-      ".pdf-export-options",
-      ".variation-tree"
-    ].join(","));
-    return scroller ? canScrollElement(scroller, deltaY) : false;
+    for (let node = target; node && node instanceof Element; node = node.parentElement) {
+      if (node === document.body || node === document.documentElement) break;
+      if (canScrollElement(node, deltaY)) return true;
+      if (node === this) break;
+    }
+    return false;
   },
 
   lockRootScrollPosition() {

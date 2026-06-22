@@ -5,7 +5,7 @@ import {
   controlsUsedByCourse,
   isTeamFreeCourseControl
 } from "../domain/course-service.js";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=innerTest-20260621-12";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=innerTest-20260621-13";
 import { resolveTextConstants } from "../domain/constants.js";
 import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import {

@@ -50,7 +50,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=innerTest-20260621-13";
+} from "../domain/control-descriptions.js?v=innerTest-20260621-14";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -107,16 +107,16 @@ import {
   variationDisplayLabel,
   variationForCode
 } from "../domain/relay-variations.js";
-import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=innerTest-20260621-13";
+import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=innerTest-20260621-14";
 import { iconSvg } from "./icons.js";
 import { MapView } from "./map-view.js";
 import { createAppShellTemplateMethods } from "./app-shell-template-methods.js";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=innerTest-20260621-13";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=innerTest-20260621-13";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=innerTest-20260621-13";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=innerTest-20260621-13";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=innerTest-20260621-13";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=innerTest-20260621-13";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=innerTest-20260621-14";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=innerTest-20260621-14";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=innerTest-20260621-14";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=innerTest-20260621-14";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=innerTest-20260621-14";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=innerTest-20260621-14";
 import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js";
 import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js";
 import {

@@ -14,7 +14,7 @@ import {
   drawControlDescriptionBlock,
   resizedDescriptionSpecial,
   specialVisibleForCourse
-} from "../domain/control-descriptions.js?v=innerTest-20260621-14";
+} from "../domain/control-descriptions.js?v=innerTest-20260621-15";
 import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js";
 import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
 import {

@@ -26,14 +26,14 @@ import {
   LEGACY_COLOR_ALIASES
 } from "./app-shell-config.js";
 import { saveCachedPdfBasemap } from "../state/cookie-cache.js";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=innerTest-20260621-15";
 import { findById } from "../domain/event-model.js";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=innerTest-20260621-14";
+} from "../domain/control-descriptions.js?v=innerTest-20260621-15";
 import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js";
 import {
   controlKindLabel,
@@ -46,9 +46,9 @@ import {
   isTeamFreeCourseControl
 } from "../domain/course-service.js";
 import { courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
-import { t } from "./i18n.js?v=innerTest-20260621-14";
-import { safeFilePart } from "./app-shell-pdf-helpers.js";
-import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js";
+import { t } from "./i18n.js?v=innerTest-20260621-15";
+import { safeFilePart } from "./app-shell-pdf-helpers.js?v=innerTest-20260621-15";
+import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=innerTest-20260621-15";
 
 export function teamAddControlRoleFromSelection(eventModel, ui, selection) {
   const courseId = ui?.selectedCourseId;

@@ -422,7 +422,9 @@ export function createAppShellDialogMethods(deps) {
         ui.selection = {
           type: "leg",
           startControl: selection.startControl,
-          endControl: selection.endControl
+          endControl: selection.endControl,
+          startCourseControl: selection.startCourseControl || null,
+          endCourseControl: selection.endCourseControl || null
         };
         ui.tool = "leg-bend-add";
         ui.status = this.t("Click the selected purple line to add a bend point.");

@@ -747,7 +747,16 @@ export function createAppShellCommandMethods(deps) {
         gap.length = Math.max(minLength, end - gap.start);
       }
     }, "Adjust line cut");
-    this.store.updateUi(ui => { ui.selection = { type: "leg-gap", startControl: selection.startControl, endControl: selection.endControl, gapIndex: selection.gapIndex }; }, "Select cut");
+    this.store.updateUi(ui => {
+      ui.selection = {
+        type: "leg-gap",
+        startControl: selection.startControl,
+        endControl: selection.endControl,
+        startCourseControl: selection.startCourseControl || null,
+        endCourseControl: selection.endCourseControl || null,
+        gapIndex: selection.gapIndex
+      };
+    }, "Select cut");
   },
 
   addLegBend(selection, point) {
@@ -765,6 +774,8 @@ export function createAppShellCommandMethods(deps) {
         type: "leg-bend",
         startControl: leg.startControl,
         endControl: leg.endControl,
+        startCourseControl: selection.startCourseControl || null,
+        endCourseControl: selection.endCourseControl || null,
         bendIndex
       };
     }, "Add bend point");
@@ -789,6 +800,8 @@ export function createAppShellCommandMethods(deps) {
         type: "leg-bend",
         startControl: selection.startControl,
         endControl: selection.endControl,
+        startCourseControl: selection.startCourseControl || null,
+        endCourseControl: selection.endCourseControl || null,
         bendIndex: selection.bendIndex
       };
     }, "Select bend");
@@ -825,7 +838,9 @@ export function createAppShellCommandMethods(deps) {
       ui.selection = {
         type: "leg",
         startControl: selection.startControl,
-        endControl: selection.endControl
+        endControl: selection.endControl,
+        startCourseControl: selection.startCourseControl || null,
+        endCourseControl: selection.endCourseControl || null
       };
       ui.tool = "select";
     }, "Select leg");

@@ -7,16 +7,16 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js";
+} from "../domain/course-service.js?v=20260630-3";
 import {
   createDescriptionSpecialOptions,
   descriptionBounds,
   drawControlDescriptionBlock,
   resizedDescriptionSpecial,
   specialVisibleForCourse
-} from "../domain/control-descriptions.js";
-import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js";
+} from "../domain/control-descriptions.js?v=20260630-3";
+import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js?v=20260630-3";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260630-3";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
@@ -28,15 +28,15 @@ import {
   drawCourseLeg,
   drawPointSpecialSymbol,
   symbolApparentRadius
-} from "./course-symbols.js";
-import { drawOmapMap } from "./omap-renderer.js";
+} from "./course-symbols.js?v=20260630-3";
+import { drawOmapMap } from "./omap-renderer.js?v=20260630-3";
 import {
   effectiveCanvasPixelRatio,
   effectiveOmapPixelRatio,
   omapPaddingMultiplier,
   renderQualityHighQuality,
   renderQualityImageSmoothingQuality
-} from "./render-quality.js";
+} from "./render-quality.js?v=20260630-3";
 
 import {
   ADDABLE_CONTROL_SNAP_PIXELS,
@@ -120,12 +120,12 @@ import {
   specialCategoryForHitTest,
   symbolApparentRadiusControl,
   clamp
-} from "./map-view-helpers.js";
-import { createMapViewRenderMethods } from "./map-view-render-methods.js";
-import { createMapViewOmapMethods } from "./map-view-omap-methods.js";
-import { createMapViewPointerMethods } from "./map-view-pointer-methods.js";
-import { createMapViewHitTestMethods } from "./map-view-hit-test-methods.js";
-import { createMapViewCoordinateMethods } from "./map-view-coordinate-methods.js";
+} from "./map-view-helpers.js?v=20260630-3";
+import { createMapViewRenderMethods } from "./map-view-render-methods.js?v=20260630-3";
+import { createMapViewOmapMethods } from "./map-view-omap-methods.js?v=20260630-3";
+import { createMapViewPointerMethods } from "./map-view-pointer-methods.js?v=20260630-3";
+import { createMapViewHitTestMethods } from "./map-view-hit-test-methods.js?v=20260630-3";
+import { createMapViewCoordinateMethods } from "./map-view-coordinate-methods.js?v=20260630-3";
 export class MapView {
   constructor(canvas, store, callbacks = {}) {
     this.canvas = canvas;

@@ -478,6 +478,7 @@ export function createAppShellCommandMethods(deps) {
       "tool-rectangle": "special:rectangle",
       "tool-ellipse": "special:ellipse",
       "tool-oob": "special:out-of-bounds",
+      "tool-oob-no-boundary": { tool: "special:out-of-bounds", options: { lineKind: "none" } },
       "tool-danger": "special:dangerous-area",
       "tool-construction": "special:temporary-construction",
       "tool-water": "special:water",
@@ -487,8 +488,10 @@ export function createAppShellCommandMethods(deps) {
       "tool-regmark": "special:registration-mark",
       "tool-whiteout": "special:white-out"
     };
+    const mapped = toolMap[command] || "select";
     this.store.updateUi(ui => {
-      ui.tool = toolMap[command] || "select";
+      ui.tool = typeof mapped === "string" ? mapped : mapped.tool;
+      ui.specialToolOptions = typeof mapped === "string" ? null : { ...(mapped.options || {}) };
       ui.printAreaEdit = null;
     }, "Add mode");
   },
@@ -574,7 +577,7 @@ export function createAppShellCommandMethods(deps) {
     }
     else if (tool.startsWith("special:")) {
       const kind = tool.slice("special:".length);
-      const options = {};
+      const options = { ...(state.ui.specialToolOptions || {}) };
       if (kind === "text") {
         this.openTextSpecialDialog(point);
         return;
@@ -603,6 +606,7 @@ export function createAppShellCommandMethods(deps) {
       this.store.updateUi(ui => {
         ui.selection = pending;
         ui.tool = "select";
+        ui.specialToolOptions = null;
       }, "Select mode");
     }
   },

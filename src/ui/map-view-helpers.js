@@ -1380,7 +1380,7 @@ export function drawFallbackSpecialPoint(ctx, kind, point) {
 }
 
 export function isDragSpecialTool(tool) {
-  return ["special:line", "special:rectangle", "special:ellipse"].includes(tool);
+  return ["special:line", "special:boundary", "special:rectangle", "special:ellipse"].includes(tool);
 }
 
 export function isAreaSpecialTool(tool) {

@@ -98,6 +98,9 @@ export function addSpecialAt(eventModel, kind, location, options = {}) {
   if (options.color) {
     special.color = options.color;
   }
+  if (options.lineKind) {
+    special.lineKind = options.lineKind;
+  }
   if (options.font) {
     special.font = { ...special.font, ...options.font };
   }

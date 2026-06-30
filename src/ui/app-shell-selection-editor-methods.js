@@ -673,6 +673,7 @@ export function createAppShellSelectionEditorMethods(deps) {
     }
     else if (category === "area") {
       fields.push(colorSelect);
+      fields.push(this.specialLineStyleSelect(special, ["single", "dashed", "none"]));
     }
     else if (category === "rectangle") {
       fields.push(colorSelect);
@@ -761,8 +762,8 @@ export function createAppShellSelectionEditorMethods(deps) {
     `;
   },
 
-  specialLineStyleSelect(special) {
-    return `<label>${escapeHtml(this.t("Line style"))} <select data-field="special.lineKind">${["single", "double", "dashed"].map(kind => `<option value="${kind}" ${kind === special.lineKind ? "selected" : ""}>${escapeHtml(optionLabel(kind))}</option>`).join("")}</select></label>`;
+  specialLineStyleSelect(special, choices = ["single", "double", "dashed"]) {
+    return `<label>${escapeHtml(this.t("Line style"))} <select data-field="special.lineKind">${choices.map(kind => `<option value="${kind}" ${kind === special.lineKind ? "selected" : ""}>${escapeHtml(optionLabel(kind))}</option>`).join("")}</select></label>`;
   },
 
   descriptionSpecialEditor(special) {

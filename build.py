@@ -47,9 +47,9 @@ def validate_imports() -> None:
 
 def validate_cache_versions() -> None:
     config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
-    version_match = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', config)
+    version_match = re.search(r'APP_CACHE_VERSION\s*=\s*"([^"]+)"', config)
     if not version_match:
-        raise SystemExit("APP_VERSION not found")
+        raise SystemExit("APP_CACHE_VERSION not found")
     version = version_match.group(1)
     offenders = []
     for path in [ROOT / "index.html", *list((ROOT / "src").rglob("*.js"))]:

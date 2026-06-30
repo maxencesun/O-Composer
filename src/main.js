@@ -339,7 +339,7 @@ requestAnimationFrame(() => {
   updateBootLoadingProgress({ percent: 18, detail: text.moduleDetail, indeterminate: true });
 });
 
-import("./ui/app-shell.js")
+import("./ui/app-shell.js?v=20260630-2")
   .then(({ PurplePenApp }) => {
     updateBootLoadingProgress({ percent: 52, detail: text.initializeDetail, indeterminate: false });
     customElements.define("purple-pen-app", PurplePenApp);

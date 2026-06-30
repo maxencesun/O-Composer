@@ -967,7 +967,7 @@ function writeSpecial(lines, special, level, options = {}) {
       "cell-size": special.kind === "descriptions" && special.cellSize > 0 ? special.cellSize : undefined,
       "description-kind": special.kind === "descriptions" && special.descriptionKind ? special.descriptionKind : undefined,
       color: ["text", "line", "rectangle", "ellipse", "descriptions"].includes(special.kind) ? special.color : undefined,
-      "line-kind": ["line", "rectangle", "ellipse"].includes(special.kind) ? special.lineKind : undefined,
+      "line-kind": ["line", "rectangle", "ellipse", "out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(special.kind) ? special.lineKind : undefined,
       "line-width": ["line", "rectangle", "ellipse"].includes(special.kind) ? special.lineWidth : undefined,
       "gap-size": ["line", "rectangle", "ellipse"].includes(special.kind) && special.lineKind !== "single" ? special.gapSize : undefined,
       "dash-size": ["line", "rectangle", "ellipse"].includes(special.kind) && special.lineKind === "dashed" ? special.dashSize : undefined,
@@ -1009,7 +1009,7 @@ function writeOcpData(lines, data, level) {
 
 function needsAppearance(special) {
   return special.kind === "descriptions" ||
-    ["text", "line", "rectangle", "ellipse"].includes(special.kind);
+    ["text", "line", "rectangle", "ellipse", "out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(special.kind);
 }
 
 function writePrintArea(lines, area = defaultPrintArea(), level, part = undefined) {

@@ -679,7 +679,13 @@ export function createMapViewRenderMethods(deps) {
           ...(includeHover ? [hoverPoint] : [])
         ];
         const points = draftLocations.map(location => this.toScreen(location, ui));
-        const special = { id: 0, kind, locations: draftLocations, color: "upper-purple", lineKind: kind === "white-out" ? "none" : "single" };
+        const special = {
+          id: 0,
+          kind,
+          locations: draftLocations,
+          color: "upper-purple",
+          lineKind: ui.specialToolOptions?.lineKind || (kind === "white-out" ? "none" : "single")
+        };
         if (draftLocations.length >= 3) {
           drawAreaSpecial(ctx, special, points, this.scale(ui), metrics);
         }
@@ -712,7 +718,7 @@ export function createMapViewRenderMethods(deps) {
       else if (this.specialShapePreview && this.specialShapePreview.tool === ui.tool) {
         const special = this.specialShapePreview;
         const points = special.locations.map(location => this.toScreen(location, ui));
-        if (special.kind === "line") {
+        if (["line", "boundary"].includes(special.kind)) {
           drawLineSpecial(ctx, special, points, this.scale(ui), metrics);
         }
         else if (special.kind === "rectangle") {

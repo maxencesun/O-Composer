@@ -1,4 +1,4 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260630-4";
+import { resolveTextConstants } from "../domain/constants.js?v=20260630-5";
 
 export function createMapViewRenderMethods(deps) {
   const {

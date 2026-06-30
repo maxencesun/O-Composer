@@ -20,6 +20,7 @@ ALLOWED_NAVIGATION_URLS = {
 
 def main() -> None:
     validate_imports()
+    validate_cache_versions()
     validate_no_network_runtime()
     if DIST.exists():
         shutil.rmtree(DIST)
@@ -39,9 +40,25 @@ def validate_imports() -> None:
             specifier = match.group(1)
             if not specifier.startswith("."):
                 continue
-            target = (path.parent / specifier).resolve()
+            target = (path.parent / specifier.split("?", 1)[0]).resolve()
             if not target.exists():
                 raise SystemExit(f"Unresolved import in {path.relative_to(ROOT)}: {specifier}")
+
+
+def validate_cache_versions() -> None:
+    config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
+    version_match = re.search(r'APP_VERSION\s*=\s*"([^"]+)"', config)
+    if not version_match:
+        raise SystemExit("APP_VERSION not found")
+    version = version_match.group(1)
+    offenders = []
+    for path in [ROOT / "index.html", *list((ROOT / "src").rglob("*.js"))]:
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"\?v=([^\"')\s]+)", text):
+            if match.group(1) != version:
+                offenders.append(f"{path.relative_to(ROOT)}: {match.group(0)}")
+    if offenders:
+        raise SystemExit("Cache version mismatch:\n" + "\n".join(offenders))
 
 
 def validate_no_network_runtime() -> None:

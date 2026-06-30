@@ -888,18 +888,6 @@ export class PurplePenApp extends HTMLElement {
   }
 
   async restoreInitialEvent() {
-    try {
-      if (await this.loadLinkedOcpFromUrl()) {
-        this.cacheReady = true;
-        return;
-      }
-    }
-    catch (error) {
-      console.warn(error);
-      this.store.updateUi(ui => {
-        ui.status = error.message || this.t("Could not load linked OCP.");
-      }, "Linked OCP load failed");
-    }
     await this.restoreCachedSession();
   }
 

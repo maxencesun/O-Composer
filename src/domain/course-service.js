@@ -1,4 +1,4 @@
-import { findById } from "./event-model.js?v=20260630-5";
+import { findById } from "./event-model.js?v=20260630-6";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);

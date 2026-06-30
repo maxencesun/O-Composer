@@ -536,7 +536,10 @@ export function createAppShellCommandMethods(deps) {
       }
       const snapped = snappedControlForPlacement(state, kind, point, this.mapView);
       if (snapped) {
-        if (selectedCourseId && selectedCourseId !== "all" && !snapped.usedInSelectedCourse) {
+        const shouldInsertSnappedControl = selectedCourseId
+          && selectedCourseId !== "all"
+          && (!snapped.usedInSelectedCourse || afterCourseControl || beforeCourseControl || selectedLegCourseControls || state.ui.variationBranch);
+        if (shouldInsertSnappedControl) {
           this.addExistingControlToCurrentCourse({ type: "control", id: snapped.control.id }, { teamRole: teamAddRole });
           return;
         }

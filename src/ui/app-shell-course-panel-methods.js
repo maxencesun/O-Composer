@@ -1,4 +1,4 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260701-9";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260701-10";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {

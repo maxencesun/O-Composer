@@ -1,4 +1,4 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260701-12";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260701-13";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -62,6 +62,7 @@ export function createAppShellCoursePanelMethods(deps) {
     controlKindLabel,
     controlsUsedByCourse,
     courseLength,
+    courseLengthRange,
     courseTopology,
     courseView,
     createControlCrossref,
@@ -71,6 +72,7 @@ export function createAppShellCoursePanelMethods(deps) {
     createLoadReport,
     coursesUsingControl,
     formatLength,
+    formatLengthRange,
     findLeg,
     getControl,
     getCourse,
@@ -373,8 +375,13 @@ export function createAppShellCoursePanelMethods(deps) {
     const title = course ? course.name : this.t("All Controls");
     const view = course ? courseView(eventModel, course.id, displayOptions) : [];
     const displayLabel = course ? variationDisplayLabel(eventModel, course.id, ui) : "";
+    const lengthText = course
+      ? (displayOptions.allBranches
+        ? formatLengthRange(courseLengthRange(eventModel, course.id, displayOptions))
+        : formatLength(courseLength(eventModel, course.id, displayOptions)))
+      : "";
     const details = course
-      ? `${optionLabel(course.kind)}${displayLabel ? ` | ${this.t(displayLabel)}` : ""} | ${formatLength(courseLength(eventModel, course.id, displayOptions))} | ${view.length} ${this.t("controls")}`
+      ? `${optionLabel(course.kind)}${displayLabel ? ` | ${this.t(displayLabel)}` : ""} | ${lengthText} | ${view.length} ${this.t("controls")}`
       : `${eventModel.controls.length} ${this.t("controls")} | ${eventModel.specials.length} ${this.t("special objects")}`;
     this.querySelector("#courseBannerText").innerHTML = `<strong>${escapeHtml(eventModel.event.title || this.t("Untitled Event"))}</strong><span>${escapeHtml(title)}</span><span>${escapeHtml(details)}</span>`;
     this.querySelector("#courseVariationControls").innerHTML = course ? this.courseVariationControls(eventModel, course, ui) : "";

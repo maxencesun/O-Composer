@@ -120,6 +120,21 @@ export function createMapViewOmapMethods(deps) {
     const width = this.canvas.clientWidth || 1;
     const height = this.canvas.clientHeight || 1;
     const ratio = effectiveOmapPixelRatio(ui, window.devicePixelRatio || 1);
+    console.info("OMAP draw", {
+      renderQuality: ui.renderQuality || "balanced",
+      highQuality: renderQualityHighQuality(ui),
+      rawDevicePixelRatio: window.devicePixelRatio || 1,
+      ratio,
+      paddingMultiplier: omapPaddingMultiplier(ui),
+      width,
+      height,
+      zoom: ui.zoom,
+      pan: ui.pan,
+      bounds: this.bounds,
+      workerDisabled: this.omapWorkerDisabled,
+      workerBusy: this.omapWorkerBusy,
+      layerCacheSize: this.omapLayerCache.length
+    });
     const matchingLayer = this.findOmapLayer(layer => this.omapLayerMatchesLayer(layer, ui, width, height, ratio));
 
     if (matchingLayer) {
@@ -206,6 +221,19 @@ export function createMapViewOmapMethods(deps) {
   },
 
   drawOmapLayer(ctx, layer, alpha) {
+    console.info("OMAP layer draw", {
+      alpha,
+      sourceWidth: layer.source?.width,
+      sourceHeight: layer.source?.height,
+      width: layer.width,
+      height: layer.height,
+      padX: layer.padX,
+      padY: layer.padY,
+      ratio: layer.ratio,
+      zoom: layer.zoom,
+      pan: layer.pan,
+      mapBounds: layer.mapBounds
+    });
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.drawImage(layer.source, -layer.padX, -layer.padY, layer.width, layer.height);
@@ -231,6 +259,27 @@ export function createMapViewOmapMethods(deps) {
     const screenTy = height / 2 + (newCenter.y - oldCenter.y) * currentScale + ui.pan.y - factor * (layer.viewportHeight / 2 + layer.pan.y);
     const tx = screenTx - factor * layer.padX;
     const ty = screenTy - factor * layer.padY;
+    console.info("OMAP transformed layer draw", {
+      currentScale,
+      layerScale: layer.scale,
+      factor,
+      tx,
+      ty,
+      width,
+      height,
+      viewportWidth: layer.viewportWidth,
+      viewportHeight: layer.viewportHeight,
+      padX: layer.padX,
+      padY: layer.padY,
+      ratio: layer.ratio,
+      layerZoom: layer.zoom,
+      currentZoom: ui.zoom,
+      layerPan: layer.pan,
+      currentPan: ui.pan,
+      layerBounds: layer.bounds,
+      currentBounds: this.bounds,
+      layerMapBounds: layer.mapBounds
+    });
 
     ctx.save();
     ctx.globalAlpha = ui.mapIntensity;
@@ -336,6 +385,11 @@ export function createMapViewOmapMethods(deps) {
     if (this.omapWorkerPendingKey === request.key || this.omapWorkerDesired?.key === request.key) {
       return true;
     }
+    console.info("OMAP worker queued", {
+      key: request.key,
+      mapVersion: request.mapVersion,
+      view: request.view
+    });
     this.omapWorkerDesired = request;
     this.pumpOmapWorker();
     return true;
@@ -373,6 +427,23 @@ export function createMapViewOmapMethods(deps) {
       renderQuality: ui.renderQuality || "balanced"
     };
     view.mapBounds = layerMapBounds(view);
+    console.info("OMAP layer view", {
+      renderQuality: view.renderQuality,
+      highQuality: view.highQuality,
+      ratio: view.ratio,
+      paddingMultiplier: paddingScale,
+      width: view.width,
+      height: view.height,
+      layerWidth: view.layerWidth,
+      layerHeight: view.layerHeight,
+      padX: view.padX,
+      padY: view.padY,
+      zoom: view.zoom,
+      pan: view.pan,
+      scale: view.scale,
+      bounds: view.bounds,
+      mapBounds: view.mapBounds
+    });
     return view;
   },
 
@@ -389,6 +460,12 @@ export function createMapViewOmapMethods(deps) {
     this.omapWorkerBusy = true;
     this.omapWorkerPendingKey = request.key;
     const requestId = ++this.omapWorkerRequestId;
+    console.info("OMAP worker request", {
+      requestId,
+      key: request.key,
+      mapVersion: request.mapVersion,
+      view: request.view
+    });
 
     if (this.omapWorkerMapVersion !== request.mapVersion) {
       worker.postMessage({
@@ -415,7 +492,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260630-6", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-1", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");
@@ -435,6 +512,15 @@ export function createMapViewOmapMethods(deps) {
     }
     this.omapWorkerBusy = false;
     this.omapWorkerPendingKey = "";
+    console.info("OMAP worker message", {
+      type: message.type,
+      requestId: message.requestId,
+      mapVersion: message.mapVersion,
+      currentMapVersion: this.omapMapVersion,
+      hasBitmap: !!message.bitmap,
+      error: message.error || "",
+      view: message.view
+    });
     if (message.error) {
       this.disableOmapWorker(message.error);
       return;

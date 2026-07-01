@@ -1,4 +1,4 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260701-3";
+import { resolveTextConstants } from "../domain/constants.js?v=20260701-4";
 
 export function createMapViewRenderMethods(deps) {
   const {
@@ -208,9 +208,16 @@ export function createMapViewRenderMethods(deps) {
     const rect = this.canvas.getBoundingClientRect();
     const width = Math.max(1, Math.floor(rect.width));
     const height = Math.max(1, Math.floor(rect.height));
-    if (this.canvas.width !== width * ratio || this.canvas.height !== height * ratio) {
-      this.canvas.width = width * ratio;
-      this.canvas.height = height * ratio;
+    // Canvas width/height are integer attributes. Balanced uses ratio=1.5, so
+    // sizes such as 329 * 1.5 = 493.5 were being assigned as 493 but compared
+    // against 493.5 on the next frame. That made resizeForDpi() return true on
+    // every draw, which invalidated the OMAP cache immediately after the worker
+    // stored a valid layer.
+    const targetWidth = Math.max(1, Math.round(width * ratio));
+    const targetHeight = Math.max(1, Math.round(height * ratio));
+    if (this.canvas.width !== targetWidth || this.canvas.height !== targetHeight) {
+      this.canvas.width = targetWidth;
+      this.canvas.height = targetHeight;
       this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       return true;
     }

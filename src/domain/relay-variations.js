@@ -54,7 +54,10 @@ export function relayAssignments(eventModel, courseId) {
   const teams = Math.max(0, Number(relay.teams) || 0);
   const configuredLegs = Math.max(1, Number(relay.legs) || 1);
   const requiredLegs = relayRequiredTeamSize(eventModel, courseId);
-  const legs = variations.length ? requiredLegs : configuredLegs;
+  const isConfiguredLegCountValid = !variations.length || configuredLegs % requiredLegs === 0;
+  const legs = variations.length
+    ? (isConfiguredLegCountValid ? configuredLegs : requiredLegs)
+    : configuredLegs;
   const firstTeam = Math.max(1, Number(relay.firstTeam) || 1);
   if (!course || !variations.length || teams <= 0) {
     return {
@@ -63,7 +66,7 @@ export function relayAssignments(eventModel, courseId) {
       legs,
       configuredLegs,
       requiredLegs,
-      isLegCountValid: configuredLegs === legs,
+      isLegCountValid: isConfiguredLegCountValid,
       rows: [],
       entries: [],
       variations,
@@ -103,7 +106,7 @@ export function relayAssignments(eventModel, courseId) {
     legs,
     configuredLegs,
     requiredLegs,
-    isLegCountValid: configuredLegs === legs,
+    isLegCountValid: isConfiguredLegCountValid,
     rows,
     entries,
     variations,
@@ -145,7 +148,18 @@ export function relayLegName(relay = {}, leg) {
 }
 
 export function relayTeamSizeOptions(eventModel, courseId) {
-  return [relayRequiredTeamSize(eventModel, courseId)];
+  const base = relayRequiredTeamSize(eventModel, courseId);
+  const course = getCourse(eventModel, courseId);
+  const configuredLegs = Math.max(1, Number(course?.relay?.legs) || 1);
+  const maxMultiplier = Math.max(12, Math.ceil(configuredLegs / base));
+  const options = [];
+  for (let multiplier = 1; multiplier <= maxMultiplier; multiplier += 1) {
+    options.push(base * multiplier);
+  }
+  if (configuredLegs % base === 0 && !options.includes(configuredLegs)) {
+    options.push(configuredLegs);
+  }
+  return options.sort((a, b) => a - b);
 }
 
 export function relayRequiredTeamSize(eventModel, courseId) {

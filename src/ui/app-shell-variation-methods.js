@@ -313,9 +313,9 @@ export function createAppShellVariationMethods(deps) {
   relayAutoAssignmentPanel(eventModel, course, variations) {
     const relay = normalizedRelaySettings(course.relay);
     const recommendedSizeOptions = relayTeamSizeOptions(eventModel, course.id);
-    const sizeOptions = uniqueNumbers([relay.legs, ...recommendedSizeOptions]).sort((a, b) => a - b);
-    const selectedLegs = relay.legs;
     const assignments = relayAssignments(eventModel, course.id);
+    const sizeOptions = recommendedSizeOptions.length ? recommendedSizeOptions : [assignments.legs || relay.legs || 1];
+    const selectedLegs = assignments.legs || relay.legs || 1;
     const legNameInputs = Array.from({ length: selectedLegs }, (_, index) => `
       <label>${escapeHtml(this.t("Leg {number} name", { number: index + 1 }))}
         <input data-relay-leg-name="${index}" value="${escapeAttr(relay.legNames[index] || "")}" placeholder="${escapeAttr(String(index + 1))}">

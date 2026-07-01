@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260701-4";
-import { cloneDeep } from "./clone.js?v=20260701-4";
+} from "./event-model.js?v=20260701-5";
+import { cloneDeep } from "./clone.js?v=20260701-5";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260701-4";
+} from "./course-service.js?v=20260701-5";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -642,6 +642,63 @@ export function addForkToLeg(eventModel, courseId, selection) {
   const fromRow = rows.find(row => Number(row.control?.id) === Number(selection.startControl));
   const pending = addVariationAtCourseControl(eventModel, courseId, fromRow?.courseControl?.id, { kind: "fork", branches: 2 });
   return pending?.branchCourseControl ? { type: "course-control", id: pending.branchCourseControl } : null;
+}
+
+export function removeVariationBranch(eventModel, courseId, variationBranch) {
+  const course = getCourse(eventModel, courseId);
+  const fork = getCourseControl(eventModel, variationBranch?.forkCourseControl);
+  const branch = getCourseControl(eventModel, variationBranch?.branchCourseControl);
+  if (!course || !fork?.variation || !branch) return false;
+  const branches = (fork.variationCourseControls || []).map(Number).filter(Boolean);
+  if (!branches.includes(Number(branch.id)) || branches.length <= 2) return false;
+
+  const deleteIds = collectBranchCourseControlIds(eventModel, branch.id, fork.variationEnd);
+  if (!deleteIds.size) return false;
+
+  fork.variationCourseControls = branches.filter(id => id !== Number(branch.id));
+  for (const courseControl of eventModel.courseControls) {
+    if (deleteIds.has(Number(courseControl.nextCourseControl))) {
+      courseControl.nextCourseControl = null;
+    }
+    courseControl.variationCourseControls = (courseControl.variationCourseControls || [])
+      .filter(id => !deleteIds.has(Number(id)));
+    if (deleteIds.has(Number(courseControl.variationEnd))) {
+      courseControl.variationEnd = null;
+      courseControl.variation = "";
+    }
+  }
+  eventModel.courseControls = eventModel.courseControls
+    .filter(courseControl => !deleteIds.has(Number(courseControl.id)));
+  return true;
+}
+
+function collectBranchCourseControlIds(eventModel, startId, stopId) {
+  const ids = new Set();
+  const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 20);
+  let steps = 0;
+
+  function visit(currentStartId, currentStopId = null) {
+    let currentId = Number(currentStartId) || 0;
+    const stop = Number(currentStopId) || 0;
+    while (currentId && currentId !== stop && steps++ < maxSteps) {
+      if (ids.has(currentId)) break;
+      const courseControl = getCourseControl(eventModel, currentId);
+      if (!courseControl) break;
+      ids.add(currentId);
+      if (courseControl.variation) {
+        for (const branchId of courseControl.variationCourseControls || []) {
+          visit(branchId, courseControl.variationEnd);
+        }
+        currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
+      }
+      else {
+        currentId = Number(courseControl.nextCourseControl) || 0;
+      }
+    }
+  }
+
+  visit(startId, stopId);
+  return ids;
 }
 
 function appendCourseControlRaw(eventModel, controlId) {

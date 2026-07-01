@@ -1,4 +1,4 @@
-import { courseLength, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260701-14";
+import { courseLength, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260701-15";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -400,14 +400,14 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
     view = scoreCourseDescriptionRows(view);
   }
   if (course?.kind === "team") {
-    return buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language);
+    return buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language, options);
   }
   const normalControls = view.filter(row => row.control.kind === "normal");
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
   if (displayOptions.relayLabel) rows.push(...titleRows("subtitle", displayOptions.relayLabel));
   else if (course?.secondaryTitle) rows.push(...titleRows("subtitle", course.secondaryTitle));
-  rows.push(course ? courseHeaderRow(eventModel, course, normalControls.length, language) : allControlsHeaderRow(normalControls.length, language));
+  rows.push(course ? courseHeaderRow(eventModel, course, normalControls.length, language, options) : allControlsHeaderRow(normalControls.length, language));
   for (let index = 0; index < view.length; index += 1) {
     const row = view[index];
     if (row.control.kind === "finish" || row.control.kind === "crossing-point" || row.control.kind === "map-issue") {
@@ -424,14 +424,14 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
   return rows;
 }
 
-function buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language) {
+function buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language, displayOptions = {}) {
   const mandatoryView = view.filter(row => row.control?.kind !== "normal" || !isTeamFreeCourseControl(course, row.courseControl));
   const freeView = scoreCourseDescriptionRows(view.filter(row => row.control?.kind === "normal" && isTeamFreeCourseControl(course, row.courseControl)));
   const mandatoryCount = mandatoryView.filter(row => row.control?.kind === "normal").length;
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
   if (course?.secondaryTitle) rows.push(...titleRows("subtitle", course.secondaryTitle));
-  rows.push(teamCourseHeaderRow(eventModel, course, mandatoryCount, freeView.length, language));
+  rows.push(teamCourseHeaderRow(eventModel, course, mandatoryCount, freeView.length, language, displayOptions));
   for (let index = 0; index < mandatoryView.length; index += 1) {
     const row = mandatoryView[index];
     if (row.control.kind === "finish" || row.control.kind === "crossing-point" || row.control.kind === "map-issue") {
@@ -776,9 +776,9 @@ function titleRows(kind, text) {
   return value.split("|").map(part => ({ kind, text: part }));
 }
 
-function courseHeaderRow(eventModel, course, normalControlCount, language) {
+function courseHeaderRow(eventModel, course, normalControlCount, language, displayOptions = {}) {
   if (course.kind === "team") {
-    return teamCourseHeaderRow(eventModel, course, normalControlCount, 0, language);
+    return teamCourseHeaderRow(eventModel, course, normalControlCount, 0, language, displayOptions);
   }
   if (course.kind === "score") {
     return {
@@ -789,7 +789,7 @@ function courseHeaderRow(eventModel, course, normalControlCount, language) {
       ]
     };
   }
-  const length = formatCourseLength(courseLength(eventModel, course.id));
+  const length = formatCourseLength(courseLength(eventModel, course.id, displayOptions));
   const climb = formatCourseClimb(course.options?.climb);
   return {
     kind: "header3",
@@ -798,8 +798,8 @@ function courseHeaderRow(eventModel, course, normalControlCount, language) {
   };
 }
 
-function teamCourseHeaderRow(eventModel, course, mandatoryControlCount, freeControlCount, language) {
-  const length = formatCourseLength(courseLength(eventModel, course.id));
+function teamCourseHeaderRow(eventModel, course, mandatoryControlCount, freeControlCount, language, displayOptions = {}) {
+  const length = formatCourseLength(courseLength(eventModel, course.id, displayOptions));
   const climb = formatCourseClimb(course.options?.climb);
   const suffix = freeControlCount ? ` + ${freeControlCount} free` : "";
   return {

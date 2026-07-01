@@ -18,6 +18,7 @@ export function createAppShellVariationMethods(deps) {
     addExistingControlToCourse,
     addCourse,
     addVariationAtCourseControl,
+    addVariationBranch,
     removeVariationBranch,
     addSpecialAt,
     autoNumberControls,
@@ -283,6 +284,7 @@ export function createAppShellVariationMethods(deps) {
     const canAddVariation = canAddVariationAtCourseControl(eventModel, course, anchorCourseControl);
     const selectedBranch = normalizedVariationBranch(eventModel, course.id, ui.variationBranch);
     const selectedBranchFork = selectedBranch ? getCourseControl(eventModel, selectedBranch.forkCourseControl) : null;
+    const canAddParallelBranch = !!selectedBranch && (selectedBranchFork?.variationCourseControls || []).length < 6;
     const canDeleteSelectedBranch = !!selectedBranch && (selectedBranchFork?.variationCourseControls || []).length > 1;
     const selectedBranchCode = selectedBranch ? branchCodes.get(Number(selectedBranch.branchCourseControl)) || "" : "";
     const anchorControl = getControl(eventModel, anchorCourseControl?.control);
@@ -299,6 +301,7 @@ export function createAppShellVariationMethods(deps) {
           <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
         </label>
         <button type="button" data-add-variation ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Variation"))}</button>
+        <button type="button" data-add-parallel-variation-branch ${canAddParallelBranch ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Parallel Branch"))}</button>
         <button type="button" data-delete-variation-branch ${canDeleteSelectedBranch ? "" : "disabled"}>${iconSvg("trash")} ${escapeHtml(this.t("Delete Branch"))}</button>
       </div>
       ${canAddVariation && anchorCourseControl && anchorControl
@@ -552,6 +555,11 @@ export function createAppShellVariationMethods(deps) {
       this.addVariationFromPanel();
       return;
     }
+    const addParallelBranchButton = event.target.closest("[data-add-parallel-variation-branch]");
+    if (addParallelBranchButton) {
+      this.addParallelVariationBranch();
+      return;
+    }
     const deleteBranchButton = event.target.closest("[data-delete-variation-branch]");
     if (deleteBranchButton) {
       this.deleteSelectedVariationBranch();
@@ -737,6 +745,48 @@ export function createAppShellVariationMethods(deps) {
         ui.status = this.t("Could not add variation here.");
       }
     }, "Add variation");
+  },
+
+  addParallelVariationBranch() {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    if (!courseId || courseId === "all") return;
+    const selectedBranch = normalizedVariationBranch(state.eventModel, courseId, state.ui.variationBranch);
+    const fork = selectedBranch ? getCourseControl(state.eventModel, selectedBranch.forkCourseControl) : null;
+    if (!selectedBranch) {
+      this.store.updateUi(ui => {
+        ui.status = this.t("Select a branch first.");
+      }, "Add parallel branch");
+      return;
+    }
+    if ((fork?.variationCourseControls || []).length >= 6) {
+      this.store.updateUi(ui => {
+        ui.status = this.t("A variation can have at most six branches.");
+      }, "Add parallel branch");
+      return;
+    }
+    let pending = null;
+    this.store.updateEvent(model => {
+      pending = addVariationBranch(model, courseId, selectedBranch);
+    }, "Add parallel branch");
+    this.store.updateUi(ui => {
+      if (pending?.branchCourseControl) {
+        ui.variationBranch = {
+          forkCourseControl: pending.forkCourseControl,
+          branchCourseControl: pending.branchCourseControl
+        };
+        ui.variationAnchorCourseControl = pending.forkCourseControl;
+        ui.variationInsertAfterCourseControl = pending.branchCourseControl || null;
+        ui.variationInsertBeforeCourseControl = null;
+        ui.variationSelectedSegment = pending.branchCourseControl ? `node:${pending.branchCourseControl}` : "";
+        ui.variationMode = "all";
+        ui.selection = pending.control ? { type: "control", id: pending.control, courseControl: pending.branchCourseControl || null } : ui.selection;
+        ui.status = this.t("Parallel branch added. Add controls to the new branch.");
+      }
+      else {
+        ui.status = this.t("Could not add a parallel branch here.");
+      }
+    }, "Add parallel branch");
   },
 
   deleteSelectedVariationBranch() {

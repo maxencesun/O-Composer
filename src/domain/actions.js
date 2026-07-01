@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260701-6";
-import { cloneDeep } from "./clone.js?v=20260701-6";
+} from "./event-model.js?v=20260701-7";
+import { cloneDeep } from "./clone.js?v=20260701-7";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260701-6";
+} from "./course-service.js?v=20260701-7";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -642,6 +642,27 @@ export function addForkToLeg(eventModel, courseId, selection) {
   const fromRow = rows.find(row => Number(row.control?.id) === Number(selection.startControl));
   const pending = addVariationAtCourseControl(eventModel, courseId, fromRow?.courseControl?.id, { kind: "fork", branches: 2 });
   return pending?.branchCourseControl ? { type: "course-control", id: pending.branchCourseControl } : null;
+}
+
+export function addVariationBranch(eventModel, courseId, variationBranch) {
+  const course = getCourse(eventModel, courseId);
+  const fork = getCourseControl(eventModel, variationBranch?.forkCourseControl);
+  if (!course || !fork?.variation || (fork.variationCourseControls || []).length >= 6) return null;
+  const nextCourseControl = fork.variation === "loop"
+    ? fork.id
+    : Number(fork.variationEnd) || null;
+  const branch = createCourseControl(nextId(eventModel.courseControls), fork.control, nextCourseControl);
+  branch.variation = "";
+  branch.variationEnd = null;
+  branch.variationCourseControls = [];
+  eventModel.courseControls.push(branch);
+  fork.variationCourseControls = [...(fork.variationCourseControls || []), branch.id];
+  return {
+    type: "variation-branch",
+    forkCourseControl: fork.id,
+    branchCourseControl: branch.id,
+    control: fork.control || null
+  };
 }
 
 export function removeVariationBranch(eventModel, courseId, variationBranch) {

@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260701-5";
-import { cloneDeep } from "./clone.js?v=20260701-5";
+} from "./event-model.js?v=20260701-6";
+import { cloneDeep } from "./clone.js?v=20260701-6";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260701-5";
+} from "./course-service.js?v=20260701-6";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -650,12 +650,18 @@ export function removeVariationBranch(eventModel, courseId, variationBranch) {
   const branch = getCourseControl(eventModel, variationBranch?.branchCourseControl);
   if (!course || !fork?.variation || !branch) return false;
   const branches = (fork.variationCourseControls || []).map(Number).filter(Boolean);
-  if (!branches.includes(Number(branch.id)) || branches.length <= 2) return false;
+  if (!branches.includes(Number(branch.id)) || branches.length <= 1) return false;
 
   const deleteIds = collectBranchCourseControlIds(eventModel, branch.id, fork.variationEnd);
   if (!deleteIds.size) return false;
 
-  fork.variationCourseControls = branches.filter(id => id !== Number(branch.id));
+  const remainingBranches = branches.filter(id => id !== Number(branch.id));
+  if (remainingBranches.length === 1) {
+    collapseVariationToSingleBranch(eventModel, fork, getCourseControl(eventModel, remainingBranches[0]), deleteIds);
+  }
+  else {
+    fork.variationCourseControls = remainingBranches;
+  }
   for (const courseControl of eventModel.courseControls) {
     if (deleteIds.has(Number(courseControl.nextCourseControl))) {
       courseControl.nextCourseControl = null;
@@ -670,6 +676,51 @@ export function removeVariationBranch(eventModel, courseId, variationBranch) {
   eventModel.courseControls = eventModel.courseControls
     .filter(courseControl => !deleteIds.has(Number(courseControl.id)));
   return true;
+}
+
+function collapseVariationToSingleBranch(eventModel, fork, remainingBranch, deleteIds) {
+  const variation = fork.variation;
+  const variationEnd = Number(fork.variationEnd) || null;
+  const loopExit = variation === "loop" ? Number(fork.nextCourseControl) || null : null;
+  const hiddenMarker = branchIsHiddenMarker(fork, remainingBranch);
+  const nextCourseControl = hiddenMarker
+    ? Number(remainingBranch?.nextCourseControl) || (variation === "loop" ? loopExit : variationEnd) || null
+    : Number(remainingBranch?.id) || (variation === "loop" ? loopExit : variationEnd) || null;
+
+  if (hiddenMarker && remainingBranch) {
+    deleteIds.add(Number(remainingBranch.id));
+  }
+  if (variation === "loop") {
+    rewireCourseControlTarget(eventModel, nextCourseControl, fork.id, loopExit);
+  }
+  fork.nextCourseControl = nextCourseControl;
+  fork.variation = "";
+  fork.variationEnd = null;
+  fork.variationCourseControls = [];
+}
+
+function branchIsHiddenMarker(ownerCourseControl, branchCourseControl) {
+  if (!ownerCourseControl || !branchCourseControl) return false;
+  return Number(branchCourseControl.id) === Number(ownerCourseControl.id)
+    || Number(branchCourseControl.control) === Number(ownerCourseControl.control);
+}
+
+function rewireCourseControlTarget(eventModel, startId, targetId, replacementId) {
+  const target = Number(targetId) || 0;
+  let currentId = Number(startId) || 0;
+  const seen = new Set();
+  const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 20);
+  let steps = 0;
+  while (currentId && currentId !== target && !seen.has(currentId) && steps++ < maxSteps) {
+    seen.add(currentId);
+    const courseControl = getCourseControl(eventModel, currentId);
+    if (!courseControl) break;
+    if (Number(courseControl.nextCourseControl) === target) {
+      courseControl.nextCourseControl = replacementId || null;
+      break;
+    }
+    currentId = Number(courseControl.nextCourseControl) || 0;
+  }
 }
 
 function collectBranchCourseControlIds(eventModel, startId, stopId) {

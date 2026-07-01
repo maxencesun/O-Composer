@@ -283,7 +283,7 @@ export function createAppShellVariationMethods(deps) {
     const canAddVariation = canAddVariationAtCourseControl(eventModel, course, anchorCourseControl);
     const selectedBranch = normalizedVariationBranch(eventModel, course.id, ui.variationBranch);
     const selectedBranchFork = selectedBranch ? getCourseControl(eventModel, selectedBranch.forkCourseControl) : null;
-    const canDeleteSelectedBranch = !!selectedBranch && (selectedBranchFork?.variationCourseControls || []).length > 2;
+    const canDeleteSelectedBranch = !!selectedBranch && (selectedBranchFork?.variationCourseControls || []).length > 1;
     const selectedBranchCode = selectedBranch ? branchCodes.get(Number(selectedBranch.branchCourseControl)) || "" : "";
     const anchorControl = getControl(eventModel, anchorCourseControl?.control);
     const topologyHtml = this.variationTopologySvg(eventModel, course.id, ui, branchCodes);
@@ -751,9 +751,9 @@ export function createAppShellVariationMethods(deps) {
       }, "Delete variation branch");
       return;
     }
-    if ((fork?.variationCourseControls || []).length <= 2) {
+    if ((fork?.variationCourseControls || []).length <= 1) {
       this.store.updateUi(ui => {
-        ui.status = this.t("A variation must keep at least two branches.");
+        ui.status = this.t("This variation has no other branch to keep.");
       }, "Delete variation branch");
       return;
     }

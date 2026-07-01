@@ -72,7 +72,6 @@ export function createMapViewOmapMethods(deps) {
     paddedBounds,
     mergeBounds,
     boundsCenter,
-    sameBounds,
     nearlyEqual,
     nowMs,
     scheduleFrame,
@@ -242,7 +241,10 @@ export function createMapViewOmapMethods(deps) {
 
   drawBestTransformedOmapLayer(ctx, ui, width, height, ratio) {
     const layer = this.findOmapLayer(candidate => this.omapLayerCanTransform(candidate, ui, width, height, ratio));
-    if (!layer) return false;
+    if (!layer) {
+      this.logOmapLayerRejections(ui, width, height, ratio);
+      return false;
+    }
     this.promoteOmapLayer(layer);
     return this.drawTransformedOmapLayer(ctx, ui, width, height, ratio, layer);
   },
@@ -300,15 +302,83 @@ export function createMapViewOmapMethods(deps) {
   },
 
   omapLayerCanTransform(layer, ui, width, height, ratio) {
-    return layer.map === this.omapMap
-      && layer.mapVersion === this.omapMapVersion
-      && layer.viewportWidth === width
-      && layer.viewportHeight === height
-      && layer.ratio === ratio
-      && layer.highQuality === renderQualityHighQuality(ui)
-      && (layer.renderQuality || "balanced") === (ui.renderQuality || "balanced")
-      && sameBounds(layer.bounds, this.bounds)
-      && layer.scale > 0;
+    return omapLayerTransformRejectReasons(layer, {
+      map: this.omapMap,
+      mapVersion: this.omapMapVersion,
+      width,
+      height,
+      ratio,
+      highQuality: renderQualityHighQuality(ui),
+      renderQuality: ui.renderQuality || "balanced"
+    }).length === 0;
+  },
+
+  logOmapLayerRejections(ui, width, height, ratio) {
+    const layers = this.omapLayerCache.filter(Boolean);
+    if (!layers.length) {
+      return;
+    }
+    const expected = {
+      map: this.omapMap,
+      mapVersion: this.omapMapVersion,
+      width,
+      height,
+      ratio,
+      highQuality: renderQualityHighQuality(ui),
+      renderQuality: ui.renderQuality || "balanced"
+    };
+    const summaries = layers.slice(0, OMAP_LAYER_CACHE_LIMIT).map(layer => ({
+      key: layer.key,
+      mapVersion: layer.mapVersion,
+      viewportWidth: layer.viewportWidth,
+      viewportHeight: layer.viewportHeight,
+      ratio: layer.ratio,
+      highQuality: layer.highQuality,
+      renderQuality: layer.renderQuality || "balanced",
+      zoom: layer.zoom,
+      scale: layer.scale,
+      bounds: layer.bounds,
+      mapBounds: layer.mapBounds,
+      sourceWidth: layer.source?.width,
+      sourceHeight: layer.source?.height,
+      reasons: omapLayerTransformRejectReasons(layer, expected)
+    }));
+    if (!summaries.some(summary => summary.reasons.length)) {
+      return;
+    }
+    const logKey = [
+      "OMAP cached layer rejected",
+      this.omapMapVersion,
+      width,
+      height,
+      ratio,
+      expected.highQuality ? 1 : 0,
+      expected.renderQuality,
+      summaries.map(summary => `${summary.key}:${summary.reasons.join(",")}`).join("|")
+    ].join(":");
+    this.omapDebugLogTimes ||= new Map();
+    const time = nowMs();
+    const last = this.omapDebugLogTimes.get(logKey) || 0;
+    if (time - last < 1000) {
+      return;
+    }
+    this.omapDebugLogTimes.set(logKey, time);
+    console.info("OMAP cached layer rejected", {
+      expected: {
+        mapVersion: expected.mapVersion,
+        width: expected.width,
+        height: expected.height,
+        ratio: expected.ratio,
+        highQuality: expected.highQuality,
+        renderQuality: expected.renderQuality,
+        bounds: this.bounds,
+        zoom: ui.zoom,
+        pan: ui.pan,
+        scale: this.scale(ui)
+      },
+      cacheSize: layers.length,
+      layers: summaries
+    });
   },
 
   shouldUseFastOmapLayer() {
@@ -492,7 +562,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-1", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-2", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");
@@ -571,4 +641,36 @@ export function createMapViewOmapMethods(deps) {
   }
 
   };
+}
+
+function omapLayerTransformRejectReasons(layer, expected) {
+  const reasons = [];
+  if (!layer) {
+    return ["missing"];
+  }
+  if (layer.map !== expected.map) {
+    reasons.push("map");
+  }
+  if (layer.mapVersion !== expected.mapVersion) {
+    reasons.push("mapVersion");
+  }
+  if (layer.viewportWidth !== expected.width) {
+    reasons.push("viewportWidth");
+  }
+  if (layer.viewportHeight !== expected.height) {
+    reasons.push("viewportHeight");
+  }
+  if (layer.ratio !== expected.ratio) {
+    reasons.push("ratio");
+  }
+  if (layer.highQuality !== expected.highQuality) {
+    reasons.push("highQuality");
+  }
+  if ((layer.renderQuality || "balanced") !== expected.renderQuality) {
+    reasons.push("renderQuality");
+  }
+  if (!(layer.scale > 0)) {
+    reasons.push("scale");
+  }
+  return reasons;
 }

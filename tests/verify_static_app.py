@@ -50,7 +50,10 @@ def verify_app_files() -> None:
     assert (ROOT / "tests" / "omap-renderer-smoke.js").exists()
     assert (ROOT / "assets" / "purple-pen-symbols.xml").exists()
 
-    imported = re.findall(r"from\s+[\"']([^\"']+)[\"']", (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8"))
+    imported = [
+        specifier.split("?", 1)[0]
+        for specifier in re.findall(r"from\s+[\"']([^\"']+)[\"']", (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8"))
+    ]
     app_shell = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
     styles = (ROOT / "styles.css").read_text(encoding="utf-8")
     assert "../domain/ppen-parser.js" in imported

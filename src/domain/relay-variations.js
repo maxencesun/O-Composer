@@ -75,7 +75,6 @@ export function relayAssignments(eventModel, courseId) {
   }
 
   const decoratedVariations = decorateRelayVariations(variations, branchGroups);
-  const variationUseCounts = new Map();
   const rows = [];
   const entries = [];
   for (let teamIndex = 0; teamIndex < teams; teamIndex += 1) {
@@ -88,12 +87,8 @@ export function relayAssignments(eventModel, courseId) {
         teamIndex,
         leg,
         legs,
-        branchGroups,
-        variationUseCounts
+        branchGroups
       );
-      if (variation?.code) {
-        variationUseCounts.set(variation.code, (variationUseCounts.get(variation.code) || 0) + 1);
-      }
       const entry = {
         team,
         leg,
@@ -238,43 +233,29 @@ export function relayBranchGroups(eventModel, courseId) {
   return groups;
 }
 
-function pickRelayVariation(decoratedVariations, fixedBranches, teamIndex, leg, legs, branchGroups = [], variationUseCounts = new Map()) {
+function pickRelayVariation(decoratedVariations, fixedBranches, teamIndex, leg, legs, branchGroups = []) {
   if (!decoratedVariations.length) return null;
   const desired = desiredRelaySignature(branchGroups, teamIndex, leg, legs);
   const fixed = fixedRelaySignature(branchGroups, fixedBranches, leg);
-  const rotation = teamIndex * legs + leg - 1;
-  const fixedCandidates = fixed.size
-    ? decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, fixed))
-    : decoratedVariations;
+  const constraints = new Map(desired);
+  for (const [groupId, code] of fixed) constraints.set(groupId, code);
 
-  if (fixedCandidates.length) {
-    return leastUsedRelayVariation(fixedCandidates, variationUseCounts, rotation, desired);
+  const constrained = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, constraints));
+  if (constrained.length) {
+    return constrained[positiveModulo(teamIndex + leg - 1, constrained.length)].variation;
   }
 
-  return leastUsedRelayVariation(decoratedVariations, variationUseCounts, rotation, desired);
-}
-
-function leastUsedRelayVariation(candidates, variationUseCounts, rotation = 0, preferred = new Map()) {
-  if (!candidates.length) return null;
-  const offset = positiveModulo(rotation, candidates.length);
-  let bestUseCount = Infinity;
-  const leastUsed = [];
-  for (let index = 0; index < candidates.length; index += 1) {
-    const candidate = candidates[(offset + index) % candidates.length];
-    const useCount = variationUseCounts.get(candidate.variation?.code || "") || 0;
-    if (useCount < bestUseCount) {
-      bestUseCount = useCount;
-      leastUsed.length = 0;
-      leastUsed.push(candidate);
-    }
-    else if (useCount === bestUseCount) {
-      leastUsed.push(candidate);
-    }
+  const fixedOnly = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, fixed));
+  if (fixedOnly.length) {
+    return fixedOnly[positiveModulo(teamIndex * legs + leg - 1, fixedOnly.length)].variation;
   }
-  const preferredLeastUsed = preferred.size
-    ? leastUsed.filter(candidate => relaySignatureMatches(candidate.signature, preferred))
-    : [];
-  return (preferredLeastUsed[0] || leastUsed[0])?.variation || null;
+
+  const desiredOnly = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, desired));
+  if (desiredOnly.length) {
+    return desiredOnly[positiveModulo(teamIndex + leg - 1, desiredOnly.length)].variation;
+  }
+
+  return decoratedVariations[positiveModulo(teamIndex * legs + (leg - 1) + teamIndex, decoratedVariations.length)].variation;
 }
 
 function decorateRelayVariations(variations, branchGroups) {

@@ -1,6 +1,6 @@
 export function drawOmapMap(ctx, omap, project, scale, options = {}) {
   if (!omap?.objects?.length) {
-    return;
+    return { visibleObjectCount: 0 };
   }
 
   const symbols = omap.symbols || {};
@@ -19,6 +19,7 @@ export function drawOmapMap(ctx, omap, project, scale, options = {}) {
     }
   }
   ctx.restore();
+  return { visibleObjectCount: objects.length };
 }
 
 function boundsIntersects(a, b) {

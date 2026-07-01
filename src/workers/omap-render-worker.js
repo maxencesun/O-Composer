@@ -1,4 +1,4 @@
-import { drawOmapMap } from "../ui/omap-renderer.js?v=20260701-3";
+import { drawOmapMap } from "../ui/omap-renderer.js?v=20260701-4";
 
 let currentMap = null;
 let currentMapVersion = 0;
@@ -16,6 +16,7 @@ self.onmessage = event => {
 };
 
 function renderLayer(message) {
+  const startedAt = performance.now();
   try {
     if (!currentMap || currentMapVersion !== message.mapVersion) {
       throw new Error("OMAP worker map is not ready");
@@ -31,10 +32,30 @@ function renderLayer(message) {
     }
 
     ctx.setTransform(view.ratio, 0, 0, view.ratio, 0, 0);
+    const drawStartedAt = performance.now();
     const summary = drawOmapMap(ctx, currentMap, point => project(point, view), view.scale, {
       highQuality: view.highQuality,
       mapBounds: view.mapBounds
     });
+    const drawEndedAt = performance.now();
+    const metrics = {
+      totalBeforeTransferMs: roundWorkerDebug(drawEndedAt - startedAt),
+      drawMs: roundWorkerDebug(drawEndedAt - drawStartedAt),
+      visibleObjectCount: Math.max(0, Number(summary?.visibleObjectCount) || 0),
+      priorityCount: Math.max(0, Number(summary?.priorityCount) || 0),
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      layerWidth: view.layerWidth,
+      layerHeight: view.layerHeight,
+      ratio: view.ratio,
+      scale: view.scale,
+      renderQuality: view.renderQuality,
+      highQuality: view.highQuality,
+      zoom: view.zoom,
+      pan: view.pan,
+      bounds: view.bounds,
+      mapBounds: view.mapBounds
+    };
     console.info("OMAP worker rendered", {
       requestId: message.requestId,
       mapVersion: message.mapVersion,
@@ -54,12 +75,19 @@ function renderLayer(message) {
       mapBounds: view.mapBounds
     });
 
+    const transferStartedAt = performance.now();
     const bitmap = canvas.transferToImageBitmap();
+    const transferEndedAt = performance.now();
+    metrics.transferMs = roundWorkerDebug(transferEndedAt - transferStartedAt);
+    metrics.totalMs = roundWorkerDebug(transferEndedAt - startedAt);
+    metrics.bitmapWidth = bitmap.width;
+    metrics.bitmapHeight = bitmap.height;
     self.postMessage({
       type: "rendered",
       requestId: message.requestId,
       mapVersion: message.mapVersion,
       view,
+      metrics,
       bitmap
     }, [bitmap]);
   }
@@ -75,7 +103,16 @@ function renderLayer(message) {
       type: "rendered",
       requestId: message.requestId,
       mapVersion: message.mapVersion,
-      error: error?.message || String(error)
+      error: error?.message || String(error),
+      stack: error?.stack || "",
+      view: message.view || null,
+      metrics: {
+        totalMs: roundWorkerDebug(performance.now() - startedAt),
+        renderQuality: message.view?.renderQuality || "",
+        ratio: message.view?.ratio || 0,
+        layerWidth: message.view?.layerWidth || 0,
+        layerHeight: message.view?.layerHeight || 0
+      }
     });
   }
 }
@@ -87,4 +124,8 @@ function project(point, view) {
     x: view.width / 2 + (point.x - cx) * view.scale + view.pan.x + view.padX,
     y: view.height / 2 + (cy - point.y) * view.scale + view.pan.y + view.padY
   };
+}
+
+function roundWorkerDebug(value) {
+  return Number.isFinite(value) ? Math.round(value * 1000) / 1000 : value;
 }

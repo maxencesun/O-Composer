@@ -4,17 +4,17 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260701-3";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260701-3";
-import { resolveTextConstants } from "../domain/constants.js?v=20260701-3";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260701-3";
+} from "../domain/course-service.js?v=20260701-4";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260701-4";
+import { resolveTextConstants } from "../domain/constants.js?v=20260701-4";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260701-4";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260701-3";
+} from "./course-symbols.js?v=20260701-4";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
@@ -1071,7 +1071,9 @@ export function boundsContain(outer, inner) {
     && outer.bottom <= inner.bottom + epsilon;
 }
 
-export function omapRenderKey(mapVersion, view) {
+export function omapRenderKey(mapVersion, view = {}) {
+  const pan = view.pan || { x: 0, y: 0 };
+  const bounds = view.bounds || { left: 0, right: 0, top: 0, bottom: 0 };
   return [
     mapVersion,
     view.width,
@@ -1080,12 +1082,12 @@ export function omapRenderKey(mapVersion, view) {
     view.highQuality ? 1 : 0,
     view.renderQuality || "balanced",
     roundKey(view.zoom),
-    roundKey(view.pan.x),
-    roundKey(view.pan.y),
-    roundKey(view.bounds.left),
-    roundKey(view.bounds.right),
-    roundKey(view.bounds.top),
-    roundKey(view.bounds.bottom)
+    roundKey(pan.x),
+    roundKey(pan.y),
+    roundKey(bounds.left),
+    roundKey(bounds.right),
+    roundKey(bounds.top),
+    roundKey(bounds.bottom)
   ].join(":");
 }
 

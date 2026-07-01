@@ -1,3 +1,4 @@
+import { debugLog, debugWarn, debugError } from "./debug-log.js?v=20260701-4";
 export function createMapViewOmapMethods(deps) {
   const {
     allControlsView,
@@ -134,9 +135,47 @@ export function createMapViewOmapMethods(deps) {
       workerBusy: this.omapWorkerBusy,
       layerCacheSize: this.omapLayerCache.length
     });
-    const matchingLayer = this.findOmapLayer(layer => this.omapLayerMatchesLayer(layer, ui, width, height, ratio));
+    const request = this.createOmapLayerRequest(ui, width, height, ratio);
+    const matchingLayer = this.findOmapLayer(layer =>
+      layer?.key === request.key || this.omapLayerMatchesLayer(layer, ui, width, height, ratio)
+    );
+    debugLog("omap.draw.decision", {
+      requestKey: request.key,
+      renderQuality: ui.renderQuality || "balanced",
+      ratio,
+      highQuality: renderQualityHighQuality(ui),
+      mapIntensity: ui.mapIntensity,
+      canvas: summarizeCanvasForDebug(this.canvas),
+      cssViewport: summarizeCanvasRectForDebug(this.canvas),
+      viewport: { width, height },
+      zoom: ui.zoom,
+      pan: ui.pan,
+      bounds: this.bounds,
+      requestView: request.view,
+      worker: {
+        disabled: this.omapWorkerDisabled,
+        busy: this.omapWorkerBusy,
+        pendingKey: this.omapWorkerPendingKey,
+        desiredKey: this.omapWorkerDesired?.key || ""
+      },
+      cache: summarizeOmapCacheForDebug(this.omapLayerCache, request.key, {
+        map: this.omapMap,
+        mapVersion: this.omapMapVersion,
+        width,
+        height,
+        ratio,
+        highQuality: renderQualityHighQuality(ui),
+        renderQuality: ui.renderQuality || "balanced"
+      }),
+      matchingLayer: summarizeOmapLayerForDebug(matchingLayer, request.key)
+    });
 
     if (matchingLayer) {
+      debugLog("omap.draw.use-matching-layer", {
+        requestKey: request.key,
+        exactKey: matchingLayer.key === request.key,
+        layer: summarizeOmapLayerForDebug(matchingLayer, request.key)
+      });
       this.promoteOmapLayer(matchingLayer);
       this.drawTransformedOmapLayer(ctx, ui, width, height, ratio, matchingLayer);
       return;
@@ -146,7 +185,7 @@ export function createMapViewOmapMethods(deps) {
       return;
     }
 
-    if (this.queueOmapLayerRender(ui, width, height, ratio)) {
+    if (this.queueOmapLayerRender(ui, width, height, ratio, request)) {
       if (this.drawBestTransformedOmapLayer(ctx, ui, width, height, ratio)) {
         return;
       }
@@ -220,37 +259,88 @@ export function createMapViewOmapMethods(deps) {
   },
 
   drawOmapLayer(ctx, layer, alpha) {
-    console.info("OMAP layer draw", {
+    const drawDebug = {
       alpha,
-      sourceWidth: layer.source?.width,
-      sourceHeight: layer.source?.height,
-      width: layer.width,
-      height: layer.height,
-      padX: layer.padX,
-      padY: layer.padY,
-      ratio: layer.ratio,
-      zoom: layer.zoom,
-      pan: layer.pan,
-      mapBounds: layer.mapBounds
-    });
+      currentTransform: summarizeCanvasTransformForDebug(ctx),
+      layer: summarizeOmapLayerForDebug(layer)
+    };
+    console.info("OMAP layer draw", drawDebug);
+    debugLog("omap.draw.layer.before-drawImage", drawDebug);
     ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(layer.source, -layer.padX, -layer.padY, layer.width, layer.height);
-    ctx.restore();
+    try {
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(layer.source, -layer.padX, -layer.padY, layer.width, layer.height);
+      debugLog("omap.draw.layer.after-drawImage", {
+        success: true,
+        transformAfterDraw: summarizeCanvasTransformForDebug(ctx),
+        layer: summarizeOmapLayerForDebug(layer)
+      });
+    }
+    catch (error) {
+      debugError("omap.draw.layer.drawImage-error", {
+        message: error?.message || String(error),
+        name: error?.name || "Error",
+        stack: error?.stack || "",
+        drawDebug
+      });
+      throw error;
+    }
+    finally {
+      ctx.restore();
+    }
   },
 
   drawBestTransformedOmapLayer(ctx, ui, width, height, ratio) {
     const layer = this.findOmapLayer(candidate => this.omapLayerCanTransform(candidate, ui, width, height, ratio));
     if (!layer) {
+      debugLog("omap.draw.best-transformed.miss", {
+        renderQuality: ui.renderQuality || "balanced",
+        ratio,
+        highQuality: renderQualityHighQuality(ui),
+        viewport: { width, height },
+        zoom: ui.zoom,
+        pan: ui.pan,
+        bounds: this.bounds,
+        cache: summarizeOmapCacheForDebug(this.omapLayerCache, "", {
+          map: this.omapMap,
+          mapVersion: this.omapMapVersion,
+          width,
+          height,
+          ratio,
+          highQuality: renderQualityHighQuality(ui),
+          renderQuality: ui.renderQuality || "balanced"
+        })
+      });
       this.logOmapLayerRejections(ui, width, height, ratio);
       return false;
     }
+    debugLog("omap.draw.best-transformed.hit", { layer: summarizeOmapLayerForDebug(layer) });
     this.promoteOmapLayer(layer);
     return this.drawTransformedOmapLayer(ctx, ui, width, height, ratio, layer);
   },
 
   drawTransformedOmapLayer(ctx, ui, width, height, ratio, layer = this.omapLayer) {
-    if (!layer || !this.omapLayerCanTransform(layer, ui, width, height, ratio)) {
+    if (!layer) {
+      debugLog("omap.draw.transformed.skip", { reason: "missing-layer" });
+      return false;
+    }
+    const expected = {
+      map: this.omapMap,
+      mapVersion: this.omapMapVersion,
+      width,
+      height,
+      ratio,
+      highQuality: renderQualityHighQuality(ui),
+      renderQuality: ui.renderQuality || "balanced"
+    };
+    const rejectReasons = omapLayerTransformRejectReasons(layer, expected);
+    if (rejectReasons.length) {
+      debugLog("omap.draw.transformed.skip", {
+        reason: "cannot-transform",
+        rejectReasons,
+        expected: summarizeExpectedForDebug(expected, ui, this.bounds),
+        layer: summarizeOmapLayerForDebug(layer)
+      });
       return false;
     }
     const currentScale = this.scale(ui);
@@ -261,34 +351,53 @@ export function createMapViewOmapMethods(deps) {
     const screenTy = height / 2 + (newCenter.y - oldCenter.y) * currentScale + ui.pan.y - factor * (layer.viewportHeight / 2 + layer.pan.y);
     const tx = screenTx - factor * layer.padX;
     const ty = screenTy - factor * layer.padY;
-    console.info("OMAP transformed layer draw", {
+    const drawDebug = {
       currentScale,
       layerScale: layer.scale,
       factor,
       tx,
       ty,
-      width,
-      height,
-      viewportWidth: layer.viewportWidth,
-      viewportHeight: layer.viewportHeight,
-      padX: layer.padX,
-      padY: layer.padY,
-      ratio: layer.ratio,
-      layerZoom: layer.zoom,
-      currentZoom: ui.zoom,
-      layerPan: layer.pan,
-      currentPan: ui.pan,
-      layerBounds: layer.bounds,
-      currentBounds: this.bounds,
-      layerMapBounds: layer.mapBounds
-    });
+      viewport: { width, height },
+      alpha: ui.mapIntensity,
+      currentTransform: summarizeCanvasTransformForDebug(ctx),
+      layer: summarizeOmapLayerForDebug(layer),
+      current: {
+        renderQuality: ui.renderQuality || "balanced",
+        highQuality: renderQualityHighQuality(ui),
+        ratio,
+        zoom: ui.zoom,
+        pan: ui.pan,
+        bounds: this.bounds,
+        mapBounds: viewportMapBounds(this.bounds, width, height, ui.pan, currentScale)
+      }
+    };
+    console.info("OMAP transformed layer draw", drawDebug);
+    debugLog("omap.draw.transformed.before-drawImage", drawDebug);
 
     ctx.save();
-    ctx.globalAlpha = ui.mapIntensity;
-    ctx.transform(factor, 0, 0, factor, tx, ty);
-    ctx.drawImage(layer.source, 0, 0, layer.width, layer.height);
-    ctx.restore();
-    return true;
+    try {
+      ctx.globalAlpha = ui.mapIntensity;
+      ctx.transform(factor, 0, 0, factor, tx, ty);
+      ctx.drawImage(layer.source, 0, 0, layer.width, layer.height);
+      debugLog("omap.draw.transformed.after-drawImage", {
+        success: true,
+        transformAfterDraw: summarizeCanvasTransformForDebug(ctx),
+        layer: summarizeOmapLayerForDebug(layer)
+      });
+      return true;
+    }
+    catch (error) {
+      debugError("omap.draw.transformed.drawImage-error", {
+        message: error?.message || String(error),
+        name: error?.name || "Error",
+        stack: error?.stack || "",
+        drawDebug
+      });
+      throw error;
+    }
+    finally {
+      ctx.restore();
+    }
   },
 
   omapLayerMatches(ui, width, height, ratio) {
@@ -446,15 +555,36 @@ export function createMapViewOmapMethods(deps) {
     this.omapLayerCache = [];
   },
 
-  queueOmapLayerRender(ui, width, height, ratio) {
-    const worker = this.ensureOmapWorker();
-    if (!worker) {
+  queueOmapLayerRender(ui, width, height, ratio, request = null) {
+    request ||= this.createOmapLayerRequest(ui, width, height, ratio);
+    if (this.findOmapLayer(layer => layer?.key === request.key)) {
+      debugLog("omap.worker.queue.skip-exact-cache", { key: request.key });
       return false;
     }
-    const request = this.createOmapLayerRequest(ui, width, height, ratio);
+    const worker = this.ensureOmapWorker();
+    if (!worker) {
+      debugLog("omap.worker.queue.skip-no-worker", {
+        key: request.key,
+        disabled: this.omapWorkerDisabled,
+        hasWorkerApi: typeof Worker !== "undefined",
+        hasOffscreenCanvas: typeof OffscreenCanvas !== "undefined"
+      });
+      return false;
+    }
     if (this.omapWorkerPendingKey === request.key || this.omapWorkerDesired?.key === request.key) {
+      debugLog("omap.worker.queue.skip-already-pending", {
+        key: request.key,
+        pendingKey: this.omapWorkerPendingKey,
+        desiredKey: this.omapWorkerDesired?.key || ""
+      });
       return true;
     }
+    debugLog("omap.worker.queued", {
+      key: request.key,
+      mapVersion: request.mapVersion,
+      view: request.view,
+      cacheSize: this.omapLayerCache.length
+    });
     console.info("OMAP worker queued", {
       key: request.key,
       mapVersion: request.mapVersion,
@@ -530,6 +660,12 @@ export function createMapViewOmapMethods(deps) {
     this.omapWorkerBusy = true;
     this.omapWorkerPendingKey = request.key;
     const requestId = ++this.omapWorkerRequestId;
+    debugLog("omap.worker.request", {
+      requestId,
+      key: request.key,
+      mapVersion: request.mapVersion,
+      view: request.view
+    });
     console.info("OMAP worker request", {
       requestId,
       key: request.key,
@@ -562,7 +698,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-3", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-4", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");
@@ -582,6 +718,17 @@ export function createMapViewOmapMethods(deps) {
     }
     this.omapWorkerBusy = false;
     this.omapWorkerPendingKey = "";
+    debugLog("omap.worker.message", {
+      type: message.type,
+      requestId: message.requestId,
+      mapVersion: message.mapVersion,
+      currentMapVersion: this.omapMapVersion,
+      hasBitmap: !!message.bitmap,
+      bitmap: message.bitmap ? { width: message.bitmap.width, height: message.bitmap.height } : null,
+      error: message.error || "",
+      workerMetrics: message.metrics || null,
+      view: message.view
+    });
     console.info("OMAP worker message", {
       type: message.type,
       requestId: message.requestId,
@@ -592,6 +739,14 @@ export function createMapViewOmapMethods(deps) {
       view: message.view
     });
     if (message.error) {
+      debugError("omap.worker.render-error", {
+        requestId: message.requestId,
+        mapVersion: message.mapVersion,
+        error: message.error,
+        stack: message.stack || "",
+        workerMetrics: message.metrics || null,
+        view: message.view || null
+      });
       this.disableOmapWorker(message.error);
       return;
     }
@@ -616,7 +771,7 @@ export function createMapViewOmapMethods(deps) {
         renderQuality: message.view.renderQuality || "balanced",
         mapBounds: message.view.mapBounds
       });
-      const ui = this.store.snapshot();
+      const ui = this.store.snapshot().ui;
       const width = this.canvas.clientWidth || 1;
       const height = this.canvas.clientHeight || 1;
       const ratio = effectiveOmapPixelRatio(ui, window.devicePixelRatio || 1);
@@ -640,6 +795,18 @@ export function createMapViewOmapMethods(deps) {
         bounds: this.bounds
       });
       const reasons = omapLayerTransformRejectReasons(layer, expected);
+      debugLog("omap.worker.layer-stored", {
+        requestId: message.requestId,
+        layerKey: layer.key,
+        currentKey,
+        keyMatchesCurrentView: layer.key === currentKey,
+        reusable: reasons.length === 0,
+        reasons,
+        cacheSize: this.omapLayerCache.length,
+        workerMetrics: message.metrics || null,
+        expected: summarizeExpectedForDebug(expected, ui, this.bounds),
+        layer: summarizeOmapLayerForDebug(layer, currentKey)
+      });
       console.info("OMAP worker layer stored", {
         requestId: message.requestId,
         layerKey: layer.key,
@@ -694,11 +861,121 @@ export function createMapViewOmapMethods(deps) {
       this.omapWorker.terminate();
       this.omapWorker = null;
     }
+    debugWarn("omap.worker.disabled", { reason });
     console.warn(`Falling back to main-thread OMAP rendering: ${reason}`);
     this.requestDraw(this.store.snapshot());
   }
 
   };
+}
+
+
+function summarizeCanvasForDebug(canvas) {
+  if (!canvas) return null;
+  return {
+    width: canvas.width,
+    height: canvas.height,
+    clientWidth: canvas.clientWidth,
+    clientHeight: canvas.clientHeight
+  };
+}
+
+function summarizeCanvasRectForDebug(canvas) {
+  if (!canvas?.getBoundingClientRect) return null;
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: roundDebug(rect.x),
+    y: roundDebug(rect.y),
+    width: roundDebug(rect.width),
+    height: roundDebug(rect.height),
+    top: roundDebug(rect.top),
+    right: roundDebug(rect.right),
+    bottom: roundDebug(rect.bottom),
+    left: roundDebug(rect.left)
+  };
+}
+
+function summarizeCanvasTransformForDebug(ctx) {
+  try {
+    const t = ctx.getTransform();
+    return {
+      a: roundDebug(t.a),
+      b: roundDebug(t.b),
+      c: roundDebug(t.c),
+      d: roundDebug(t.d),
+      e: roundDebug(t.e),
+      f: roundDebug(t.f)
+    };
+  }
+  catch (_) {
+    return null;
+  }
+}
+
+function summarizeOmapCacheForDebug(cache, currentKey, expected = null) {
+  const layers = (cache || []).filter(Boolean);
+  return {
+    size: layers.length,
+    currentKey,
+    layers: layers.map(layer => summarizeOmapLayerForDebug(layer, currentKey, expected))
+  };
+}
+
+function summarizeOmapLayerForDebug(layer, currentKey = "", expected = null) {
+  if (!layer) return null;
+  const summary = {
+    key: layer.key,
+    keyMatchesCurrent: !!currentKey && layer.key === currentKey,
+    mapVersion: layer.mapVersion,
+    viewportWidth: layer.viewportWidth,
+    viewportHeight: layer.viewportHeight,
+    width: layer.width,
+    height: layer.height,
+    ratio: layer.ratio,
+    highQuality: layer.highQuality,
+    renderQuality: layer.renderQuality || "balanced",
+    zoom: layer.zoom,
+    pan: layer.pan,
+    bounds: layer.bounds,
+    mapBounds: layer.mapBounds,
+    scale: layer.scale,
+    padX: layer.padX,
+    padY: layer.padY,
+    source: summarizeLayerSourceForDebug(layer.source)
+  };
+  if (expected) {
+    summary.rejectReasons = omapLayerTransformRejectReasons(layer, expected);
+  }
+  return summary;
+}
+
+function summarizeLayerSourceForDebug(source) {
+  if (!source) return null;
+  return {
+    type: source.constructor?.name || Object.prototype.toString.call(source),
+    width: source.width,
+    height: source.height,
+    closedHint: source.width === 0 || source.height === 0,
+    hasClose: typeof source.close === "function"
+  };
+}
+
+function summarizeExpectedForDebug(expected, ui, bounds) {
+  return {
+    mapVersion: expected.mapVersion,
+    width: expected.width,
+    height: expected.height,
+    ratio: expected.ratio,
+    highQuality: expected.highQuality,
+    renderQuality: expected.renderQuality,
+    zoom: ui.zoom,
+    pan: ui.pan,
+    bounds
+  };
+}
+
+function roundDebug(value) {
+  return Number.isFinite(value) ? Math.round(value * 1000) / 1000 : value;
 }
 
 function omapLayerTransformRejectReasons(layer, expected) {

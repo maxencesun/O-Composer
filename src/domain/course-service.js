@@ -1,4 +1,5 @@
-import { findById } from "./event-model.js?v=20260701-12";
+import { findById } from "./event-model.js?v=20260701-13";
+import { allCourseVariations } from "./relay-variations.js?v=20260701-13";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -603,6 +604,24 @@ export function courseLength(eventModel, courseId, options = {}) {
   return courseLegs(eventModel, courseId, options).reduce((sum, leg) => sum + leg.length, 0);
 }
 
+export function courseLengthRange(eventModel, courseId, options = {}) {
+  if (!options.allBranches) {
+    const length = courseLength(eventModel, courseId, options);
+    return { min: length, max: length, isRange: false };
+  }
+  const variations = allCourseVariations(eventModel, courseId);
+  const lengths = variations
+    .map(variation => courseLength(eventModel, courseId, { ...options, allBranches: false, variationChoices: variation.choices }))
+    .filter(Number.isFinite);
+  if (!lengths.length) {
+    const length = courseLength(eventModel, courseId, { ...options, allBranches: false });
+    return { min: length, max: length, isRange: false };
+  }
+  const min = Math.min(...lengths);
+  const max = Math.max(...lengths);
+  return { min, max, isRange: Math.round(min) !== Math.round(max) };
+}
+
 export function controlsUsedByCourse(eventModel, courseId) {
   return new Set(courseView(eventModel, courseId, { allBranches: true }).map(row => row.control.id));
 }
@@ -825,6 +844,16 @@ export function formatLength(length) {
     return `${(length / 1000).toFixed(2)} km`;
   }
   return `${Math.round(length)} m`;
+}
+
+export function formatLengthRange(range) {
+  if (!range || !Number.isFinite(range.min) || !Number.isFinite(range.max)) {
+    return "";
+  }
+  if (!range.isRange) {
+    return formatLength(range.min);
+  }
+  return `${formatLength(range.min)} - ${formatLength(range.max)}`;
 }
 
 

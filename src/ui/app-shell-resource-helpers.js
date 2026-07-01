@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260701-11";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260701-11";
-import { findById } from "../domain/event-model.js?v=20260701-11";
+} from "./app-shell-config.js?v=20260701-12";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260701-12";
+import { findById } from "../domain/event-model.js?v=20260701-12";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260701-11";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260701-11";
+} from "../domain/control-descriptions.js?v=20260701-12";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260701-12";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -42,9 +42,9 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260701-11";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260701-11";
-import { t } from "./i18n.js?v=20260701-11";
+} from "../domain/course-service.js?v=20260701-12";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260701-12";
+import { t } from "./i18n.js?v=20260701-12";
 
 export function readUiModePreference() {
   try {

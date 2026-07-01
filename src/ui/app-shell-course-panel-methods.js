@@ -1,4 +1,4 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260701-5";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260630-6";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -333,7 +333,6 @@ export function createAppShellCoursePanelMethods(deps) {
     this.querySelector("#zoomSlider").value = Math.round(state.ui.zoom * 100);
     this.querySelector("#intensitySlider").value = Math.round(state.ui.mapIntensity * 100);
     this.mapView.requestDraw(state);
-    this.ensureFormControlLabels();
     this.renderKeys = keys;
   },
 

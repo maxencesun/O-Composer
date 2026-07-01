@@ -120,14 +120,6 @@ export function createMapViewOmapMethods(deps) {
     const width = this.canvas.clientWidth || 1;
     const height = this.canvas.clientHeight || 1;
     const ratio = effectiveOmapPixelRatio(ui, window.devicePixelRatio || 1);
-
-    if (this.omapDirectDraws > 0) {
-      this.omapDirectDraws -= 1;
-      this.queueOmapLayerRender(ui, width, height, ratio);
-      this.drawOmapDirect(ctx, ui);
-      return;
-    }
-
     const matchingLayer = this.findOmapLayer(layer => this.omapLayerMatchesLayer(layer, ui, width, height, ratio));
 
     if (matchingLayer) {
@@ -397,12 +389,6 @@ export function createMapViewOmapMethods(deps) {
     this.omapWorkerBusy = true;
     this.omapWorkerPendingKey = request.key;
     const requestId = ++this.omapWorkerRequestId;
-    clearTimeout(this.omapWorkerTimeout);
-    this.omapWorkerTimeout = setTimeout(() => {
-      if (this.omapWorkerBusy && this.omapWorkerPendingKey === request.key) {
-        this.disableOmapWorker("OMAP worker render timed out");
-      }
-    }, 4000);
 
     if (this.omapWorkerMapVersion !== request.mapVersion) {
       worker.postMessage({
@@ -429,7 +415,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-5", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260630-6", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");
@@ -447,8 +433,6 @@ export function createMapViewOmapMethods(deps) {
     if (!message || message.type !== "rendered") {
       return;
     }
-    clearTimeout(this.omapWorkerTimeout);
-    this.omapWorkerTimeout = 0;
     this.omapWorkerBusy = false;
     this.omapWorkerPendingKey = "";
     if (message.error) {
@@ -456,24 +440,6 @@ export function createMapViewOmapMethods(deps) {
       return;
     }
     if (message.bitmap && message.mapVersion === this.omapMapVersion) {
-      if (message.visibleObjectCount > 0 && (!message.painted || !imageBitmapHasPaint(message.bitmap))) {
-        console.warn("OMAP worker returned blank layer", {
-          visibleObjectCount: message.visibleObjectCount,
-          painted: message.painted,
-          mapVersion: message.mapVersion,
-          currentMapVersion: this.omapMapVersion,
-          view: message.view
-        });
-        message.bitmap.close?.();
-        this.disableOmapWorker("OMAP worker returned a blank layer");
-        return;
-      }
-      console.info("OMAP worker layer accepted", {
-        visibleObjectCount: message.visibleObjectCount,
-        painted: message.painted,
-        mapVersion: message.mapVersion,
-        view: message.view
-      });
       this.addOmapLayer({
         key: omapRenderKey(message.mapVersion, message.view),
         source: message.bitmap,
@@ -510,8 +476,6 @@ export function createMapViewOmapMethods(deps) {
     this.omapWorkerBusy = false;
     this.omapWorkerDesired = null;
     this.omapWorkerPendingKey = "";
-    clearTimeout(this.omapWorkerTimeout);
-    this.omapWorkerTimeout = 0;
     if (this.omapWorker) {
       this.omapWorker.terminate();
       this.omapWorker = null;
@@ -521,25 +485,4 @@ export function createMapViewOmapMethods(deps) {
   }
 
   };
-}
-
-function imageBitmapHasPaint(bitmap) {
-  const sampleSize = 32;
-  const canvas = document.createElement("canvas");
-  canvas.width = sampleSize;
-  canvas.height = sampleSize;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) return true;
-  try {
-    ctx.drawImage(bitmap, 0, 0, sampleSize, sampleSize);
-    const data = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
-    for (let index = 3; index < data.length; index += 4) {
-      if (data[index] > 0) return true;
-    }
-    return false;
-  }
-  catch (error) {
-    console.warn("Could not validate OMAP worker layer", error);
-    return true;
-  }
 }

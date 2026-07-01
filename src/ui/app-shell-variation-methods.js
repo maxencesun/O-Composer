@@ -18,6 +18,7 @@ export function createAppShellVariationMethods(deps) {
     addExistingControlToCourse,
     addCourse,
     addVariationAtCourseControl,
+    removeVariationBranch,
     addSpecialAt,
     autoNumberControls,
     deleteSelection,
@@ -281,6 +282,8 @@ export function createAppShellVariationMethods(deps) {
     const anchorCourseControl = variationAnchorCourseControl(eventModel, course.id, ui);
     const canAddVariation = canAddVariationAtCourseControl(eventModel, course, anchorCourseControl);
     const selectedBranch = normalizedVariationBranch(eventModel, course.id, ui.variationBranch);
+    const selectedBranchFork = selectedBranch ? getCourseControl(eventModel, selectedBranch.forkCourseControl) : null;
+    const canDeleteSelectedBranch = !!selectedBranch && (selectedBranchFork?.variationCourseControls || []).length > 2;
     const selectedBranchCode = selectedBranch ? branchCodes.get(Number(selectedBranch.branchCourseControl)) || "" : "";
     const anchorControl = getControl(eventModel, anchorCourseControl?.control);
     const topologyHtml = this.variationTopologySvg(eventModel, course.id, ui, branchCodes);
@@ -296,6 +299,7 @@ export function createAppShellVariationMethods(deps) {
           <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
         </label>
         <button type="button" data-add-variation ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Variation"))}</button>
+        <button type="button" data-delete-variation-branch ${canDeleteSelectedBranch ? "" : "disabled"}>${iconSvg("trash")} ${escapeHtml(this.t("Delete Branch"))}</button>
       </div>
       ${canAddVariation && anchorCourseControl && anchorControl
         ? `<p class="muted">${escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))}</p>`
@@ -548,6 +552,11 @@ export function createAppShellVariationMethods(deps) {
       this.addVariationFromPanel();
       return;
     }
+    const deleteBranchButton = event.target.closest("[data-delete-variation-branch]");
+    if (deleteBranchButton) {
+      this.deleteSelectedVariationBranch();
+      return;
+    }
     const variationCodeButton = event.target.closest("[data-course-variation-code-select]");
     if (variationCodeButton) {
       this.store.updateUi(ui => {
@@ -728,6 +737,40 @@ export function createAppShellVariationMethods(deps) {
         ui.status = this.t("Could not add variation here.");
       }
     }, "Add variation");
+  },
+
+  deleteSelectedVariationBranch() {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    if (!courseId || courseId === "all") return;
+    const selectedBranch = normalizedVariationBranch(state.eventModel, courseId, state.ui.variationBranch);
+    const fork = selectedBranch ? getCourseControl(state.eventModel, selectedBranch.forkCourseControl) : null;
+    if (!selectedBranch) {
+      this.store.updateUi(ui => {
+        ui.status = this.t("Select a branch first.");
+      }, "Delete variation branch");
+      return;
+    }
+    if ((fork?.variationCourseControls || []).length <= 2) {
+      this.store.updateUi(ui => {
+        ui.status = this.t("A variation must keep at least two branches.");
+      }, "Delete variation branch");
+      return;
+    }
+    let removed = false;
+    this.store.updateEvent(model => {
+      removed = removeVariationBranch(model, courseId, selectedBranch);
+    }, "Delete variation branch");
+    this.store.updateUi(ui => {
+      ui.variationBranch = null;
+      ui.variationInsertAfterCourseControl = null;
+      ui.variationInsertBeforeCourseControl = null;
+      ui.variationSelectedSegment = "";
+      ui.variationMode = "all";
+      ui.status = removed
+        ? this.t("Branch deleted.")
+        : this.t("Could not delete this branch.");
+    }, "Delete variation branch");
   },
 
   async openIscdSymbolPicker(controlId, box, selectedValue = "") {

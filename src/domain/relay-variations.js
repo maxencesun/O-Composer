@@ -52,19 +52,40 @@ export function relayAssignments(eventModel, courseId) {
   const branchGroups = relayBranchGroups(eventModel, courseId);
   const relay = course?.relay || {};
   const teams = Math.max(0, Number(relay.teams) || 0);
-  const legs = Math.max(1, Number(relay.legs) || 1);
+  const configuredLegs = Math.max(1, Number(relay.legs) || 1);
+  const requiredLegs = relayRequiredTeamSize(eventModel, courseId);
+  const legs = variations.length ? requiredLegs : configuredLegs;
   const firstTeam = Math.max(1, Number(relay.firstTeam) || 1);
   if (!course || !variations.length || teams <= 0) {
-    return { firstTeam, teams: 0, legs, rows: [], entries: [], variations, branchGroups };
+    return {
+      firstTeam,
+      teams: 0,
+      legs,
+      configuredLegs,
+      requiredLegs,
+      isLegCountValid: configuredLegs === legs,
+      rows: [],
+      entries: [],
+      variations,
+      branchGroups
+    };
   }
 
+  const decoratedVariations = decorateRelayVariations(variations, branchGroups);
   const rows = [];
   const entries = [];
   for (let teamIndex = 0; teamIndex < teams; teamIndex += 1) {
     const team = firstTeam + teamIndex;
     const assignments = [];
     for (let leg = 1; leg <= legs; leg += 1) {
-      const variation = pickRelayVariation(variations, relay.branches || [], teamIndex, leg, legs, branchGroups);
+      const variation = pickRelayVariation(
+        decoratedVariations,
+        relay.branches || [],
+        teamIndex,
+        leg,
+        legs,
+        branchGroups
+      );
       const entry = {
         team,
         leg,
@@ -76,7 +97,18 @@ export function relayAssignments(eventModel, courseId) {
     }
     rows.push({ team, assignments, entries: entries.slice(entries.length - legs) });
   }
-  return { firstTeam, teams, legs, rows, entries, variations, branchGroups };
+  return {
+    firstTeam,
+    teams,
+    legs,
+    configuredLegs,
+    requiredLegs,
+    isLegCountValid: configuredLegs === legs,
+    rows,
+    entries,
+    variations,
+    branchGroups
+  };
 }
 
 export function relayVariationForLeg(eventModel, courseId, team, leg) {
@@ -113,20 +145,13 @@ export function relayLegName(relay = {}, leg) {
 }
 
 export function relayTeamSizeOptions(eventModel, courseId) {
+  return [relayRequiredTeamSize(eventModel, courseId)];
+}
+
+export function relayRequiredTeamSize(eventModel, courseId) {
   const groups = relayBranchGroups(eventModel, courseId).filter(group => group.codes.length > 1);
-  if (!groups.length) return [1];
-  const base = groups.reduce((value, group) => lcm(value, group.codes.length), 1);
-  const options = new Set([base]);
-  for (let multiplier = 1; options.size < 6 && base * multiplier <= Math.max(24, base); multiplier += 1) {
-    options.add(base * multiplier);
-  }
-  for (const group of groups) {
-    options.add(group.codes.length);
-  }
-  return [...options]
-    .filter(value => value > 0)
-    .sort((a, b) => a - b)
-    .slice(0, 8);
+  if (!groups.length) return 1;
+  return groups.reduce((value, group) => lcm(value, group.requiredDivisor || group.codes.length), 1);
 }
 
 export function relayBranchGroups(eventModel, courseId) {
@@ -138,28 +163,49 @@ export function relayBranchGroups(eventModel, courseId) {
   const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 50);
   let steps = 0;
 
-  function visit(startId, stopId = null) {
+  function visit(startId, stopId = null, parentPath = [], contextDenominator = 1, depth = 0) {
     let currentId = Number(startId) || 0;
     const stop = Number(stopId) || 0;
     while (currentId && currentId !== stop && steps++ < maxSteps) {
-      const key = `${currentId}:${stop}`;
+      const key = `${currentId}:${stop}:${parentPath.map(item => `${item.groupId}=${item.code}`).join("/")}`;
       if (seen.has(key)) break;
       seen.add(key);
       const courseControl = getCourseControl(eventModel, currentId);
       if (!courseControl) break;
       if (courseControl.variation && courseControl.variationCourseControls?.length) {
-        const branches = variationBranches(courseControl);
-        const codes = branches.map(branchId => branchCodes.get(Number(branchId))).filter(Boolean);
-        if (codes.length) {
-          groups.push({
-            forkCourseControl: Number(courseControl.id),
-            kind: courseControl.variation === "loop" ? "loop" : "fork",
-            codes
-          });
-        }
-        for (const branchId of branches) {
-          const branch = getCourseControl(eventModel, branchId);
-          visit(branchTraversalStart(courseControl, branch), courseControl.variationEnd);
+        const branchIds = variationBranches(courseControl);
+        const branches = branchIds
+          .map(branchId => ({ id: Number(branchId), code: branchCodes.get(Number(branchId)) }))
+          .filter(branch => branch.code);
+        const codes = branches.map(branch => branch.code);
+        const group = {
+          id: Number(courseControl.id),
+          groupId: Number(courseControl.id),
+          forkCourseControl: Number(courseControl.id),
+          kind: courseControl.variation === "loop" ? "loop" : "fork",
+          branchIds: branches.map(branch => branch.id),
+          codes,
+          parentPath: parentPath.map(item => ({ ...item })),
+          contextDenominator: Math.max(1, contextDenominator),
+          requiredDivisor: Math.max(1, contextDenominator) * Math.max(1, codes.length),
+          depth
+        };
+        if (codes.length) groups.push(group);
+        for (const branch of branches) {
+          const branchCourseControl = getCourseControl(eventModel, branch.id);
+          const nextParentPath = group.kind === "loop"
+            ? parentPath
+            : [...parentPath, { groupId: group.groupId, code: branch.code, branchId: branch.id }];
+          const nextContextDenominator = group.kind === "loop"
+            ? contextDenominator
+            : contextDenominator * Math.max(1, codes.length);
+          visit(
+            branchTraversalStart(courseControl, branchCourseControl),
+            courseControl.variationEnd,
+            nextParentPath,
+            nextContextDenominator,
+            depth + 1
+          );
         }
         currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
       }
@@ -173,30 +219,94 @@ export function relayBranchGroups(eventModel, courseId) {
   return groups;
 }
 
-function pickRelayVariation(variations, fixedBranches, teamIndex, leg, legs, branchGroups = []) {
-  const fixedCodes = fixedBranches
+function pickRelayVariation(decoratedVariations, fixedBranches, teamIndex, leg, legs, branchGroups = []) {
+  if (!decoratedVariations.length) return null;
+  const desired = desiredRelaySignature(branchGroups, teamIndex, leg, legs);
+  const fixed = fixedRelaySignature(branchGroups, fixedBranches, leg);
+  const constraints = new Map(desired);
+  for (const [groupId, code] of fixed) constraints.set(groupId, code);
+
+  const constrained = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, constraints));
+  if (constrained.length) {
+    return constrained[positiveModulo(teamIndex + leg - 1, constrained.length)].variation;
+  }
+
+  const fixedOnly = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, fixed));
+  if (fixedOnly.length) {
+    return fixedOnly[positiveModulo(teamIndex * legs + leg - 1, fixedOnly.length)].variation;
+  }
+
+  const desiredOnly = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, desired));
+  if (desiredOnly.length) {
+    return desiredOnly[positiveModulo(teamIndex + leg - 1, desiredOnly.length)].variation;
+  }
+
+  return decoratedVariations[positiveModulo(teamIndex * legs + (leg - 1) + teamIndex, decoratedVariations.length)].variation;
+}
+
+function decorateRelayVariations(variations, branchGroups) {
+  return variations.map(variation => ({
+    variation,
+    signature: relayVariationSignature(variation, branchGroups)
+  }));
+}
+
+function relayVariationSignature(variation, branchGroups) {
+  const choices = (variation?.choices || []).map(Number);
+  const signature = new Map();
+  for (const group of branchGroups) {
+    if (!group.branchIds?.length) continue;
+    const indexedBranches = group.branchIds
+      .map((branchId, index) => ({
+        branchId: Number(branchId),
+        code: group.codes[index],
+        choiceIndex: choices.indexOf(Number(branchId))
+      }))
+      .filter(item => item.code && item.choiceIndex >= 0);
+    if (!indexedBranches.length) continue;
+    const selected = group.kind === "loop"
+      ? indexedBranches.sort((a, b) => a.choiceIndex - b.choiceIndex)[0]
+      : indexedBranches[0];
+    if (selected?.code) signature.set(String(group.groupId), selected.code);
+  }
+  return signature;
+}
+
+function desiredRelaySignature(branchGroups, teamIndex, leg, legs) {
+  const desired = new Map();
+  const legCount = Math.max(1, Number(legs) || 1);
+  const legIndex = positiveModulo((Math.max(1, Number(leg) || 1) - 1) + Math.max(0, Number(teamIndex) || 0), legCount);
+  for (const group of branchGroups) {
+    if (!group.codes?.length || group.codes.length <= 1) continue;
+    const active = (group.parentPath || []).every(parent => desired.get(String(parent.groupId)) === parent.code);
+    if (!active) continue;
+    const contextDenominator = Math.max(1, Number(group.contextDenominator) || 1);
+    const cycleIndex = Math.floor(legIndex / contextDenominator);
+    const code = group.codes[positiveModulo(cycleIndex, group.codes.length)];
+    if (code) desired.set(String(group.groupId), code);
+  }
+  return desired;
+}
+
+function fixedRelaySignature(branchGroups, fixedBranches, leg) {
+  const signature = new Map();
+  const fixedCodes = (fixedBranches || [])
     .filter(branch => Number(branch.leg) === Number(leg))
     .map(branch => String(branch.branch || "").trim())
     .filter(Boolean);
-  const candidates = fixedCodes.length
-    ? variations.filter(variation => fixedCodes.every(code => variation.code.includes(code)))
-    : variations;
-  const pool = candidates.length ? candidates : variations;
-  const desired = desiredRelayCodes(branchGroups, teamIndex, leg);
-  if (desired.length) {
-    const desiredMatch = pool.find(variation => desired.every(code => variation.code.includes(code)));
-    if (desiredMatch) return desiredMatch;
+  if (!fixedCodes.length) return signature;
+  for (const code of fixedCodes) {
+    const group = branchGroups.find(candidate => (candidate.codes || []).includes(code));
+    if (group) signature.set(String(group.groupId), code);
   }
-  const index = positiveModulo(teamIndex * legs + (leg - 1) + teamIndex, pool.length);
-  return pool[index];
+  return signature;
 }
 
-function desiredRelayCodes(branchGroups, teamIndex, leg) {
-  const legIndex = Math.max(0, Number(leg) - 1);
-  return branchGroups
-    .filter(group => group.kind !== "loop" && group.codes.length > 1)
-    .map((group, groupIndex) => group.codes[positiveModulo(teamIndex + legIndex + groupIndex, group.codes.length)])
-    .filter(Boolean);
+function relaySignatureMatches(signature, constraints) {
+  for (const [groupId, code] of constraints) {
+    if (signature.get(String(groupId)) !== code) return false;
+  }
+  return true;
 }
 
 function enumerateVariationChoices(eventModel, startId, visited = new Set()) {

@@ -511,9 +511,11 @@ export function createAppShellSelectionEditorMethods(deps) {
   },
 
   courseEditor(course) {
-    const finishRoute = finishRouteForCourse(this.store.snapshot().eventModel, course.id);
+    const eventModel = this.store.snapshot().eventModel;
+    const finishRoute = finishRouteForCourse(eventModel, course.id);
     const relay = course.relay || { firstTeam: 1, teams: 0, legs: 1, branches: [] };
-    const assignments = relayAssignments(this.store.snapshot().eventModel, course.id);
+    const assignments = relayAssignments(eventModel, course.id);
+    const relaySizeOptions = relayTeamSizeOptions(eventModel, course.id);
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Name"))} <input data-field="course.name" value="${escapeAttr(course.name)}"></label>
@@ -538,7 +540,11 @@ export function createAppShellSelectionEditorMethods(deps) {
         <h3>${escapeHtml(this.t("Relay"))}</h3>
         <div class="form-grid">
           <label>${escapeHtml(this.t("Teams"))} <input data-field="course.relay.teams" type="number" min="0" value="${relay.teams || 0}"></label>
-          <label>${escapeHtml(this.t("Legs"))} <input data-field="course.relay.legs" type="number" min="1" value="${relay.legs || 1}"></label>
+          <label>${escapeHtml(this.t("Legs"))}
+            <select data-field="course.relay.legs">
+              ${relaySizeOptions.map(value => `<option value="${value}" ${value === assignments.legs ? "selected" : ""}>${value}</option>`).join("")}
+            </select>
+          </label>
           <label>${escapeHtml(this.t("First team"))} <input data-field="course.relay.firstTeam" type="number" min="1" value="${relay.firstTeam || 1}"></label>
           <label class="check"><input data-field="course.hideVariationsOnMap" type="checkbox" ${course.hideVariationsOnMap ? "checked" : ""}> ${escapeHtml(this.t("Hide variation codes on map"))}</label>
         </div>
@@ -561,7 +567,7 @@ export function createAppShellSelectionEditorMethods(deps) {
         <label>${escapeHtml(this.t("Branch"))} ${escapeHtml(code)}
           <select data-relay-branch="${escapeAttr(code)}">
             <option value="">${escapeHtml(this.t("Any leg"))}</option>
-            ${Array.from({ length: Math.max(1, course.relay?.legs || 1) }, (_, index) => index + 1)
+            ${Array.from({ length: Math.max(1, assignments.legs || course.relay?.legs || 1) }, (_, index) => index + 1)
               .map(leg => `<option value="${leg}" ${Number(fixed?.leg) === leg ? "selected" : ""}>${escapeHtml(this.t("Leg"))} ${leg}</option>`)
               .join("")}
           </select>

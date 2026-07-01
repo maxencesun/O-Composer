@@ -313,6 +313,7 @@ export function createAppShellDialogMethods(deps) {
     message.textContent = this.t(config.message || "");
     config.onOpen?.(this.querySelector("#commandDialog"));
     const dialog = this.querySelector("#commandDialog");
+    this.ensureFormControlLabels(dialog);
     dialog?.removeAttribute("hidden");
     if (!dialog.open) {
       if (dialog.show) {

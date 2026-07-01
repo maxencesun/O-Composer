@@ -120,6 +120,14 @@ export function createMapViewOmapMethods(deps) {
     const width = this.canvas.clientWidth || 1;
     const height = this.canvas.clientHeight || 1;
     const ratio = effectiveOmapPixelRatio(ui, window.devicePixelRatio || 1);
+
+    if (this.omapDirectDraws > 0) {
+      this.omapDirectDraws -= 1;
+      this.queueOmapLayerRender(ui, width, height, ratio);
+      this.drawOmapDirect(ctx, ui);
+      return;
+    }
+
     const matchingLayer = this.findOmapLayer(layer => this.omapLayerMatchesLayer(layer, ui, width, height, ratio));
 
     if (matchingLayer) {
@@ -389,6 +397,12 @@ export function createMapViewOmapMethods(deps) {
     this.omapWorkerBusy = true;
     this.omapWorkerPendingKey = request.key;
     const requestId = ++this.omapWorkerRequestId;
+    clearTimeout(this.omapWorkerTimeout);
+    this.omapWorkerTimeout = setTimeout(() => {
+      if (this.omapWorkerBusy && this.omapWorkerPendingKey === request.key) {
+        this.disableOmapWorker("OMAP worker render timed out");
+      }
+    }, 4000);
 
     if (this.omapWorkerMapVersion !== request.mapVersion) {
       worker.postMessage({
@@ -415,7 +429,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-2", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-3", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");
@@ -433,6 +447,8 @@ export function createMapViewOmapMethods(deps) {
     if (!message || message.type !== "rendered") {
       return;
     }
+    clearTimeout(this.omapWorkerTimeout);
+    this.omapWorkerTimeout = 0;
     this.omapWorkerBusy = false;
     this.omapWorkerPendingKey = "";
     if (message.error) {
@@ -476,6 +492,8 @@ export function createMapViewOmapMethods(deps) {
     this.omapWorkerBusy = false;
     this.omapWorkerDesired = null;
     this.omapWorkerPendingKey = "";
+    clearTimeout(this.omapWorkerTimeout);
+    this.omapWorkerTimeout = 0;
     if (this.omapWorker) {
       this.omapWorker.terminate();
       this.omapWorker = null;

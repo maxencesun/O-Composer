@@ -1,4 +1,4 @@
-import { courseLength, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260701-15";
+import { courseLength, courseLengthRange, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260701-16";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -789,7 +789,7 @@ function courseHeaderRow(eventModel, course, normalControlCount, language, displ
       ]
     };
   }
-  const length = formatCourseLength(courseLength(eventModel, course.id, displayOptions));
+  const length = formatDescriptionCourseLength(eventModel, course, displayOptions);
   const climb = formatCourseClimb(course.options?.climb);
   return {
     kind: "header3",
@@ -799,7 +799,7 @@ function courseHeaderRow(eventModel, course, normalControlCount, language, displ
 }
 
 function teamCourseHeaderRow(eventModel, course, mandatoryControlCount, freeControlCount, language, displayOptions = {}) {
-  const length = formatCourseLength(courseLength(eventModel, course.id, displayOptions));
+  const length = formatDescriptionCourseLength(eventModel, course, displayOptions);
   const climb = formatCourseClimb(course.options?.climb);
   const suffix = freeControlCount ? ` + ${freeControlCount} free` : "";
   return {
@@ -1333,6 +1333,18 @@ function formatCourseLength(lengthMeters) {
   const value = Number(lengthMeters);
   if (!Number.isFinite(value) || value <= 0) return "";
   return `${(value / 1000).toFixed(1)} km`;
+}
+
+function formatDescriptionCourseLength(eventModel, course, displayOptions = {}) {
+  if (displayOptions.allBranches) {
+    const range = courseLengthRange(eventModel, course.id, displayOptions);
+    if (!range.isRange) return formatCourseLength(range.min);
+    const min = Number(range.min);
+    const max = Number(range.max);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max <= 0) return "";
+    return `${(min / 1000).toFixed(1)}-${(max / 1000).toFixed(1)} km`;
+  }
+  return formatCourseLength(courseLength(eventModel, course.id, displayOptions));
 }
 
 function formatCourseClimb(climbMeters) {

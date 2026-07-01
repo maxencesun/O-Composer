@@ -4,17 +4,17 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260701-13";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260701-13";
-import { resolveTextConstants } from "../domain/constants.js?v=20260701-13";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260701-13";
+} from "../domain/course-service.js?v=20260701-14";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260701-14";
+import { resolveTextConstants } from "../domain/constants.js?v=20260701-14";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260701-14";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260701-13";
+} from "./course-symbols.js?v=20260701-14";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";

@@ -562,7 +562,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-2", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-3", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");
@@ -596,7 +596,7 @@ export function createMapViewOmapMethods(deps) {
       return;
     }
     if (message.bitmap && message.mapVersion === this.omapMapVersion) {
-      this.addOmapLayer({
+      const layer = this.addOmapLayer({
         key: omapRenderKey(message.mapVersion, message.view),
         source: message.bitmap,
         map: this.omapMap,
@@ -615,6 +615,64 @@ export function createMapViewOmapMethods(deps) {
         highQuality: message.view.highQuality,
         renderQuality: message.view.renderQuality || "balanced",
         mapBounds: message.view.mapBounds
+      });
+      const ui = this.store.snapshot();
+      const width = this.canvas.clientWidth || 1;
+      const height = this.canvas.clientHeight || 1;
+      const ratio = effectiveOmapPixelRatio(ui, window.devicePixelRatio || 1);
+      const expected = {
+        map: this.omapMap,
+        mapVersion: this.omapMapVersion,
+        width,
+        height,
+        ratio,
+        highQuality: renderQualityHighQuality(ui),
+        renderQuality: ui.renderQuality || "balanced"
+      };
+      const currentKey = omapRenderKey(this.omapMapVersion, {
+        width,
+        height,
+        ratio,
+        highQuality: expected.highQuality,
+        renderQuality: expected.renderQuality,
+        zoom: ui.zoom,
+        pan: ui.pan,
+        bounds: this.bounds
+      });
+      const reasons = omapLayerTransformRejectReasons(layer, expected);
+      console.info("OMAP worker layer stored", {
+        requestId: message.requestId,
+        layerKey: layer.key,
+        currentKey,
+        keyMatchesCurrentView: layer.key === currentKey,
+        reusable: reasons.length === 0,
+        reasons,
+        cacheSize: this.omapLayerCache.length,
+        expected: {
+          mapVersion: expected.mapVersion,
+          width: expected.width,
+          height: expected.height,
+          ratio: expected.ratio,
+          highQuality: expected.highQuality,
+          renderQuality: expected.renderQuality,
+          zoom: ui.zoom,
+          pan: ui.pan,
+          bounds: this.bounds
+        },
+        layer: {
+          mapVersion: layer.mapVersion,
+          viewportWidth: layer.viewportWidth,
+          viewportHeight: layer.viewportHeight,
+          ratio: layer.ratio,
+          highQuality: layer.highQuality,
+          renderQuality: layer.renderQuality || "balanced",
+          zoom: layer.zoom,
+          pan: layer.pan,
+          bounds: layer.bounds,
+          scale: layer.scale,
+          sourceWidth: layer.source?.width,
+          sourceHeight: layer.source?.height
+        }
       });
       this.requestDraw(this.store.snapshot());
     }

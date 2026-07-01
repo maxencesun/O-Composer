@@ -75,6 +75,7 @@ export function relayAssignments(eventModel, courseId) {
   }
 
   const decoratedVariations = decorateRelayVariations(variations, branchGroups);
+  const variationUseCounts = new Map();
   const rows = [];
   const entries = [];
   for (let teamIndex = 0; teamIndex < teams; teamIndex += 1) {
@@ -87,8 +88,12 @@ export function relayAssignments(eventModel, courseId) {
         teamIndex,
         leg,
         legs,
-        branchGroups
+        branchGroups,
+        variationUseCounts
       );
+      if (variation?.code) {
+        variationUseCounts.set(variation.code, (variationUseCounts.get(variation.code) || 0) + 1);
+      }
       const entry = {
         team,
         leg,
@@ -233,7 +238,7 @@ export function relayBranchGroups(eventModel, courseId) {
   return groups;
 }
 
-function pickRelayVariation(decoratedVariations, fixedBranches, teamIndex, leg, legs, branchGroups = []) {
+function pickRelayVariation(decoratedVariations, fixedBranches, teamIndex, leg, legs, branchGroups = [], variationUseCounts = new Map()) {
   if (!decoratedVariations.length) return null;
   const desired = desiredRelaySignature(branchGroups, teamIndex, leg, legs);
   const fixed = fixedRelaySignature(branchGroups, fixedBranches, leg);
@@ -242,20 +247,36 @@ function pickRelayVariation(decoratedVariations, fixedBranches, teamIndex, leg, 
 
   const constrained = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, constraints));
   if (constrained.length) {
-    return constrained[positiveModulo(teamIndex + leg - 1, constrained.length)].variation;
+    return leastUsedRelayVariation(constrained, variationUseCounts, teamIndex + leg - 1);
   }
 
   const fixedOnly = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, fixed));
   if (fixedOnly.length) {
-    return fixedOnly[positiveModulo(teamIndex * legs + leg - 1, fixedOnly.length)].variation;
+    return leastUsedRelayVariation(fixedOnly, variationUseCounts, teamIndex * legs + leg - 1);
   }
 
   const desiredOnly = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, desired));
   if (desiredOnly.length) {
-    return desiredOnly[positiveModulo(teamIndex + leg - 1, desiredOnly.length)].variation;
+    return leastUsedRelayVariation(desiredOnly, variationUseCounts, teamIndex + leg - 1);
   }
 
-  return decoratedVariations[positiveModulo(teamIndex * legs + (leg - 1) + teamIndex, decoratedVariations.length)].variation;
+  return leastUsedRelayVariation(decoratedVariations, variationUseCounts, teamIndex * legs + (leg - 1) + teamIndex);
+}
+
+function leastUsedRelayVariation(candidates, variationUseCounts, rotation = 0) {
+  if (!candidates.length) return null;
+  const offset = positiveModulo(rotation, candidates.length);
+  let best = null;
+  let bestUseCount = Infinity;
+  for (let index = 0; index < candidates.length; index += 1) {
+    const candidate = candidates[(offset + index) % candidates.length];
+    const useCount = variationUseCounts.get(candidate.variation?.code || "") || 0;
+    if (useCount < bestUseCount) {
+      best = candidate;
+      bestUseCount = useCount;
+    }
+  }
+  return best?.variation || null;
 }
 
 function decorateRelayVariations(variations, branchGroups) {

@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260701-8";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260701-8";
-import { findById } from "../domain/event-model.js?v=20260701-8";
+} from "./app-shell-config.js?v=20260701-9";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260701-9";
+import { findById } from "../domain/event-model.js?v=20260701-9";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260701-8";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260701-8";
+} from "../domain/control-descriptions.js?v=20260701-9";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260701-9";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -42,9 +42,9 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260701-8";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260701-8";
-import { t } from "./i18n.js?v=20260701-8";
+} from "../domain/course-service.js?v=20260701-9";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260701-9";
+import { t } from "./i18n.js?v=20260701-9";
 
 export function defaultPdfExportSettings() {
   return {

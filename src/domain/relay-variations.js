@@ -75,20 +75,14 @@ export function relayAssignments(eventModel, courseId) {
   }
 
   const decoratedVariations = decorateRelayVariations(variations, branchGroups);
+  const assignmentPlan = planRelayAssignments(decoratedVariations, relay.branches || [], teams, legs, requiredLegs, branchGroups);
   const rows = [];
   const entries = [];
   for (let teamIndex = 0; teamIndex < teams; teamIndex += 1) {
     const team = firstTeam + teamIndex;
     const assignments = [];
     for (let leg = 1; leg <= legs; leg += 1) {
-      const variation = pickRelayVariation(
-        decoratedVariations,
-        relay.branches || [],
-        teamIndex,
-        leg,
-        legs,
-        branchGroups
-      );
+      const variation = assignmentPlan[teamIndex]?.[leg - 1] || null;
       const entry = {
         team,
         leg,
@@ -231,6 +225,177 @@ export function relayBranchGroups(eventModel, courseId) {
 
   visit(course.firstCourseControl);
   return groups;
+}
+
+function planRelayAssignments(decoratedVariations, fixedBranches, teamCount, legsPerTeam, baseLegs, branchGroups = []) {
+  if (!decoratedVariations.length || teamCount <= 0 || legsPerTeam <= 0) return [];
+  const effectiveBaseLegs = Math.max(1, Math.min(Math.max(1, Number(baseLegs) || 1), Math.max(1, Number(legsPerTeam) || 1)));
+  const blockCount = Math.max(1, Math.ceil(legsPerTeam / effectiveBaseLegs));
+  const offsetSpace = relayOffsetSpace(decoratedVariations, branchGroups);
+  const blockShifts = chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, effectiveBaseLegs, blockCount);
+  const offsetUse = new Map();
+  const globalRouteUse = new Map();
+  const slotRouteUse = Array.from({ length: legsPerTeam }, () => new Map());
+  const slotBranchUse = Array.from({ length: legsPerTeam }, () => new Map());
+  const result = [];
+
+  for (let teamIndex = 0; teamIndex < teamCount; teamIndex += 1) {
+    let best = null;
+    let bestScore = Infinity;
+    for (const offset of offsetSpace) {
+      const candidate = buildRelayTeamPlan({
+        offset,
+        blockShifts,
+        decoratedVariations,
+        fixedBranches,
+        branchGroups,
+        legsPerTeam,
+        baseLegs: effectiveBaseLegs
+      });
+      const score = scoreRelayTeamPlan(candidate, offset, slotRouteUse, slotBranchUse, globalRouteUse, offsetUse);
+      if (score < bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+    const offset = best?.offset || offsetSpace[0];
+    offsetUse.set(offset.key, (offsetUse.get(offset.key) || 0) + 1);
+    for (let legIndex = 0; legIndex < legsPerTeam; legIndex += 1) {
+      const item = best?.legs[legIndex];
+      const code = item?.variation?.code || "";
+      if (code) {
+        slotRouteUse[legIndex].set(code, (slotRouteUse[legIndex].get(code) || 0) + 1);
+        globalRouteUse.set(code, (globalRouteUse.get(code) || 0) + 1);
+      }
+      for (const [groupId, branchCode] of item?.signature || []) {
+        const key = `${groupId}:${branchCode}`;
+        slotBranchUse[legIndex].set(key, (slotBranchUse[legIndex].get(key) || 0) + 1);
+      }
+    }
+    result.push((best?.legs || []).map(item => item.variation || null));
+  }
+  return result;
+}
+
+function relayOffsetSpace(decoratedVariations, branchGroups) {
+  const seen = new Set();
+  const offsets = [];
+  for (const candidate of decoratedVariations) {
+    const values = branchGroups.map(group => {
+      const code = candidate.signature.get(String(group.groupId)) || group.codes?.[0] || "";
+      return Math.max(0, (group.codes || []).indexOf(code));
+    });
+    const key = values.join(":");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    offsets.push({ values, key });
+  }
+  return offsets.length ? offsets : [{ values: branchGroups.map(() => 0), key: "" }];
+}
+
+function chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, baseLegs, blockCount) {
+  const shifts = [];
+  const usedRoutes = new Map();
+  const zeroOffset = { values: branchGroups.map(() => 0), key: branchGroups.map(() => 0).join(":") };
+  for (let blockIndex = 0; blockIndex < blockCount; blockIndex += 1) {
+    let best = offsetSpace[0];
+    let bestScore = Infinity;
+    for (const shift of offsetSpace) {
+      let score = 0;
+      for (let pos = 0; pos < baseLegs; pos += 1) {
+        const signature = relaySignatureForLeg({
+          offset: zeroOffset,
+          blockShift: shift,
+          branchGroups,
+          legIndex: pos,
+          baseLegs
+        });
+        const variation = findRelayVariationForSignature(decoratedVariations, signature);
+        score += usedRoutes.get(variation?.code || relaySignatureKey(signature)) || 0;
+      }
+      if (score < bestScore) {
+        best = shift;
+        bestScore = score;
+      }
+    }
+    shifts.push(best);
+    for (let pos = 0; pos < baseLegs; pos += 1) {
+      const signature = relaySignatureForLeg({
+        offset: zeroOffset,
+        blockShift: best,
+        branchGroups,
+        legIndex: pos,
+        baseLegs
+      });
+      const variation = findRelayVariationForSignature(decoratedVariations, signature);
+      const key = variation?.code || relaySignatureKey(signature);
+      usedRoutes.set(key, (usedRoutes.get(key) || 0) + 1);
+    }
+  }
+  return shifts;
+}
+
+function buildRelayTeamPlan({ offset, blockShifts, decoratedVariations, fixedBranches, branchGroups, legsPerTeam, baseLegs }) {
+  const legs = [];
+  for (let legIndex = 0; legIndex < legsPerTeam; legIndex += 1) {
+    const blockIndex = Math.floor(legIndex / baseLegs);
+    const signature = relaySignatureForLeg({
+      offset,
+      blockShift: blockShifts[blockIndex] || blockShifts[0],
+      branchGroups,
+      legIndex,
+      baseLegs
+    });
+    const fixed = fixedRelaySignature(branchGroups, fixedBranches, legIndex + 1);
+    for (const [groupId, code] of fixed) {
+      signature.set(groupId, code);
+    }
+    legs.push({
+      signature,
+      variation: findRelayVariationForSignature(decoratedVariations, signature)
+        || pickRelayVariation(decoratedVariations, fixedBranches, 0, legIndex + 1, legsPerTeam, branchGroups)
+    });
+  }
+  return { offset, legs };
+}
+
+function scoreRelayTeamPlan(candidate, offset, slotRouteUse, slotBranchUse, globalRouteUse, offsetUse) {
+  let score = (offsetUse.get(offset.key) || 0) * 10000000;
+  for (let legIndex = 0; legIndex < candidate.legs.length; legIndex += 1) {
+    const item = candidate.legs[legIndex];
+    const code = item?.variation?.code || "";
+    score += (slotRouteUse[legIndex].get(code) || 0) * 100000;
+    score += (globalRouteUse.get(code) || 0) * 10;
+    for (const [groupId, branchCode] of item?.signature || []) {
+      score += (slotBranchUse[legIndex].get(`${groupId}:${branchCode}`) || 0) * 100;
+    }
+  }
+  return score;
+}
+
+function relaySignatureForLeg({ offset, blockShift, branchGroups, legIndex, baseLegs }) {
+  const signature = new Map();
+  const posInBlock = positiveModulo(legIndex, baseLegs);
+  for (let index = 0; index < branchGroups.length; index += 1) {
+    const group = branchGroups[index];
+    const codes = group.codes || [];
+    if (!codes.length) continue;
+    const active = (group.parentPath || []).every(parent => signature.get(String(parent.groupId)) === parent.code);
+    if (!active) continue;
+    const contextDenominator = Math.max(1, Number(group.contextDenominator) || 1);
+    const cycleIndex = Math.floor(posInBlock / contextDenominator);
+    const branchIndex = positiveModulo((offset.values[index] || 0) + (blockShift.values[index] || 0) + cycleIndex, codes.length);
+    signature.set(String(group.groupId), codes[branchIndex]);
+  }
+  return signature;
+}
+
+function findRelayVariationForSignature(decoratedVariations, signature) {
+  return decoratedVariations.find(candidate => relaySignatureMatches(candidate.signature, signature))?.variation || null;
+}
+
+function relaySignatureKey(signature) {
+  return [...signature.entries()].map(([groupId, code]) => `${groupId}:${code}`).join("|");
 }
 
 function pickRelayVariation(decoratedVariations, fixedBranches, teamIndex, leg, legs, branchGroups = []) {

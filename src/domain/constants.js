@@ -1,5 +1,5 @@
-import { courseLength, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js?v=20260701-9";
-import { relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js?v=20260701-9";
+import { courseLength, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js?v=20260701-10";
+import { relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js?v=20260701-10";
 
 export const BUILTIN_CONSTANTS = Object.freeze([
   { name: "\\event", description: "Event name" },

@@ -396,15 +396,6 @@ export function createAppShellFileExportMethods(deps) {
         const sourceText = String(reader.result || "");
         const currentMapScale = positiveScale(this.store.snapshot().eventModel.event?.map?.scale) || 15000;
         const omap = parseOmap(sourceText, file.name, { fallbackScale: currentMapScale });
-        console.info("OMAP loaded", {
-          name: omap.name,
-          scale: omap.scale,
-          objectCount: omap.objectCount,
-          symbolCount: omap.symbolCount,
-          bounds: omap.bounds,
-          firstObjects: omap.objects?.slice(0, 5),
-          firstSymbols: Object.values(omap.symbols || {}).slice(0, 5)
-        });
         const omapScale = positiveScale(omap.scale);
         this.mapView.setBackground("");
         this.mapView.setOmap(omap);

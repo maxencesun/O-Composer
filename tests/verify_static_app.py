@@ -33,7 +33,7 @@ def run_build_validations() -> None:
 
 def verify_app_files() -> None:
     index = (ROOT / "index.html").read_text(encoding="utf-8")
-    assert "<purple-pen-app>" in index
+    assert "<o-composer-app>" in index
     assert 'type="module"' in index
     assert (ROOT / "src" / "ui" / "app-shell.js").exists()
     assert (ROOT / "src" / "domain" / "ppen-parser.js").exists()
@@ -48,7 +48,7 @@ def verify_app_files() -> None:
     assert (ROOT / "src" / "ui" / "i18n.js").exists()
     assert (ROOT / "src" / "workers" / "omap-render-worker.js").exists()
     assert (ROOT / "tests" / "omap-renderer-smoke.js").exists()
-    assert (ROOT / "assets" / "purple-pen-symbols.xml").exists()
+    assert (ROOT / "assets" / "iscd-symbols.xml").exists()
 
     imported = [
         specifier.split("?", 1)[0]
@@ -85,7 +85,7 @@ def verify_app_files() -> None:
     for token in ["courseVariationControls", "data-course-variation-mode", "data-relay-team", "data-relay-branch", "addForkToLeg", "relayAssignmentTable"]:
         assert token in app_shell + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing relay design UI support: {token}"
     for token in ["variationPanel", "data-panel=\"variation\"", "renderVariation", "variationTopologySvg", "data-select-variation-branch", "addVariationAtCourseControl", "lastCourseControlInVariationBranch"]:
-        assert token in app_shell + actions, f"missing Purple Pen-style variation ordering UI: {token}"
+        assert token in app_shell + actions, f"missing variation variation ordering UI: {token}"
     for token in ["courseTopology", "topologyCourseLegs", "layoutVariationTopology", "variation-topology", "variation-topology-leg", "sharedSplitControlId"]:
         assert token in app_shell + styles + course_service, f"variation UI should show an equal branch tree without duplicated split controls: {token}"
     for token in ["courseContainsCourseControl", "branchCourseControl.nextCourseControl", "options.afterCourseControl"]:
@@ -105,7 +105,7 @@ def verify_app_files() -> None:
     assert "std-desc-2018" not in app_shell
     assert "Description Standard 2018" not in app_shell
     i18n = (ROOT / "src" / "ui" / "i18n.js").read_text(encoding="utf-8")
-    for token in ["SUPPORTED_LANGUAGES", "setLanguage", "getLanguage", "t(", "purplePenLanguage", "中文", "All Controls", "所有检查点", "Description Standard 2024"]:
+    for token in ["SUPPORTED_LANGUAGES", "setLanguage", "getLanguage", "t(", "oComposerLanguage", "中文", "All Controls", "所有检查点", "Description Standard 2024"]:
         assert token in i18n, f"missing multilingual support: {token}"
     for token in ["appLanguage", "this.t(", "SUPPORTED_LANGUAGES", "setLanguage(event.target.value)", "window.location.reload()"]:
         assert token in app_shell, f"missing app i18n hook: {token}"
@@ -118,7 +118,7 @@ def verify_app_files() -> None:
     assert "prompt(" not in app_shell, "browser prompt dialogs should not be used"
     assert (ROOT / "src" / "state" / "cookie-cache.js").exists()
     cookie_cache = (ROOT / "src" / "state" / "cookie-cache.js").read_text(encoding="utf-8")
-    for token in ["purplePenCookieConsent", "purplePenSessionCache", "saveCachedSession", "loadCachedSession", "indexedDB", "purplePenWebCache", "idbPut", "idbGet"]:
+    for token in ["oComposerCookieConsent", "oComposerSessionCache", "saveCachedSession", "loadCachedSession", "indexedDB", "oComposerWebCache", "idbPut", "idbGet"]:
         assert token in cookie_cache + app_shell, f"missing cookie cache support: {token}"
     assert "MAX_COOKIE_CHUNKS" not in cookie_cache
     assert "CACHE_CHUNK_SIZE" not in cookie_cache
@@ -260,7 +260,7 @@ def verify_app_files() -> None:
     for token in ["existingDescriptionSpecialForTarget", "This course already has a control description table.", "Line height (mm)", 'data-field="special.cellSize"', "5.2"]:
         assert token in app_shell + control_descriptions, f"missing description-table course limit/line-height support: {token}"
     for token in ["data-course-finish-route", "finishRouteForCourse", "setFinishRouteFlagging", "finishLegPair"]:
-        assert token in app_shell, f"missing Purple Pen finish-route description setting: {token}"
+        assert token in app_shell, f"missing finish-route description setting: {token}"
     assert '#selectionPanel").addEventListener("input"' not in app_shell, "selection panel fields should not re-render on every keystroke"
     assert "tool-icon" in (ROOT / "styles.css").read_text(encoding="utf-8")
 
@@ -331,7 +331,7 @@ def verify_omap_support() -> None:
     control_descriptions = (ROOT / "src" / "domain" / "control-descriptions.js").read_text(encoding="utf-8")
     for token in ["drawToolPreview", "drawMovePreview", "drawResizePreview", "updateToolPreview", "drawPrintAreaRect", "currentViewBounds", "printAreaFrame", "PRINT_AREA_SCOPES", "printAreaFromPoints", "printAreaFromBounds", "printAreaFixedFrameAt", "effectivePrintArea", "setPrintArea", "drawControlDescriptionBlock", "descriptionBounds"]:
         assert token in map_view + print_area, f"missing print area/control preview support: {token}"
-    for token in ["buildControlDescriptionRows", "drawControlDescriptionBlock", "drawIscdSymbol", "parsePurplePenSymbols", "drawXmlSymbol", "LEGACY_ID_ALIASES", "railway", "map-flip", "descriptionBounds", "resizedDescriptionSpecial", "DESCRIPTION_KINDS", "COLUMN_F_TEXT_PREFIX", "drawColumnFText", "storageForIscdSelection", "COLUMN_F_VISUAL_ALIASES", "10.1single", "10.2single", "courseHeaderRow", "allControlsHeaderRow", "directiveRow", "markedRouteRow", "localizedTextMap", "localizedSymbolText", "languageFallbacks", "zh-TW", "formatCourseClimb", "formatDirectiveDistance", "course_length_climb", "13.6", "14.1", "14.2", "14.3"]:
+    for token in ["buildControlDescriptionRows", "drawControlDescriptionBlock", "drawIscdSymbol", "parseIscdSymbols", "drawXmlSymbol", "LEGACY_ID_ALIASES", "railway", "map-flip", "descriptionBounds", "resizedDescriptionSpecial", "DESCRIPTION_KINDS", "COLUMN_F_TEXT_PREFIX", "drawColumnFText", "storageForIscdSelection", "COLUMN_F_VISUAL_ALIASES", "10.1single", "10.2single", "courseHeaderRow", "allControlsHeaderRow", "directiveRow", "markedRouteRow", "localizedTextMap", "localizedSymbolText", "languageFallbacks", "zh-TW", "formatCourseClimb", "formatDirectiveDistance", "course_length_climb", "13.6", "14.1", "14.2", "14.3"]:
         assert token in control_descriptions, f"missing standard control-description support: {token}"
     for token in ["specialVisibleForCourse", 'special.kind === "descriptions"', "descriptionTargetForNewSpecial"]:
         assert token in control_descriptions + map_view, f"description tables must be course-scoped: {token}"
@@ -339,14 +339,14 @@ def verify_omap_support() -> None:
         assert token in control_descriptions, f"start control descriptions must feed the map table: {token}"
     assert '"A", "B", "C", "D", "E", "F", "G", "H"' not in control_descriptions, "map descriptions must not render a nonstandard A-H column header row"
     for token in ["COLUMN_GAP_CELLS = 0.6", "THICK_LINE = 0.05", "THIN_LINE = 0.025", "TITLE_FONT = 0.63", "COLUMN_F_FONT = 0.50"]:
-        assert token in control_descriptions, f"missing Purple Pen description renderer constant: {token}"
+        assert token in control_descriptions, f"missing control-description renderer constant: {token}"
     for token in ["controlOutsideDiameter2017", "finishInsideDiameter2017", "startRadius2017", "drawStartTriangle", "drawCrossing", "drawCourseLeg", "defaultControlLabelPoint", "drawPolylineWithGaps", "normalizeLineGaps", "circleGaps"]:
         assert token in course_symbols, f"missing standardized course symbol support: {token}"
     assert "pixelsPerMapMm * mapScale / 1000 * courseObjRatio" in course_symbols, "course symbols must convert paper millimeters through print/map scale before drawing"
     for token in ["descriptionCellSizeMap", "paperMmToMapUnits", "/ 1000 * Math.max"]:
         assert token in control_descriptions, f"description tables must convert paper millimeters through print scale: {token}"
     for token in ["rgba(166, 38, 255", "COURSE_PURPLE_ALPHA", "ALL_CONTROLS_PURPLE_ALPHA"]:
-        assert token in course_symbols + map_view, f"course symbols should use transparent Purple Pen purple: {token}"
+        assert token in course_symbols + map_view, f"course symbols should use transparent course purple: {token}"
     actions = (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8")
     for token in ["positiveMapScale", "course.options.printScale = positiveMapScale(eventModel)"]:
         assert token in actions, f"new courses must default to map scale: {token}"
@@ -418,7 +418,7 @@ def verify_omap_support() -> None:
         assert token in renderer, f"missing OMAP path flag support for {token}"
     assert "y: -" in parser, "OMAP parser must convert native positive-south Y to app positive-north Y"
     for token in ["drawLineSpecial", "drawRectSpecial", "drawTextSpecial", "specialShapeForDrag", "specialLineWidth", "SPECIAL_COLORS", "isCssColorValue"]:
-        assert token in map_view, f"missing Purple Pen special-object rendering support: {token}"
+        assert token in map_view, f"missing special-object rendering support: {token}"
     for token in ["specialHitDistance", "distancePointToPolyline", "ellipseHitDistance", "pointInPolygon", "DRAWN_SPECIAL_PRIORITY_BONUS", "specialThreshold", "normalizedRect", "hitTestSpecialHandle", "specialResizeHandles", "resizeForHit", "drawSquareHandle", "TEXT_MIN_WIDTH_PX", "TEXT_MIN_HEIGHT_PX", "move-anchor", "resize-text-font", "textMetrics", "textMeasureContext", "textCanvasFont"]:
         assert token in map_view, f"missing special-object hit testing support: {token}"
     for token in ["SPECIAL_COLOR_CHOICES", "LEGACY_COLOR_ALIASES", "data-special-color", "data-dialog-color", "data-special-color-picker", "data-dialog-color-picker", "data-special-color-hex", "color-spectrum", "color-spectrum-row", "color-swatch", "color-value-input", "resizedSpecialObject", "resizedTextFontHeight", "fontOptions", "normalizeHexColor", "normalizeColorValue", "colorToHex", "syncColorControls", "colorChoiceSelected", "colorChoiceLabel"]:

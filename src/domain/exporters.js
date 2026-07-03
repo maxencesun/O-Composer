@@ -8,8 +8,8 @@ import {
   formatLength,
   isTeamFreeCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260701-16";
-import { allCourseVariations } from "./relay-variations.js?v=20260701-16";
+} from "./course-service.js?v=20260703-1";
+import { allCourseVariations } from "./relay-variations.js?v=20260703-1";
 
 export function exportIofXml(eventModel, version = 3) {
   return version === 2 ? exportIofXml2(eventModel) : exportIofXml3(eventModel);
@@ -145,7 +145,7 @@ export function exportKml(eventModel) {
     lines.push(`    <Folder><name>${escapeText(course.name)}</name>`);
     for (const row of courseView(eventModel, course.id)) {
       lines.push(`      <Placemark><name>${escapeText(row.control.code || controlKindLabel(row.control.kind))}</name>`);
-      lines.push(`        <description>${escapeText("Map coordinates exported because browser-only Purple Pen has no georeferencing transform.")}</description>`);
+      lines.push(`        <description>${escapeText("Map coordinates exported because this browser app has no georeferencing transform.")}</description>`);
       lines.push(`        <Point><coordinates>${round(row.control.location.x)},${round(row.control.location.y)},0</coordinates></Point>`);
       lines.push(`      </Placemark>`);
     }

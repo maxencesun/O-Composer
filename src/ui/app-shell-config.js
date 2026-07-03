@@ -27,17 +27,17 @@ export const PDF_OUTPUT_MODES = Object.freeze({
   VECTOR: "vector"
 });
 
-export const PDF_EXPORT_SETTINGS_KEY = "purplePenPdfExportSettings";
+export const PDF_EXPORT_SETTINGS_KEY = "oComposerPdfExportSettings";
 export const PDF_EXPORT_STEPS_PER_TARGET = 8;
 export const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 export const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 export const APP_VERSION = "0.0.0";
-export const APP_CACHE_VERSION = "20260701-16";
+export const APP_CACHE_VERSION = "20260703-1";
 export const APP_RESOURCE_CACHE_PREFIX = "o-composer-resources-";
 export const APP_RESOURCE_CACHE_NAME = `${APP_RESOURCE_CACHE_PREFIX}${APP_CACHE_VERSION}`;
 export const APP_RESOURCE_URLS = Object.freeze([
-  "./assets/purple-pen-symbols.xml",
+  "./assets/iscd-symbols.xml",
   "./assets/fonts/Roboto.ttf",
   "./assets/fonts/Roboto-Bold.ttf",
   "./assets/fonts/Roboto-Italic.ttf",
@@ -45,8 +45,8 @@ export const APP_RESOURCE_URLS = Object.freeze([
   "./assets/fonts/RobotoCondensed-Bold.ttf",
   "./assets/fonts/Heiti.ttf"
 ]);
-export const LANGUAGE_REFRESH_PARAM = "__pp_language_refresh";
-export const UI_MODE_KEY = "purplePenUiMode";
+export const LANGUAGE_REFRESH_PARAM = "__oc_language_refresh";
+export const UI_MODE_KEY = "oComposerUiMode";
 export const UI_MODES = Object.freeze({ AUTO: "auto", DESKTOP: "desktop", MOBILE: "mobile" });
 export const COURSE_NAMES = Object.freeze(["Course 1", "Course 2", "Course 3", "Long", "Middle", "Sprint", "Score", "Training"]);
 export const TEXT_PRESETS = Object.freeze(["Text", "Water", "First Aid", "Registration", "Start", "Finish", "Danger", "Out of Bounds"]);

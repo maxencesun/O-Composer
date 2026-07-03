@@ -1,4 +1,4 @@
-import { drawOmapMap } from "../ui/omap-renderer.js?v=20260701-16";
+import { drawOmapMap } from "../ui/omap-renderer.js?v=20260703-1";
 
 let currentMap = null;
 let currentMapVersion = 0;
@@ -56,25 +56,6 @@ function renderLayer(message) {
       bounds: view.bounds,
       mapBounds: view.mapBounds
     };
-    console.info("OMAP worker rendered", {
-      requestId: message.requestId,
-      mapVersion: message.mapVersion,
-      visibleObjectCount: Math.max(0, Number(summary?.visibleObjectCount) || 0),
-      priorityCount: Math.max(0, Number(summary?.priorityCount) || 0),
-      canvasWidth: canvas.width,
-      canvasHeight: canvas.height,
-      layerWidth: view.layerWidth,
-      layerHeight: view.layerHeight,
-      ratio: view.ratio,
-      scale: view.scale,
-      renderQuality: view.renderQuality,
-      highQuality: view.highQuality,
-      zoom: view.zoom,
-      pan: view.pan,
-      bounds: view.bounds,
-      mapBounds: view.mapBounds
-    });
-
     const transferStartedAt = performance.now();
     const bitmap = canvas.transferToImageBitmap();
     const transferEndedAt = performance.now();
@@ -92,13 +73,6 @@ function renderLayer(message) {
     }, [bitmap]);
   }
   catch (error) {
-    console.error("OMAP worker render failed", {
-      requestId: message.requestId,
-      mapVersion: message.mapVersion,
-      message: error?.message || String(error),
-      stack: error?.stack || "",
-      view: message.view
-    });
     self.postMessage({
       type: "rendered",
       requestId: message.requestId,

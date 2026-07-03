@@ -1,3 +1,5 @@
+import { debugError } from "./debug-log.js?v=20260703-1";
+
 export function createAppShellVariationMethods(deps) {
   const {
     Store,
@@ -828,7 +830,7 @@ export function createAppShellVariationMethods(deps) {
       await ensureIscdSymbolDb();
     }
     catch (error) {
-      console.error(error);
+      debugError("control-symbols.picker.failed", { message: error?.message || String(error), stack: error?.stack || "" });
       this.store.updateUi(ui => {
         ui.status = this.t("Could not load control symbols.");
       }, "Control symbols unavailable");

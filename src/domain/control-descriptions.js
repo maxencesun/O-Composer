@@ -1,4 +1,4 @@
-import { courseLength, courseLengthRange, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260701-16";
+import { courseLength, courseLengthRange, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260703-1";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -267,15 +267,15 @@ const iscdSymbolState = (() => {
   }
 })();
 
-export async function ensureIscdSymbolDb(url = "./assets/purple-pen-symbols.xml") {
+export async function ensureIscdSymbolDb(url = "./assets/iscd-symbols.xml") {
   if (iscdSymbolState.symbolDb) return iscdSymbolState.symbolDb;
   if (!iscdSymbolState.symbolDbPromise) {
     iscdSymbolState.symbolDbPromise = fetch(url)
       .then(response => {
-        if (!response.ok) throw new Error(`Could not load Purple Pen symbols: ${response.status}`);
+        if (!response.ok) throw new Error(`Could not load control-description symbols: ${response.status}`);
         return response.text();
       })
-      .then(parsePurplePenSymbols)
+      .then(parseIscdSymbols)
       .then(db => {
         iscdSymbolState.symbolDb = db;
         return db;
@@ -1420,7 +1420,7 @@ function columnFTextLabel(value, language = currentAppLanguage()) {
   return normalizeDescriptionLanguage(language) === "zh" ? `F栏文字 ${text}` : `Column F text ${text}`;
 }
 
-function parsePurplePenSymbols(text) {
+function parseIscdSymbols(text) {
   if (typeof DOMParser === "undefined") {
     return { symbols: new Map(), order: [], languages: FALLBACK_DESCRIPTION_LANGUAGES };
   }
@@ -1538,7 +1538,7 @@ function localizedText(values = {}, preferredLanguage = currentAppLanguage()) {
 
 function currentAppLanguage() {
   try {
-    return localStorage.getItem("purplePenLanguage") || "en";
+    return localStorage.getItem("oComposerLanguage") || "en";
   }
   catch {
     return "en";

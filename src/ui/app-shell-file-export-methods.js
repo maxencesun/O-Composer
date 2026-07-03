@@ -1,3 +1,5 @@
+import { debugLog } from "./debug-log.js?v=20260703-1";
+
 export function createAppShellFileExportMethods(deps) {
   const {
     Store,
@@ -396,7 +398,7 @@ export function createAppShellFileExportMethods(deps) {
         const sourceText = String(reader.result || "");
         const currentMapScale = positiveScale(this.store.snapshot().eventModel.event?.map?.scale) || 15000;
         const omap = parseOmap(sourceText, file.name, { fallbackScale: currentMapScale });
-        console.info("OMAP loaded", {
+        debugLog("omap.loaded", {
           name: omap.name,
           scale: omap.scale,
           objectCount: omap.objectCount,

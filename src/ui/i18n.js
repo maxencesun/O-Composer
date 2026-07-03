@@ -1,4 +1,4 @@
-const LANGUAGE_KEY = "purplePenLanguage";
+const LANGUAGE_KEY = "oComposerLanguage";
 
 export const SUPPORTED_LANGUAGES = Object.freeze([
   ["en", "English"],
@@ -59,7 +59,7 @@ const ZH = Object.freeze({
   "Create RouteGadget XML": "创建 RouteGadget XML",
   "Create SVG Overlay": "创建 SVG 叠加层",
   "O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.\n\nLicensed under the GNU AGPLv3.": "O-Composer {version}\n一个用于创建、编辑、查看和导出定向赛事文件的纯浏览器应用。\n\n本项目基于 GNU AGPLv3 授权。",
-  "O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ocp files, import and export native Purple Pen .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.": "O-Composer {version}\n\n此版本完全在浏览器中运行。它可以读写 .ocp 文件，导入和导出原生 Purple Pen .ppen 文件，渲染未压缩的 .omap/.xmap XML 地图、导入高分辨率 PDF 底图，并导出浏览器生成的文件。原生 OCAD 地图渲染、已安装字体检查和 Livelox API 发布需要浏览器无法提供的桌面/运行时能力。",
+  "O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ocp files, import and export compatible .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.": "O-Composer {version}\n\n此版本完全在浏览器中运行。它可以读写 .ocp 文件，导入和导出兼容 .ppen 文件，渲染未压缩的 .omap/.xmap XML 地图、导入高分辨率 PDF 底图，并导出浏览器生成的文件。原生 OCAD 地图渲染、已安装字体检查和 Livelox API 发布需要浏览器无法提供的桌面/运行时能力。",
   "Resources {downloaded} / {total}": "资源 {downloaded} / {total}",
   "calculating": "计算中",
   "Rotate your phone": "请横屏使用",
@@ -246,7 +246,7 @@ const ZH = Object.freeze({
   "About O-Composer": "关于 O-Composer",
   "Frontend Limitations": "前端版本限制",
   "O-Composer\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.": "O-Composer\n用于创建、编辑、查看和导出定向赛事文件的纯浏览器应用。",
-  "This version runs entirely in the browser. It can read and write .ocp files, import and export native Purple Pen .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.": "此版本完全在浏览器中运行。它可以读取和写入 .ocp 文件，导入和导出原生 Purple Pen .ppen 文件，渲染未压缩的 .omap/.xmap XML 地图、导入高分辨率 PDF 底图，并导出浏览器生成的文件。原生 OCAD 地图渲染、已安装字体检查和 Livelox API 发布需要浏览器无法提供的桌面运行环境能力。",
+  "This version runs entirely in the browser. It can read and write .ocp files, import and export compatible .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.": "此版本完全在浏览器中运行。它可以读取和写入 .ocp 文件，导入和导出兼容 .ppen 文件，渲染未压缩的 .omap/.xmap XML 地图、导入高分辨率 PDF 底图，并导出浏览器生成的文件。原生 OCAD 地图渲染、已安装字体检查和 Livelox API 发布需要浏览器无法提供的桌面运行环境能力。",
   "Open": "打开",
   "Save": "保存",
   "Fit": "自适应",

@@ -258,7 +258,7 @@ export function createAppShellTemplateMethods(deps) {
   template() {
     return `
       <style id="tabletDesktopLayoutFix">
-        purple-pen-app {
+        o-composer-app {
           display: block;
           width: var(--o-composer-viewport-width, 100vw);
           max-width: var(--o-composer-viewport-width, 100vw);
@@ -269,7 +269,7 @@ export function createAppShellTemplateMethods(deps) {
           overflow: hidden;
           box-sizing: border-box;
         }
-        purple-pen-app .app-frame {
+        o-composer-app .app-frame {
           position: relative;
           display: flex;
           flex-direction: column;
@@ -279,10 +279,10 @@ export function createAppShellTemplateMethods(deps) {
           min-height: 0;
           overflow: hidden;
         }
-        purple-pen-app [hidden] {
+        o-composer-app [hidden] {
           display: none !important;
         }
-        purple-pen-app .sr-only {
+        o-composer-app .sr-only {
           position: absolute;
           width: 1px;
           height: 1px;
@@ -293,7 +293,7 @@ export function createAppShellTemplateMethods(deps) {
           white-space: nowrap;
           border: 0;
         }
-        purple-pen-app .app-init-loading {
+        o-composer-app .app-init-loading {
           position: absolute;
           inset: 0;
           z-index: 10000;
@@ -303,14 +303,14 @@ export function createAppShellTemplateMethods(deps) {
           color: #111827;
           transition: opacity 0.18s ease;
         }
-        purple-pen-app .app-init-loading[hidden] {
+        o-composer-app .app-init-loading[hidden] {
           display: none !important;
         }
-        purple-pen-app .app-init-loading.is-done {
+        o-composer-app .app-init-loading.is-done {
           opacity: 0;
           pointer-events: none;
         }
-        purple-pen-app .app-init-loading-card {
+        o-composer-app .app-init-loading-card {
           display: flex;
           align-items: center;
           gap: 12px;
@@ -322,7 +322,7 @@ export function createAppShellTemplateMethods(deps) {
           background: #ffffff;
           box-shadow: 0 12px 36px rgba(15, 23, 42, 0.16);
         }
-        purple-pen-app .app-init-spinner {
+        o-composer-app .app-init-spinner {
           flex: 0 0 auto;
           width: 24px;
           height: 24px;
@@ -331,26 +331,26 @@ export function createAppShellTemplateMethods(deps) {
           border-radius: 999px;
           animation: appInitSpin 0.85s linear infinite;
         }
-        purple-pen-app .app-init-loading-content {
+        o-composer-app .app-init-loading-content {
           flex: 1 1 auto;
           min-width: 0;
         }
-        purple-pen-app .app-init-loading strong,
-        purple-pen-app .app-init-loading span {
+        o-composer-app .app-init-loading strong,
+        o-composer-app .app-init-loading span {
           display: block;
         }
-        purple-pen-app .app-init-loading span {
+        o-composer-app .app-init-loading span {
           margin-top: 2px;
           color: #4b5563;
           font-size: 12px;
         }
-        purple-pen-app .app-init-progress-row {
+        o-composer-app .app-init-progress-row {
           display: flex;
           align-items: center;
           gap: 8px;
           margin-top: 9px;
         }
-        purple-pen-app .app-init-progress-row progress {
+        o-composer-app .app-init-progress-row progress {
           flex: 1 1 auto;
           width: 100%;
           height: 8px;
@@ -359,20 +359,20 @@ export function createAppShellTemplateMethods(deps) {
           overflow: hidden;
           background: #e5e7eb;
         }
-        purple-pen-app .app-init-progress-row progress::-webkit-progress-bar {
+        o-composer-app .app-init-progress-row progress::-webkit-progress-bar {
           border-radius: 999px;
           background: #e5e7eb;
         }
-        purple-pen-app .app-init-progress-row progress::-webkit-progress-value {
+        o-composer-app .app-init-progress-row progress::-webkit-progress-value {
           border-radius: 999px;
           background: #a626ff;
           transition: width 0.18s ease;
         }
-        purple-pen-app .app-init-progress-row progress::-moz-progress-bar {
+        o-composer-app .app-init-progress-row progress::-moz-progress-bar {
           border-radius: 999px;
           background: #a626ff;
         }
-        purple-pen-app .app-init-progress-value {
+        o-composer-app .app-init-progress-value {
           flex: 0 0 auto;
           min-width: 34px;
           text-align: right;
@@ -381,7 +381,7 @@ export function createAppShellTemplateMethods(deps) {
         @keyframes appInitSpin {
           to { transform: rotate(360deg); }
         }
-        purple-pen-app .app-meta-setup {
+        o-composer-app .app-meta-setup {
           position: absolute;
           inset: 0;
           z-index: 9990;
@@ -392,10 +392,10 @@ export function createAppShellTemplateMethods(deps) {
           background: linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(246, 239, 255, 0.96));
           color: #111827;
         }
-        purple-pen-app .app-meta-setup[hidden] {
+        o-composer-app .app-meta-setup[hidden] {
           display: none !important;
         }
-        purple-pen-app .app-meta-setup-card {
+        o-composer-app .app-meta-setup-card {
           width: min(520px, calc(100vw - 32px));
           max-height: calc(var(--o-composer-viewport-height, 100vh) - 32px);
           overflow: auto;
@@ -405,35 +405,35 @@ export function createAppShellTemplateMethods(deps) {
           background: #fff;
           box-shadow: 0 18px 54px rgba(35, 21, 64, 0.18);
         }
-        purple-pen-app .app-meta-setup-card h1 {
+        o-composer-app .app-meta-setup-card h1 {
           margin: 0 0 6px;
           font-size: 21px;
           line-height: 1.25;
         }
-        purple-pen-app .app-meta-setup-card p {
+        o-composer-app .app-meta-setup-card p {
           margin: 0 0 16px;
           color: #4b5563;
           font-size: 13px;
           line-height: 1.45;
         }
-        purple-pen-app .app-meta-setup-grid {
+        o-composer-app .app-meta-setup-grid {
           display: grid;
           gap: 12px;
         }
-        purple-pen-app .app-meta-setup-field {
+        o-composer-app .app-meta-setup-field {
           display: grid;
           gap: 5px;
         }
-        purple-pen-app .app-meta-setup-field span {
+        o-composer-app .app-meta-setup-field span {
           font-weight: 600;
           font-size: 13px;
         }
-        purple-pen-app .app-meta-setup-field small {
+        o-composer-app .app-meta-setup-field small {
           color: #6b7280;
           font-size: 12px;
           line-height: 1.35;
         }
-        purple-pen-app .app-meta-setup-field select {
+        o-composer-app .app-meta-setup-field select {
           width: 100%;
           height: 34px;
           padding: 5px 30px 5px 9px;
@@ -443,32 +443,32 @@ export function createAppShellTemplateMethods(deps) {
           color: #111827;
           font: inherit;
         }
-        purple-pen-app .global-options-dialog {
+        o-composer-app .global-options-dialog {
           width: min(520px, calc(100vw - 28px));
           max-width: calc(100vw - 28px);
         }
-        purple-pen-app .global-options-form {
+        o-composer-app .global-options-form {
           min-width: min(480px, calc(100vw - 56px));
         }
-        purple-pen-app .global-options-grid {
+        o-composer-app .global-options-grid {
           display: grid;
           gap: 12px;
           min-width: 0;
         }
-        purple-pen-app .global-options-field {
+        o-composer-app .global-options-field {
           display: grid;
           gap: 5px;
         }
-        purple-pen-app .global-options-field span {
+        o-composer-app .global-options-field span {
           font-weight: 600;
           font-size: 13px;
         }
-        purple-pen-app .global-options-field small {
+        o-composer-app .global-options-field small {
           color: #6b7280;
           font-size: 12px;
           line-height: 1.35;
         }
-        purple-pen-app .global-options-field select {
+        o-composer-app .global-options-field select {
           width: 100%;
           height: 34px;
           padding: 5px 30px 5px 9px;
@@ -478,12 +478,12 @@ export function createAppShellTemplateMethods(deps) {
           color: #111827;
           font: inherit;
         }
-        purple-pen-app .app-meta-setup-actions {
+        o-composer-app .app-meta-setup-actions {
           display: flex;
           justify-content: flex-end;
           margin-top: 18px;
         }
-        purple-pen-app .app-meta-setup-actions button {
+        o-composer-app .app-meta-setup-actions button {
           min-height: 36px;
           padding: 7px 14px;
           border: 0;
@@ -494,12 +494,12 @@ export function createAppShellTemplateMethods(deps) {
           font-weight: 600;
           cursor: pointer;
         }
-        purple-pen-app .app-meta-setup-actions button:hover,
-        purple-pen-app .app-meta-setup-actions button:focus-visible {
+        o-composer-app .app-meta-setup-actions button:hover,
+        o-composer-app .app-meta-setup-actions button:focus-visible {
           background: #8f1fe0;
           outline: none;
         }
-        purple-pen-app.desktop-ui {
+        o-composer-app.desktop-ui {
           display: block !important;
           width: var(--o-composer-viewport-width, 100vw) !important;
           max-width: var(--o-composer-viewport-width, 100vw) !important;
@@ -509,7 +509,7 @@ export function createAppShellTemplateMethods(deps) {
           min-height: 0 !important;
           overflow: hidden !important;
         }
-        purple-pen-app.desktop-ui .app-frame {
+        o-composer-app.desktop-ui .app-frame {
           display: flex !important;
           flex-direction: column !important;
           width: 100% !important;
@@ -519,15 +519,15 @@ export function createAppShellTemplateMethods(deps) {
           min-height: 0 !important;
           overflow: hidden !important;
         }
-        purple-pen-app.desktop-ui .menubar,
-        purple-pen-app.desktop-ui .toolbar,
-        purple-pen-app.desktop-ui .course-tabs,
-        purple-pen-app.desktop-ui .statusbar {
+        o-composer-app.desktop-ui .menubar,
+        o-composer-app.desktop-ui .toolbar,
+        o-composer-app.desktop-ui .course-tabs,
+        o-composer-app.desktop-ui .statusbar {
           flex: 0 0 auto !important;
           max-width: 100% !important;
           min-width: 0 !important;
         }
-        purple-pen-app.desktop-ui .workspace {
+        o-composer-app.desktop-ui .workspace {
           display: grid !important;
           grid-template-columns: var(--left-panel-width, 300px) 6px minmax(0, 1fr) !important;
           grid-template-rows: minmax(0, 1fr) !important;
@@ -539,7 +539,7 @@ export function createAppShellTemplateMethods(deps) {
           min-height: 0 !important;
           overflow: hidden !important;
         }
-        purple-pen-app.desktop-ui .left-panel {
+        o-composer-app.desktop-ui .left-panel {
           grid-column: 1 !important;
           grid-row: 1 !important;
           display: flex !important;
@@ -548,14 +548,14 @@ export function createAppShellTemplateMethods(deps) {
           min-height: 0 !important;
           overflow: auto !important;
         }
-        purple-pen-app.desktop-ui .workspace-divider {
+        o-composer-app.desktop-ui .workspace-divider {
           grid-column: 2 !important;
           grid-row: 1 !important;
           display: block !important;
           width: 6px !important;
           min-width: 6px !important;
         }
-        purple-pen-app.desktop-ui .map-panel {
+        o-composer-app.desktop-ui .map-panel {
           grid-column: 3 !important;
           grid-row: 1 !important;
           display: flex !important;
@@ -567,12 +567,12 @@ export function createAppShellTemplateMethods(deps) {
           flex: 1 1 0 !important;
           overflow: hidden !important;
         }
-        purple-pen-app.desktop-ui .course-banner {
+        o-composer-app.desktop-ui .course-banner {
           flex: 0 0 auto !important;
           min-width: 0 !important;
           max-width: 100% !important;
         }
-        purple-pen-app.desktop-ui .map-canvas {
+        o-composer-app.desktop-ui .map-canvas {
           display: block !important;
           width: 100% !important;
           height: 100% !important;
@@ -582,13 +582,13 @@ export function createAppShellTemplateMethods(deps) {
           max-width: 100% !important;
           touch-action: none !important;
         }
-        purple-pen-app .topbar-control {
+        o-composer-app .topbar-control {
           flex: 0 0 auto;
           display: inline-flex;
           align-items: center;
           min-width: 0;
         }
-        purple-pen-app .topbar-link {
+        o-composer-app .topbar-link {
           flex: 0 0 auto;
           display: inline-flex;
           align-items: center;
@@ -606,20 +606,20 @@ export function createAppShellTemplateMethods(deps) {
           cursor: pointer;
           white-space: nowrap;
         }
-        purple-pen-app .topbar-link:hover,
-        purple-pen-app .topbar-link:focus-visible {
+        o-composer-app .topbar-link:hover,
+        o-composer-app .topbar-link:focus-visible {
           background: rgba(166, 38, 255, 0.08);
           color: #5b21b6;
           outline: none;
           text-decoration: none;
         }
-        purple-pen-app .feedback-link {
+        o-composer-app .feedback-link {
           margin-left: auto !important;
         }
-        purple-pen-app .topbar-link + .topbar-link {
+        o-composer-app .topbar-link + .topbar-link {
           margin-left: 6px !important;
         }
-        purple-pen-app .special-visibility-field {
+        o-composer-app .special-visibility-field {
           display: grid;
           gap: 8px;
           margin: 0;
@@ -628,11 +628,11 @@ export function createAppShellTemplateMethods(deps) {
           border-radius: 8px;
           background: rgba(255, 255, 255, 0.72);
         }
-        purple-pen-app .special-visibility-field legend {
+        o-composer-app .special-visibility-field legend {
           padding: 0 4px;
           font-weight: 600;
         }
-        purple-pen-app .special-visibility-courses {
+        o-composer-app .special-visibility-courses {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
           gap: 6px 10px;
@@ -640,29 +640,29 @@ export function createAppShellTemplateMethods(deps) {
           overflow: auto;
           padding: 2px 1px;
         }
-        purple-pen-app .special-visibility-course,
-        purple-pen-app .special-visibility-all {
+        o-composer-app .special-visibility-course,
+        o-composer-app .special-visibility-all {
           display: inline-flex;
           align-items: center;
           gap: 6px;
           min-width: 0;
           line-height: 1.25;
         }
-        purple-pen-app .special-visibility-course span {
+        o-composer-app .special-visibility-course span {
           min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
-        purple-pen-app .special-visibility-course.disabled {
+        o-composer-app .special-visibility-course.disabled {
           color: #9ca3af;
         }
-        purple-pen-app .special-visibility-help,
-        purple-pen-app .special-visibility-empty {
+        o-composer-app .special-visibility-help,
+        o-composer-app .special-visibility-empty {
           margin: 0;
         }
 
-        purple-pen-app .constants-panel {
+        o-composer-app .constants-panel {
           display: grid;
           gap: 12px;
           min-width: 0;
@@ -670,57 +670,57 @@ export function createAppShellTemplateMethods(deps) {
           padding: 12px;
           box-sizing: border-box;
         }
-        purple-pen-app .constants-panel h2,
-        purple-pen-app .constants-panel h3 {
+        o-composer-app .constants-panel h2,
+        o-composer-app .constants-panel h3 {
           line-height: 1.25;
         }
-        purple-pen-app .constants-panel h2 {
+        o-composer-app .constants-panel h2 {
           margin: 0;
           font-size: 16px;
         }
-        purple-pen-app .constants-panel h3 {
+        o-composer-app .constants-panel h3 {
           margin: 2px 0 -2px;
           font-size: 13px;
         }
-        purple-pen-app .constants-help {
+        o-composer-app .constants-help {
           margin: 0;
           color: #6b7280;
           font-size: 12px;
           line-height: 1.35;
         }
-        purple-pen-app .constants-table {
+        o-composer-app .constants-table {
           width: 100%;
           margin: 0;
           border-collapse: collapse;
           font-size: 12px;
         }
-        purple-pen-app .constants-table th,
-        purple-pen-app .constants-table td {
+        o-composer-app .constants-table th,
+        o-composer-app .constants-table td {
           border: 1px solid #e5e7eb;
           padding: 5px 6px;
           vertical-align: top;
         }
-        purple-pen-app .constants-table th {
+        o-composer-app .constants-table th {
           background: #f9fafb;
           text-align: left;
           font-weight: 600;
         }
-        purple-pen-app .constants-table input {
+        o-composer-app .constants-table input {
           width: 100%;
           min-width: 0;
           box-sizing: border-box;
           font: inherit;
         }
-        purple-pen-app .constants-table code {
+        o-composer-app .constants-table code {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
           font-size: 12px;
         }
-        purple-pen-app .constants-actions {
+        o-composer-app .constants-actions {
           display: flex;
           justify-content: flex-start;
         }
-        purple-pen-app .constants-actions button,
-        purple-pen-app .constants-delete {
+        o-composer-app .constants-actions button,
+        o-composer-app .constants-delete {
           min-height: 26px;
           border: 1px solid #d1d5db;
           border-radius: 6px;
@@ -729,60 +729,60 @@ export function createAppShellTemplateMethods(deps) {
           font: inherit;
           cursor: pointer;
         }
-        purple-pen-app .constants-actions button {
+        o-composer-app .constants-actions button {
           padding: 4px 9px;
         }
-        purple-pen-app .constants-delete {
+        o-composer-app .constants-delete {
           padding: 2px 7px;
         }
-        purple-pen-app .pdf-export-dialog {
+        o-composer-app .pdf-export-dialog {
           width: min(760px, calc(100vw - 28px));
           max-width: calc(100vw - 28px);
         }
-        purple-pen-app .pdf-export-form {
+        o-composer-app .pdf-export-form {
           min-width: min(720px, calc(100vw - 56px));
         }
-        purple-pen-app .pdf-export-layout {
+        o-composer-app .pdf-export-layout {
           display: grid;
           grid-template-columns: minmax(230px, .9fr) minmax(260px, 1.1fr);
           gap: 10px 14px;
           align-items: start;
         }
-        purple-pen-app .pdf-export-layout fieldset {
+        o-composer-app .pdf-export-layout fieldset {
           border: 1px solid #d6d6d6;
           border-radius: 8px;
           padding: 8px 10px 10px;
           margin: 0;
         }
-        purple-pen-app .pdf-export-layout legend {
+        o-composer-app .pdf-export-layout legend {
           font-weight: 600;
           padding: 0 4px;
         }
-        purple-pen-app .pdf-export-layout label {
+        o-composer-app .pdf-export-layout label {
           display: grid;
           gap: 3px;
           margin: 6px 0;
         }
-        purple-pen-app .pdf-export-layout .dialog-check {
+        o-composer-app .pdf-export-layout .dialog-check {
           display: flex;
           align-items: center;
           gap: 6px;
           margin: 7px 0;
         }
-        purple-pen-app .pdf-export-layout select,
-        purple-pen-app .pdf-export-layout input[type="text"] {
+        o-composer-app .pdf-export-layout select,
+        o-composer-app .pdf-export-layout input[type="text"] {
           width: 100%;
           box-sizing: border-box;
         }
-        purple-pen-app .pdf-export-summary {
+        o-composer-app .pdf-export-summary {
           grid-column: 1 / -1;
           min-height: 1.2em;
         }
         @media (max-width: 700px) {
-          purple-pen-app .pdf-export-layout {
+          o-composer-app .pdf-export-layout {
             grid-template-columns: 1fr;
           }
-          purple-pen-app .pdf-export-summary {
+          o-composer-app .pdf-export-summary {
             grid-column: auto;
           }
         }

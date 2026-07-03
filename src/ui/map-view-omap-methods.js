@@ -1,4 +1,4 @@
-import { debugLog, debugWarn, debugError } from "./debug-log.js?v=20260701-16";
+import { debugLog, debugWarn, debugError } from "./debug-log.js?v=20260703-1";
 export function createMapViewOmapMethods(deps) {
   const {
     allControlsView,
@@ -120,21 +120,6 @@ export function createMapViewOmapMethods(deps) {
     const width = this.canvas.clientWidth || 1;
     const height = this.canvas.clientHeight || 1;
     const ratio = effectiveOmapPixelRatio(ui, window.devicePixelRatio || 1);
-    console.info("OMAP draw", {
-      renderQuality: ui.renderQuality || "balanced",
-      highQuality: renderQualityHighQuality(ui),
-      rawDevicePixelRatio: window.devicePixelRatio || 1,
-      ratio,
-      paddingMultiplier: omapPaddingMultiplier(ui),
-      width,
-      height,
-      zoom: ui.zoom,
-      pan: ui.pan,
-      bounds: this.bounds,
-      workerDisabled: this.omapWorkerDisabled,
-      workerBusy: this.omapWorkerBusy,
-      layerCacheSize: this.omapLayerCache.length
-    });
     const request = this.createOmapLayerRequest(ui, width, height, ratio);
     const matchingLayer = this.findOmapLayer(layer =>
       layer?.key === request.key || this.omapLayerMatchesLayer(layer, ui, width, height, ratio)
@@ -264,7 +249,6 @@ export function createMapViewOmapMethods(deps) {
       currentTransform: summarizeCanvasTransformForDebug(ctx),
       layer: summarizeOmapLayerForDebug(layer)
     };
-    console.info("OMAP layer draw", drawDebug);
     debugLog("omap.draw.layer.before-drawImage", drawDebug);
     ctx.save();
     try {
@@ -371,7 +355,6 @@ export function createMapViewOmapMethods(deps) {
         mapBounds: viewportMapBounds(this.bounds, width, height, ui.pan, currentScale)
       }
     };
-    console.info("OMAP transformed layer draw", drawDebug);
     debugLog("omap.draw.transformed.before-drawImage", drawDebug);
 
     ctx.save();
@@ -472,7 +455,7 @@ export function createMapViewOmapMethods(deps) {
       return;
     }
     this.omapDebugLogTimes.set(logKey, time);
-    console.info("OMAP cached layer rejected", {
+    debugLog("omap.layer-cache.rejected", {
       expected: {
         mapVersion: expected.mapVersion,
         width: expected.width,
@@ -585,11 +568,6 @@ export function createMapViewOmapMethods(deps) {
       view: request.view,
       cacheSize: this.omapLayerCache.length
     });
-    console.info("OMAP worker queued", {
-      key: request.key,
-      mapVersion: request.mapVersion,
-      view: request.view
-    });
     this.omapWorkerDesired = request;
     this.pumpOmapWorker();
     return true;
@@ -627,23 +605,6 @@ export function createMapViewOmapMethods(deps) {
       renderQuality: ui.renderQuality || "balanced"
     };
     view.mapBounds = layerMapBounds(view);
-    console.info("OMAP layer view", {
-      renderQuality: view.renderQuality,
-      highQuality: view.highQuality,
-      ratio: view.ratio,
-      paddingMultiplier: paddingScale,
-      width: view.width,
-      height: view.height,
-      layerWidth: view.layerWidth,
-      layerHeight: view.layerHeight,
-      padX: view.padX,
-      padY: view.padY,
-      zoom: view.zoom,
-      pan: view.pan,
-      scale: view.scale,
-      bounds: view.bounds,
-      mapBounds: view.mapBounds
-    });
     return view;
   },
 
@@ -666,13 +627,6 @@ export function createMapViewOmapMethods(deps) {
       mapVersion: request.mapVersion,
       view: request.view
     });
-    console.info("OMAP worker request", {
-      requestId,
-      key: request.key,
-      mapVersion: request.mapVersion,
-      view: request.view
-    });
-
     if (this.omapWorkerMapVersion !== request.mapVersion) {
       worker.postMessage({
         type: "setMap",
@@ -698,7 +652,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260701-16", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260703-1", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");
@@ -727,15 +681,6 @@ export function createMapViewOmapMethods(deps) {
       bitmap: message.bitmap ? { width: message.bitmap.width, height: message.bitmap.height } : null,
       error: message.error || "",
       workerMetrics: message.metrics || null,
-      view: message.view
-    });
-    console.info("OMAP worker message", {
-      type: message.type,
-      requestId: message.requestId,
-      mapVersion: message.mapVersion,
-      currentMapVersion: this.omapMapVersion,
-      hasBitmap: !!message.bitmap,
-      error: message.error || "",
       view: message.view
     });
     if (message.error) {
@@ -807,40 +752,6 @@ export function createMapViewOmapMethods(deps) {
         expected: summarizeExpectedForDebug(expected, ui, this.bounds),
         layer: summarizeOmapLayerForDebug(layer, currentKey)
       });
-      console.info("OMAP worker layer stored", {
-        requestId: message.requestId,
-        layerKey: layer.key,
-        currentKey,
-        keyMatchesCurrentView: layer.key === currentKey,
-        reusable: reasons.length === 0,
-        reasons,
-        cacheSize: this.omapLayerCache.length,
-        expected: {
-          mapVersion: expected.mapVersion,
-          width: expected.width,
-          height: expected.height,
-          ratio: expected.ratio,
-          highQuality: expected.highQuality,
-          renderQuality: expected.renderQuality,
-          zoom: ui.zoom,
-          pan: ui.pan,
-          bounds: this.bounds
-        },
-        layer: {
-          mapVersion: layer.mapVersion,
-          viewportWidth: layer.viewportWidth,
-          viewportHeight: layer.viewportHeight,
-          ratio: layer.ratio,
-          highQuality: layer.highQuality,
-          renderQuality: layer.renderQuality || "balanced",
-          zoom: layer.zoom,
-          pan: layer.pan,
-          bounds: layer.bounds,
-          scale: layer.scale,
-          sourceWidth: layer.source?.width,
-          sourceHeight: layer.source?.height
-        }
-      });
       this.requestDraw(this.store.snapshot());
     }
     else if (message.bitmap?.close) {
@@ -862,7 +773,6 @@ export function createMapViewOmapMethods(deps) {
       this.omapWorker = null;
     }
     debugWarn("omap.worker.disabled", { reason });
-    console.warn(`Falling back to main-thread OMAP rendering: ${reason}`);
     this.requestDraw(this.store.snapshot());
   }
 

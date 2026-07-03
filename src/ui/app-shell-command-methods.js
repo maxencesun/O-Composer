@@ -453,7 +453,7 @@ export function createAppShellCommandMethods(deps) {
         alert(this.t("O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.\n\nLicensed under the GNU AGPLv3.", { version: APP_VERSION }));
         break;
       case "help":
-        alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ocp files, import and export native Purple Pen .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));
+        alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ocp files, import and export compatible .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));
         break;
       default:
         if (command.startsWith("tool-")) {

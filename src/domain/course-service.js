@@ -1,5 +1,5 @@
-import { findById } from "./event-model.js?v=20260701-16";
-import { allCourseVariations } from "./relay-variations.js?v=20260701-16";
+import { findById } from "./event-model.js?v=20260703-1";
+import { allCourseVariations } from "./relay-variations.js?v=20260703-1";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -68,7 +68,7 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
             const loopBranches = variationChoices.filter(choice => branches.includes(choice));
             for (const branchId of loopBranches) {
               visit(branchId, courseControl.variationEnd, true, courseControl.control);
-              // In a Purple Pen loop the runner returns to the loop owner after
+              // In imported loop courses, the runner returns to the loop owner after
               // every loop.  Keep that repeated checkpoint in a chosen variation
               // sequence; otherwise the map line jumps from one loop directly to
               // the next and the loop is no longer a loop.
@@ -170,7 +170,7 @@ export function courseTopology(eventModel, courseId) {
   function branchDisplayStart(ownerCourseControl, branchCourseControl, joinCourseControlId) {
     if (!branchCourseControl) return Number(joinCourseControlId) || 0;
     // New relay branches use a hidden marker with the same map control as the
-    // fork owner; imported Purple Pen files may use the first real branch
+    // fork owner; imported .ppen files may use the first real branch
     // control directly. Handle both formats.
     if (branchIsHiddenMarker(ownerCourseControl, branchCourseControl)) {
       return Number(branchCourseControl.nextCourseControl) || Number(joinCourseControlId) || 0;
@@ -201,7 +201,7 @@ export function courseTopology(eventModel, courseId) {
         .map(branch => branchDisplayStart(courseControl, branch, joinCourseControlId))
         .filter(Boolean);
 
-      // Purple Pen's loop is not a fork followed by a synthetic join. The split
+      // A .ppen loop is not a fork followed by a synthetic join. The split
       // control is also the join control: leg 0 is the fall-through edge that
       // leaves the loop, while legs 1..N are the loops that return to this same
       // control. Keep the arrays aligned with legTo so the fall-through edge has

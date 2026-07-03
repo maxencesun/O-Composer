@@ -565,7 +565,7 @@ export function createAppShellDialogMethods(deps) {
     const workspace = this.querySelector(".workspace");
     const divider = this.querySelector("#workspaceDivider");
     if (!workspace || !divider) return;
-    const saved = Number(localStorage.getItem("purplePenLeftPanelWidth") || 0);
+    const saved = Number(localStorage.getItem("oComposerLeftPanelWidth") || 0);
     if (saved > 0) {
       const width = clamp(saved, 260, Math.max(320, window.innerWidth - 360));
       workspace.style.setProperty("--left-panel-width", `${width}px`);
@@ -585,7 +585,7 @@ export function createAppShellDialogMethods(deps) {
         if (this.resolvedUiMode() === UI_MODES.DESKTOP) {
           workspace.style.gridTemplateColumns = `${width}px 6px minmax(0, 1fr)`;
         }
-        localStorage.setItem("purplePenLeftPanelWidth", String(Math.round(width)));
+        localStorage.setItem("oComposerLeftPanelWidth", String(Math.round(width)));
         this.mapView.requestDraw(this.store.snapshot());
       };
       const stop = stopEvent => {

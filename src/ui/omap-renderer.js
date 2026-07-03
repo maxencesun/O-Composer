@@ -259,7 +259,7 @@ function attachmentPointSamples(part, location) {
 }
 
 function linePartsForDrawing(parts, line, closed, applyShortening) {
-  // OMAP/Purple Pen treats minimum_length as symbol metadata/validation, not as a
+  // OMAP rendering treats minimum_length as symbol metadata/validation, not as a
   // rendering clip.  Filtering by it drops short but intentional end pieces such
   // as cliff tags, wall ticks, stair steps, and other linear feature glyphs.
   return parts
@@ -1136,7 +1136,7 @@ function lineSymbolPositions(line, part, closed) {
 
   const positions = [];
   const groups = dashLayoutGroups(part, {
-    // Purple Pen converts OpenMapper dash points to corners while importing
+    // The reference OpenMapper import converts dash points to corners
     // objects whose symbol has no actual dash pattern.  That means cliff tags,
     // fence ticks, hatch marks, and other non-dashed mid symbols should be
     // split at those nodes, but their first/last spacing must NOT be halved.
@@ -1273,7 +1273,7 @@ function samplePathPart(part, distance) {
     const to = part[i];
     const segmentLength = pointDistance(from, to);
     if (segmentLength <= 0) continue;
-    // Purple Pen's SymPath.FindPointsAlongLine advances to the next segment
+    // The reference path algorithm advances to the next segment
     // when a sampled distance lands exactly on an intermediate vertex
     // (`nextLength < dist`, not <=).  That gives ticks/mid-symbols at normal
     // vertices the outgoing segment direction instead of the incoming one.
@@ -1326,7 +1326,7 @@ function plainPoint(point, forcedKind = null) {
 }
 
 function pointKind(point) {
-  // Match Purple Pen's OpenMapper import: OOM coords are Normal by default.
+  // Match the OpenMapper import behavior: OOM coords are Normal by default.
   // Only explicit dash points become PointKind.Dash; CurveStart marks the next
   // two coords as Bezier controls during flattening, but the curve-start coord
   // itself remains a normal point. This is important for patterns such as

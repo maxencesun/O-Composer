@@ -3,7 +3,7 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260701-16";
+} from "./event-model.js?v=20260703-1";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
@@ -12,12 +12,12 @@ export function parsePpen(text, sourceName = "Untitled.ocp") {
   const doc = parser.parseFromString(text, "application/xml");
   const parserError = doc.querySelector("parsererror");
   if (parserError) {
-    throw new Error(parserError.textContent.trim() || "The Purple Pen file is not valid XML.");
+    throw new Error(parserError.textContent.trim() || "The .ppen file is not valid XML.");
   }
 
   const root = doc.documentElement;
   if (!root || root.nodeName !== "course-scribe-event") {
-    throw new Error("This is not an O-Composer .ocp or Purple Pen .ppen file.");
+    throw new Error("This is not an O-Composer .ocp or compatible .ppen file.");
   }
 
   const model = createBlankEvent();
@@ -65,7 +65,7 @@ export function parsePpen(text, sourceName = "Untitled.ocp") {
 
 export function serializePpen(model, options = {}) {
   const saveOptions = {
-    nativePurplePen: !!options.nativePurplePen,
+    nativePpen: !!options.nativePpen,
     ocpData: options.ocpData || model.metadata?.ocp || null
   };
   const lines = ["<course-scribe-event>"];
@@ -85,7 +85,7 @@ export function serializePpen(model, options = {}) {
   for (const special of model.specials) {
     writeSpecial(lines, special, 1, saveOptions);
   }
-  if (!saveOptions.nativePurplePen && saveOptions.ocpData) {
+  if (!saveOptions.nativePpen && saveOptions.ocpData) {
     writeOcpData(lines, saveOptions.ocpData, 1);
   }
   lines.push("</course-scribe-event>");
@@ -93,11 +93,11 @@ export function serializePpen(model, options = {}) {
 }
 
 export function serializeOcp(model, options = {}) {
-  return serializePpen(model, { ...options, nativePurplePen: false });
+  return serializePpen(model, { ...options, nativePpen: false });
 }
 
 export function serializeNativePpen(model) {
-  return serializePpen(model, { nativePurplePen: true });
+  return serializePpen(model, { nativePpen: true });
 }
 
 function parseEvent(node) {
@@ -722,7 +722,7 @@ function writeEvent(lines, event, level, options = {}) {
     }
     close(lines, level + 1, "custom-symbol-text");
   }
-  if (!options.nativePurplePen && event.constants?.length) {
+  if (!options.nativePpen && event.constants?.length) {
     open(lines, level + 1, "constants");
     for (const constant of event.constants || []) {
       empty(lines, level + 2, "constant", {
@@ -815,12 +815,12 @@ function writeCourse(lines, course, level, saveOptions = {}) {
     "course-length": courseOptions.courseLength || undefined,
     "hide-from-reports": !!courseOptions.hideFromReports,
     "score-column": course.kind === "score" ? scoreColumnForSave(courseOptions.scoreColumn ?? 7) : undefined,
-    "score-finish-control": !saveOptions.nativePurplePen && course.kind === "score" ? courseOptions.scoreFinishControl || undefined : undefined,
+    "score-finish-control": !saveOptions.nativePpen && course.kind === "score" ? courseOptions.scoreFinishControl || undefined : undefined,
     "description-kind": courseOptions.descriptionKind || "symbols"
   });
   if ((course.relay?.teams || 0) > 0
     || (course.relay?.legs || 1) > 1
-    || (!saveOptions.nativePurplePen && (
+    || (!saveOptions.nativePpen && (
       course.relay?.teamPrefix
       || (course.relay?.teamDigits || 0) > 0
       || (course.relay?.legNames || []).some(Boolean)
@@ -829,9 +829,9 @@ function writeCourse(lines, course, level, saveOptions = {}) {
       "first-team": course.relay.firstTeam || 1,
       teams: course.relay.teams || 0,
       legs: course.relay.legs || 1,
-      "team-prefix": saveOptions.nativePurplePen ? undefined : course.relay.teamPrefix || "",
-      "team-digits": saveOptions.nativePurplePen ? undefined : course.relay.teamDigits || 0,
-      "leg-names": saveOptions.nativePurplePen ? undefined : (course.relay.legNames || []).join("|")
+      "team-prefix": saveOptions.nativePpen ? undefined : course.relay.teamPrefix || "",
+      "team-digits": saveOptions.nativePpen ? undefined : course.relay.teamDigits || 0,
+      "leg-names": saveOptions.nativePpen ? undefined : (course.relay.legNames || []).join("|")
     });
   }
   for (const branch of course.relay?.branches || []) {
@@ -844,14 +844,14 @@ function writeCourse(lines, course, level, saveOptions = {}) {
 }
 
 function courseKindForSave(course, options = {}) {
-  if (options.nativePurplePen && course.kind === "team") {
+  if (options.nativePpen && course.kind === "team") {
     return "normal";
   }
   return course.kind || "normal";
 }
 
 function courseLabelKindForSave(labelKind, options = {}) {
-  if (!options.nativePurplePen) {
+  if (!options.nativePpen) {
     return labelKind || "sequence";
   }
   return {
@@ -887,7 +887,7 @@ function writeCourseControl(lines, courseControl, level, options = {}) {
   if (courseControl.mapExchange) attrs["map-exchange"] = true;
   if (courseControl.mapFlip) attrs["map-flip"] = true;
   if (courseControl.points && courseControl.teamRole !== "free") attrs.points = courseControl.points;
-  if (!options.nativePurplePen && courseControl.teamRole === "free") attrs["team-role"] = "free";
+  if (!options.nativePpen && courseControl.teamRole === "free") attrs["team-role"] = "free";
 
   open(lines, level, "course-control", attrs);
   if (courseControl.nextCourseControl) {

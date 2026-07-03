@@ -324,7 +324,7 @@ if (calls.some(call => approxCall(call, "lineTo", 95, 20.4))) {
   throw new Error("OMAP end-length-zero comb symbols should not be placed directly on dash points");
 }
 if (!calls.some(call => approxCall(call, "lineTo", 93.3333333333, 20.4)) || !calls.some(call => approxCall(call, "lineTo", 96.6666666667, 20.4))) {
-  throw new Error("OMAP end-length-zero dash-point comb spacing does not match Purple Pen");
+  throw new Error("OMAP end-length-zero dash-point comb spacing does not match reference renderer");
 }
 
 print("OMAP renderer smoke passed.");

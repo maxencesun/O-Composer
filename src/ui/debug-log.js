@@ -9,7 +9,18 @@ const DEBUG_ENABLED = (() => {
   }
 })();
 
-const MAX_DEBUG_ENTRIES = 8000;
+const DEBUG_CONSOLE_MIRROR = (() => {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const value = String(params.get("debugConsole") || "").toLowerCase();
+    return value === "true" || value === "1" || value === "yes";
+  }
+  catch (_) {
+    return false;
+  }
+})();
+
+const MAX_DEBUG_ENTRIES = 1000;
 const debugEntries = [];
 let debugPanel = null;
 let debugCountNode = null;
@@ -192,7 +203,9 @@ function patchConsoleForDebugLog() {
       catch (_) {
         // Never break the app because debug logging failed.
       }
-      original(...args);
+      if (DEBUG_CONSOLE_MIRROR) {
+        original(...args);
+      }
     };
   }
 }

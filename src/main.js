@@ -1,6 +1,6 @@
 const BOOT_LOADING_ID = "oComposerBootLoading";
 const BOOT_LOADING_STYLE_ID = "oComposerBootLoadingStyle";
-const LANGUAGE_KEY = "purplePenLanguage";
+const LANGUAGE_KEY = "oComposerLanguage";
 const bootProgressState = {
   percent: 4,
   title: "",
@@ -59,7 +59,7 @@ function ensureViewportShellStyle() {
       inset: 0;
       box-sizing: border-box;
     }
-    purple-pen-app {
+    o-composer-app {
       display: block;
       width: var(--o-composer-viewport-width, 100vw);
       max-width: var(--o-composer-viewport-width, 100vw);
@@ -339,12 +339,11 @@ requestAnimationFrame(() => {
   updateBootLoadingProgress({ percent: 18, detail: text.moduleDetail, indeterminate: true });
 });
 
-import("./ui/app-shell.js?v=20260701-16")
-  .then(({ PurplePenApp }) => {
+import("./ui/app-shell.js?v=20260703-1")
+  .then(({ OComposerApp }) => {
     updateBootLoadingProgress({ percent: 52, detail: text.initializeDetail, indeterminate: false });
-    customElements.define("purple-pen-app", PurplePenApp);
+    customElements.define("o-composer-app", OComposerApp);
   })
   .catch(error => {
-    console.error(error);
     showBootError(error);
   });

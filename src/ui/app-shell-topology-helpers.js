@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260706-2";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260706-2";
-import { findById } from "../domain/event-model.js?v=20260706-2";
+} from "./app-shell-config.js?v=20260706-3";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260706-3";
+import { findById } from "../domain/event-model.js?v=20260706-3";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260706-2";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260706-2";
+} from "../domain/control-descriptions.js?v=20260706-3";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260706-3";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,10 +43,10 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260706-2";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260706-2";
-import { t } from "./i18n.js?v=20260706-2";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260706-2";
+} from "../domain/course-service.js?v=20260706-3";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260706-3";
+import { t } from "./i18n.js?v=20260706-3";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260706-3";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
@@ -167,7 +167,7 @@ export function layoutVariationTopology(topology, branchCodes) {
   const xGrid = topologyCoordinateGrid(abstractPositions, position => [
     position,
     ...(position?.forkStart || [])
-  ], "x");
+  ], "x", { fillGaps: true });
   const yGrid = topologyCoordinateGrid(abstractPositions, position => [
     position,
     Number.isFinite(position?.loopBottom) ? { y: position.loopBottom } : null,
@@ -194,7 +194,7 @@ export function layoutVariationTopology(topology, branchCodes) {
   };
 }
 
-function topologyCoordinateGrid(positions, collect, key) {
+function topologyCoordinateGrid(positions, collect, key, options = {}) {
   const values = [];
   for (const position of positions) {
     for (const point of collect(position) || []) {
@@ -202,8 +202,26 @@ function topologyCoordinateGrid(positions, collect, key) {
       if (Number.isFinite(value)) values.push(value);
     }
   }
-  const unique = [...new Set(values.map(value => roundTopologyGridValue(value)))]
+  let unique = [...new Set(values.map(value => roundTopologyGridValue(value)))]
     .sort((a, b) => a - b);
+  if (options.fillGaps && unique.length > 1) {
+    const steps = [];
+    for (let index = 1; index < unique.length; index += 1) {
+      const diff = roundTopologyGridValue(unique[index] - unique[index - 1]);
+      if (diff > 0) steps.push(diff);
+    }
+    const step = Math.max(1, Math.min(...steps));
+    if (Number.isFinite(step) && step > 0) {
+      const filled = [];
+      const min = unique[0];
+      const max = unique[unique.length - 1];
+      const maxColumns = 80;
+      for (let value = min, count = 0; value <= max + step / 2 && count < maxColumns; value += step, count += 1) {
+        filled.push(roundTopologyGridValue(value));
+      }
+      unique = [...new Set([...filled, ...unique])].sort((a, b) => a - b);
+    }
+  }
   return {
     values: unique.length ? unique : [0],
     indexes: new Map((unique.length ? unique : [0]).map((value, index) => [value, index]))

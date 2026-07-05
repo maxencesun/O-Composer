@@ -621,7 +621,7 @@ button:hover {
   stroke-width: 5px;
   paint-order: stroke fill;
   font-size: 26px;
-  dominant-baseline: middle;
+  dominant-baseline: central;
 }
 
 .variation-topology-special {
@@ -630,7 +630,7 @@ button:hover {
   stroke-width: 4px;
   paint-order: stroke fill;
   font-size: 12px;
-  dominant-baseline: middle;
+  dominant-baseline: central;
 }
 
 .variation-topology-node.selected text {

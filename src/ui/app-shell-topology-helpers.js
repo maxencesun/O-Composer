@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260706-5";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260706-5";
-import { findById } from "../domain/event-model.js?v=20260706-5";
+} from "./app-shell-config.js?v=20260706-6";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260706-6";
+import { findById } from "../domain/event-model.js?v=20260706-6";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260706-5";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260706-5";
+} from "../domain/control-descriptions.js?v=20260706-6";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260706-6";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,10 +43,10 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260706-5";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260706-5";
-import { t } from "./i18n.js?v=20260706-5";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260706-5";
+} from "../domain/course-service.js?v=20260706-6";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260706-6";
+import { t } from "./i18n.js?v=20260706-6";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260706-6";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
@@ -95,7 +95,7 @@ export function layoutVariationTopology(topology, branchCodes) {
         if (loop) {
           const forkY = y;
           forkStart[0] = { x, y: forkY, code: "", loopFallThru: true };
-          const firstLaneCenter = x - (branchCount % 2 ? branchCount : branchCount - 1) * laneWidth / 2;
+          const firstLaneCenter = x - (branchCount - 1) * laneWidth / 2;
           for (let branchIndex = startFork; branchIndex < numForks; branchIndex += 1) {
             const laneIndex = branchIndex - startFork;
             const forkX = firstLaneCenter + laneIndex * laneWidth;
@@ -495,7 +495,7 @@ export function topologyConnectionRadius(control, symbolRadius) {
   // incoming edge from the outgoing edge, so the line and its hit area must stop
   // above the label and resume below it instead of running through the number.
   // Otherwise clicking near the checkpoint can select the wrong insertion edge.
-  return symbolRadius + 2;
+  return control.kind === "normal" ? 20 : symbolRadius + 2;
 }
 
 export function topologyNodeSvg(control, position, courseControlId, selected, options = {}) {
@@ -511,7 +511,7 @@ export function topologyNodeSvg(control, position, courseControlId, selected, op
   }
   const label = control.kind === "normal" ? control.code || "" : controlKindLabel(control.kind);
   const className = control.kind === "normal" ? "variation-topology-number" : "variation-topology-special";
-  return `<g class="variation-topology-node${selectedClass}" ${attrs}>${hitCircle}<text class="${className}" x="${formatSvgNumber(position.x)}" y="${formatSvgNumber(position.y)}" text-anchor="middle" ${attrs}>${escapeHtml(label)}</text></g>`;
+  return `<g class="variation-topology-node${selectedClass}" ${attrs}>${hitCircle}<text class="${className}" x="${formatSvgNumber(position.x)}" y="${formatSvgNumber(position.y)}" text-anchor="middle" dominant-baseline="central" alignment-baseline="central" ${attrs}>${escapeHtml(label)}</text></g>`;
 }
 
 export function formatSvgNumber(value) {

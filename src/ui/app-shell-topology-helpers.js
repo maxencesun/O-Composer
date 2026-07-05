@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260706-3";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260706-3";
-import { findById } from "../domain/event-model.js?v=20260706-3";
+} from "./app-shell-config.js?v=20260706-4";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260706-4";
+import { findById } from "../domain/event-model.js?v=20260706-4";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260706-3";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260706-3";
+} from "../domain/control-descriptions.js?v=20260706-4";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260706-4";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,10 +43,10 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260706-3";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260706-3";
-import { t } from "./i18n.js?v=20260706-3";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260706-3";
+} from "../domain/course-service.js?v=20260706-4";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260706-4";
+import { t } from "./i18n.js?v=20260706-4";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260706-4";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
@@ -95,23 +95,13 @@ export function layoutVariationTopology(topology, branchCodes) {
         if (loop) {
           const forkY = y;
           forkStart[0] = { x, y: forkY, code: "", loopFallThru: true };
-          const halfForks = Math.ceil(numForks / 2);
-          const leftCount = Math.max(0, halfForks - startFork);
-          const rightCount = Math.max(0, numForks - halfForks);
-          const leftX = x - 0.5 - leftCount * laneWidth;
-          let forkX = leftX;
-          for (let branchIndex = startFork; branchIndex < halfForks; branchIndex += 1) {
-            forkX += laneWidth / 2;
+          const firstLaneCenter = x - (branchCount - 1) * laneWidth / 2;
+          for (let branchIndex = startFork; branchIndex < numForks; branchIndex += 1) {
+            const laneIndex = branchIndex - startFork;
+            const forkX = firstLaneCenter + laneIndex * laneWidth;
             forkStart[branchIndex] = { x: forkX, y: forkY, code: branchCodes.get(Number(topologyBranchCourseControlId(view, branchIndex))) || "", loopStart: true };
-            forkX += laneWidth / 2;
           }
-          forkX = x + 0.5;
-          for (let branchIndex = halfForks; branchIndex < numForks; branchIndex += 1) {
-            forkX += laneWidth / 2;
-            forkStart[branchIndex] = { x: forkX, y: forkY, code: branchCodes.get(Number(topologyBranchCourseControlId(view, branchIndex))) || "", loopStart: true };
-            forkX += laneWidth / 2;
-          }
-          totalForkWidth = Math.max(totalForkWidth, leftCount * laneWidth + rightCount * laneWidth + 1);
+          totalForkWidth = Math.max(totalForkWidth, branchCount * laneWidth);
           abstractPositions[index].loopBottom = y + maxForkHeight + 1.5;
         }
         else {

@@ -1,4 +1,4 @@
-import { Store } from "../state/store.js?v=20260706-1";
+import { Store } from "../state/store.js?v=20260706-2";
 import {
   acceptCookieConsent,
   hasCookieConsent,
@@ -6,15 +6,15 @@ import {
   loadCachedSession,
   saveCachedPdfBasemap,
   saveCachedSession
-} from "../state/cookie-cache.js?v=20260706-1";
-import { parseOmap } from "../domain/omap-parser.js?v=20260706-1";
-import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260706-1";
+} from "../state/cookie-cache.js?v=20260706-2";
+import { parseOmap } from "../domain/omap-parser.js?v=20260706-2";
+import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260706-2";
 import {
   CONTROL_KINDS,
   cloneEvent,
   createBlankEvent,
   findById
-} from "../domain/event-model.js?v=20260706-1";
+} from "../domain/event-model.js?v=20260706-2";
 import {
   addControlAt,
   addExistingControlToCourse,
@@ -32,7 +32,7 @@ import {
   removeUnusedControls,
   setCourseOrder,
   updateControlDescription
-} from "../domain/actions.js?v=20260706-1";
+} from "../domain/actions.js?v=20260706-2";
 import {
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
@@ -52,7 +52,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=20260706-1";
+} from "../domain/control-descriptions.js?v=20260706-2";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -63,9 +63,9 @@ import {
   printAreaFromPoints,
   printAreaTargetLabel,
   setPrintArea
-} from "../domain/print-area.js?v=20260706-1";
-import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260706-1";
-import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260706-1";
+} from "../domain/print-area.js?v=20260706-2";
+import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260706-2";
+import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260706-2";
 import {
   allControlsView,
   controlKindLabel,
@@ -88,18 +88,18 @@ import {
   getCourseControl,
   isTeamFreeCourseControl,
   sortedCourses
-} from "../domain/course-service.js?v=20260706-1";
+} from "../domain/course-service.js?v=20260706-2";
 import {
   exportCourseSvg,
   exportGpx,
   exportIofXml,
   exportKml,
   exportRouteGadgetXml
-} from "../domain/exporters.js?v=20260706-1";
+} from "../domain/exporters.js?v=20260706-2";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance
-} from "./course-symbols.js?v=20260706-1";
+} from "./course-symbols.js?v=20260706-2";
 import {
   allCourseVariations,
   courseHasVariations,
@@ -110,28 +110,28 @@ import {
   variationBranchCodeMap,
   variationDisplayLabel,
   variationForCode
-} from "../domain/relay-variations.js?v=20260706-1";
-import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260706-1";
-import { iconSvg } from "./icons.js?v=20260706-1";
-import { MapView } from "./map-view.js?v=20260706-1";
-import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260706-1";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260706-1";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260706-1";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260706-1";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260706-1";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260706-1";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260706-1";
-import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260706-1";
-import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260706-1";
+} from "../domain/relay-variations.js?v=20260706-2";
+import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260706-2";
+import { iconSvg } from "./icons.js?v=20260706-2";
+import { MapView } from "./map-view.js?v=20260706-2";
+import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260706-2";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260706-2";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260706-2";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260706-2";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260706-2";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260706-2";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260706-2";
+import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260706-2";
+import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260706-2";
 import {
   RENDER_QUALITIES,
   isRenderQualityId,
   readRenderQualityPreference,
   setRenderQualityPreference,
   renderQualityHighQuality
-} from "./render-quality.js?v=20260706-1";
-import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260706-1";
-import { debugWarn } from "./debug-log.js?v=20260706-1";
+} from "./render-quality.js?v=20260706-2";
+import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260706-2";
+import { debugWarn } from "./debug-log.js?v=20260706-2";
 
 import {
   PAPER_SIZES,
@@ -158,7 +158,7 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260706-1";
+} from "./app-shell-config.js?v=20260706-2";
 import {
   teamAddControlRoleFromSelection,
   objectForSelection,
@@ -296,7 +296,7 @@ import {
   formatBytes,
   escapeHtml,
   escapeAttr
-} from "./app-shell-helpers.js?v=20260706-1";
+} from "./app-shell-helpers.js?v=20260706-2";
 
 function updateBootLoadingProgress(percent, detail) {
   globalThis.__oComposerBootLoading?.update?.({ percent, detail, indeterminate: false });

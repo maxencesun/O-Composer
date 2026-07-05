@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260706-6";
+import { debugError } from "./debug-log.js?v=20260706-7";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -391,6 +391,22 @@ export function createAppShellVariationMethods(deps) {
     const branchEdges = topologyBranchEdgeMap(topology);
     const commonJoinPoints = topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
     const previousCourseControls = topologyPreviousCourseControlMap(topology);
+    const forkBusYForView = (view, position, originalForkY, commonJoinPoint) => {
+      if (!view || view.variation === "loop" || !Number.isFinite(originalForkY) || !commonJoinPoint) {
+        return originalForkY;
+      }
+      const branchStarts = (view.legTo || [])
+        .map(index => ({ position: layout.positions[index], view: topology[index] }))
+        .filter(branch => branch.position);
+      if (!branchStarts.length) return originalForkY;
+      const branchCenterY = Math.min(...branchStarts.map(branch => branch.position.y));
+      const branchTopY = Math.min(...branchStarts.map(branch => (
+        branch.position.y - topologyConnectionRadius(branch.view?.control, nodeRadius)
+      )));
+      const ownerBottomY = position.y + topologyConnectionRadius(view.control, nodeRadius);
+      const symmetricY = branchCenterY - (commonJoinPoint.y - branchCenterY);
+      return Math.max(ownerBottomY + 8, Math.min(branchTopY - 4, symmetricY));
+    };
     const paths = [];
     const priorityHits = [];
     const junctions = [];
@@ -402,7 +418,7 @@ export function createAppShellVariationMethods(deps) {
       if (!position) continue;
       const commonJoinPoint = commonJoinPoints.get(index) || null;
       if (view.variation !== "loop" && (view.legTo || []).length > 1 && position.forkStart?.some(Boolean)) {
-        const forkY = position.forkStart.find(Boolean)?.y;
+        const forkY = forkBusYForView(view, position, position.forkStart.find(Boolean)?.y, commonJoinPoint);
         const forkOwnerCourseControlId = topologyNodeCourseControlId(view);
         junctions.push(`<circle class="variation-topology-junction-hit" cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(forkY)}" r="22" data-select-variation-course-control="${forkOwnerCourseControlId}"></circle>`);
         const stemStartY = position.y + topologyConnectionRadius(view.control, nodeRadius);
@@ -434,7 +450,10 @@ export function createAppShellVariationMethods(deps) {
           && edgeBranch
           && Number(selectedBranch.forkCourseControl) === Number(edgeBranch.forkCourseControl)
           && Number(selectedBranch.branchCourseControl) === Number(edgeBranch.branchCourseControl);
-        const forkStart = position.forkStart?.[legIndex] || null;
+        const rawForkStart = position.forkStart?.[legIndex] || null;
+        const forkStart = rawForkStart && view.variation !== "loop"
+          ? { ...rawForkStart, y: forkBusYForView(view, position, rawForkStart.y, commonJoinPoint) }
+          : rawForkStart;
         const startRadius = topologyConnectionRadius(view.control, nodeRadius);
         const endRadius = topologyConnectionRadius(targetView?.control, nodeRadius);
         const loopFallThroughEdge = view.variation === "loop" && legIndex === 0 && !edgeBranch;

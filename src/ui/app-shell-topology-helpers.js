@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260706-4";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260706-4";
-import { findById } from "../domain/event-model.js?v=20260706-4";
+} from "./app-shell-config.js?v=20260706-5";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260706-5";
+import { findById } from "../domain/event-model.js?v=20260706-5";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260706-4";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260706-4";
+} from "../domain/control-descriptions.js?v=20260706-5";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260706-5";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,10 +43,10 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260706-4";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260706-4";
-import { t } from "./i18n.js?v=20260706-4";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260706-4";
+} from "../domain/course-service.js?v=20260706-5";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260706-5";
+import { t } from "./i18n.js?v=20260706-5";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260706-5";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
@@ -95,7 +95,7 @@ export function layoutVariationTopology(topology, branchCodes) {
         if (loop) {
           const forkY = y;
           forkStart[0] = { x, y: forkY, code: "", loopFallThru: true };
-          const firstLaneCenter = x - (branchCount - 1) * laneWidth / 2;
+          const firstLaneCenter = x - (branchCount % 2 ? branchCount : branchCount - 1) * laneWidth / 2;
           for (let branchIndex = startFork; branchIndex < numForks; branchIndex += 1) {
             const laneIndex = branchIndex - startFork;
             const forkX = firstLaneCenter + laneIndex * laneWidth;
@@ -154,10 +154,6 @@ export function layoutVariationTopology(topology, branchCodes) {
     minX = maxX = minY = maxY = 0;
   }
 
-  const xGrid = topologyCoordinateGrid(abstractPositions, position => [
-    position,
-    ...(position?.forkStart || [])
-  ], "x", { fillGaps: true });
   const yGrid = topologyCoordinateGrid(abstractPositions, position => [
     position,
     Number.isFinite(position?.loopBottom) ? { y: position.loopBottom } : null,
@@ -165,11 +161,11 @@ export function layoutVariationTopology(topology, branchCodes) {
   ], "y");
 
   const positions = abstractPositions.map(position => position && ({
-    x: topologyGridCoordinate(xGrid, position.x, TOPOLOGY_PADDING_X, TOPOLOGY_WIDTH_UNIT),
+    x: topologyScaledCoordinate(position.x, minX, TOPOLOGY_PADDING_X, TOPOLOGY_WIDTH_UNIT),
     y: topologyGridCoordinate(yGrid, position.y, TOPOLOGY_PADDING_Y, TOPOLOGY_HEIGHT_UNIT),
     loopBottom: Number.isFinite(position.loopBottom) ? topologyGridCoordinate(yGrid, position.loopBottom, TOPOLOGY_PADDING_Y, TOPOLOGY_HEIGHT_UNIT) : null,
     forkStart: position.forkStart?.map(fork => fork && ({
-      x: topologyGridCoordinate(xGrid, fork.x, TOPOLOGY_PADDING_X, TOPOLOGY_WIDTH_UNIT),
+      x: topologyScaledCoordinate(fork.x, minX, TOPOLOGY_PADDING_X, TOPOLOGY_WIDTH_UNIT),
       y: topologyGridCoordinate(yGrid, fork.y, TOPOLOGY_PADDING_Y, TOPOLOGY_HEIGHT_UNIT),
       code: fork.code || "",
       loopStart: !!fork.loopStart,
@@ -179,12 +175,16 @@ export function layoutVariationTopology(topology, branchCodes) {
 
   return {
     positions,
-    width: Math.max(1, (xGrid.values.length - 1) * TOPOLOGY_WIDTH_UNIT + TOPOLOGY_PADDING_X * 2),
+    width: Math.max(1, (maxX - minX) * TOPOLOGY_WIDTH_UNIT + TOPOLOGY_PADDING_X * 2),
     height: Math.max(1, (yGrid.values.length - 1) * TOPOLOGY_HEIGHT_UNIT + TOPOLOGY_PADDING_Y * 2)
   };
 }
 
-function topologyCoordinateGrid(positions, collect, key, options = {}) {
+function topologyScaledCoordinate(value, min, padding, unit) {
+  return padding + (Number(value) - min) * unit;
+}
+
+function topologyCoordinateGrid(positions, collect, key) {
   const values = [];
   for (const position of positions) {
     for (const point of collect(position) || []) {
@@ -194,24 +194,6 @@ function topologyCoordinateGrid(positions, collect, key, options = {}) {
   }
   let unique = [...new Set(values.map(value => roundTopologyGridValue(value)))]
     .sort((a, b) => a - b);
-  if (options.fillGaps && unique.length > 1) {
-    const steps = [];
-    for (let index = 1; index < unique.length; index += 1) {
-      const diff = roundTopologyGridValue(unique[index] - unique[index - 1]);
-      if (diff > 0) steps.push(diff);
-    }
-    const step = Math.max(1, Math.min(...steps));
-    if (Number.isFinite(step) && step > 0) {
-      const filled = [];
-      const min = unique[0];
-      const max = unique[unique.length - 1];
-      const maxColumns = 80;
-      for (let value = min, count = 0; value <= max + step / 2 && count < maxColumns; value += step, count += 1) {
-        filled.push(roundTopologyGridValue(value));
-      }
-      unique = [...new Set([...filled, ...unique])].sort((a, b) => a - b);
-    }
-  }
   return {
     values: unique.length ? unique : [0],
     indexes: new Map((unique.length ? unique : [0]).map((value, index) => [value, index]))

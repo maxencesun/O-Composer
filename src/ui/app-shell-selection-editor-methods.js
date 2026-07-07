@@ -85,7 +85,10 @@ export function createAppShellSelectionEditorMethods(deps) {
     allCourseVariations,
     courseHasVariations,
     relayAssignments,
+    relayBranchAllowedLegs,
+    relayBranchRestrictionIssues,
     relayEntryLabel,
+    relayLegName,
     relayTeamSizeOptions,
     relayVariationForLeg,
     variationBranchCodeMap,
@@ -555,26 +558,45 @@ export function createAppShellSelectionEditorMethods(deps) {
   },
 
   relayBranchEditor(course, assignments) {
-    const branchCodes = assignments.variations.length
-      ? uniqueStrings(assignments.variations.flatMap(variation => variation.code.split("")))
-      : [];
+    const branchGroups = assignments.branchGroups || [];
+    const branchCodes = branchGroups.length
+      ? uniqueStrings(branchGroups.flatMap(group => group.codes || []))
+      : (assignments.variations.length
+        ? uniqueStrings(assignments.variations.flatMap(variation => variation.code.split("")))
+        : []);
     if (!branchCodes.length) {
       return `<p class="muted">${escapeHtml(this.t("Add forks to this course to create relay variations."))}</p>`;
     }
-    const rows = branchCodes.map(code => {
-      const fixed = course.relay?.branches?.find(branch => branch.branch === code);
-      return `
-        <label>${escapeHtml(this.t("Branch"))} ${escapeHtml(code)}
-          <select data-relay-branch="${escapeAttr(code)}">
-            <option value="">${escapeHtml(this.t("Any leg"))}</option>
-            ${Array.from({ length: Math.max(1, assignments.legs || course.relay?.legs || 1) }, (_, index) => index + 1)
-              .map(leg => `<option value="${leg}" ${Number(fixed?.leg) === leg ? "selected" : ""}>${escapeHtml(this.t("Leg"))} ${leg}</option>`)
-              .join("")}
-          </select>
-        </label>
-      `;
+    const legs = Math.max(1, assignments.legs || course.relay?.legs || 1);
+    const groups = branchGroups.length
+      ? branchGroups
+      : [{ groupId: "branches", codes: branchCodes }];
+    const issues = relayBranchRestrictionIssues(groups, course.relay?.branches || []);
+    const rows = groups.map(group => {
+      const branchRows = (group.codes || []).map(code => {
+        const allowedLegs = new Set(relayBranchAllowedLegs(course.relay?.branches || [], code, legs));
+        const checks = Array.from({ length: legs }, (_, index) => {
+          const leg = index + 1;
+          return `
+            <label class="check">
+              <input data-relay-branch="${escapeAttr(code)}" type="checkbox" value="${leg}" ${allowedLegs.has(leg) ? "checked" : ""}>
+              ${escapeHtml(relayLegName(course.relay || {}, leg))}
+            </label>
+          `;
+        }).join("");
+        return `
+          <div class="relay-branch-leg-row">
+            <strong>${escapeHtml(this.t("Branch"))} ${escapeHtml(code)}</strong>
+            <div class="relay-branch-leg-checks">${checks}</div>
+          </div>
+        `;
+      }).join("");
+      return `<fieldset class="relay-branch-leg-group"><legend>${escapeHtml(this.t("Fork"))}</legend>${branchRows}</fieldset>`;
     }).join("");
-    return `<div class="form-grid">${rows}</div>`;
+    const warning = issues.length
+      ? `<p class="relay-branch-warning">${escapeHtml(this.t("Every parallel branch must declare allowed legs. Missing: {branches}.", { branches: uniqueStrings(issues.flatMap(issue => issue.missingCodes)).join(", ") }))}</p>`
+      : "";
+    return `${warning}<div class="relay-branch-leg-editor">${rows}</div>`;
   },
 
   relayAssignmentTable(assignments) {

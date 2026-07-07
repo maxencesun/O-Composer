@@ -212,6 +212,8 @@ const ZH = Object.freeze({
   "Add Variation": "添加分叉",
   "Add Parallel Branch": "添加平行分支",
   "Delete Branch": "删除分支",
+  "Allowed legs for branch {branch}": "分支 {branch} 允许棒次",
+  "Every parallel branch must declare allowed legs. Missing: {branches}.": "所有平行分支都必须声明允许棒次。缺少：{branches}。",
   "Add Fork": "添加分叉",
   "Fork added.": "已添加分叉。",
   "Variation added. Select a branch and add controls.": "已添加分叉。请选择分支并添加检查点。",

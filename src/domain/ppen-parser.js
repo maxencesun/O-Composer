@@ -3,7 +3,7 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260707-1";
+} from "./event-model.js?v=20260707-2";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
@@ -393,10 +393,7 @@ function parseCourse(node) {
           .map(value => value.trim());
         break;
       case "relay-branch":
-        course.relay.branches.push({
-          branch: attr(child, "branch", ""),
-          leg: intAttr(child, "leg", 1)
-        });
+        course.relay.branches.push(parseRelayBranch(child));
         break;
     }
   }
@@ -835,7 +832,14 @@ function writeCourse(lines, course, level, saveOptions = {}) {
     });
   }
   for (const branch of course.relay?.branches || []) {
-    empty(lines, level + 1, "relay-branch", { branch: branch.branch, leg: branch.leg });
+    const branchCode = String(branch?.branch || "").trim();
+    const legs = relayBranchLegsForSave(branch);
+    if (!branchCode || !legs.length) continue;
+    empty(lines, level + 1, "relay-branch", {
+      branch: branchCode,
+      leg: legs.length === 1 ? legs[0] : undefined,
+      legs: legs.length > 1 ? legs.join(",") : undefined
+    });
   }
   for (const part of course.partOptions || []) {
     empty(lines, level + 1, "part-options", { part: part.part, "show-finish": !!part.showFinish });
@@ -848,6 +852,31 @@ function courseKindForSave(course, options = {}) {
     return "normal";
   }
   return course.kind || "normal";
+}
+
+function parseRelayBranch(node) {
+  const branch = attr(node, "branch", "");
+  const legs = attr(node, "legs", "")
+    .split(/[,\s]+/)
+    .map(value => Math.round(Number(value) || 0))
+    .filter(value => value > 0);
+  if (legs.length) {
+    return { branch, legs: [...new Set(legs)].sort((a, b) => a - b) };
+  }
+  return {
+    branch,
+    leg: intAttr(node, "leg", 1)
+  };
+}
+
+function relayBranchLegsForSave(branch) {
+  const raw = Array.isArray(branch?.legs)
+    ? branch.legs
+    : (Number(branch?.leg) > 0 ? [branch.leg] : []);
+  return [...new Set(raw
+    .map(value => Math.round(Number(value) || 0))
+    .filter(value => value > 0))]
+    .sort((a, b) => a - b);
 }
 
 function courseLabelKindForSave(labelKind, options = {}) {

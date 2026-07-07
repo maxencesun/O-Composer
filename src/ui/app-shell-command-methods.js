@@ -82,6 +82,7 @@ export function createAppShellCommandMethods(deps) {
     allCourseVariations,
     courseHasVariations,
     relayAssignments,
+    relayBranchAllowedLegs,
     relayEntryLabel,
     relayTeamSizeOptions,
     relayVariationForLeg,
@@ -895,11 +896,22 @@ export function createAppShellCommandMethods(deps) {
         const course = getCourse(model, selection.id);
         if (!course) return;
         course.relay ||= { firstTeam: 1, teams: 0, legs: 1, branches: [] };
-        const branch = target.dataset.relayBranch;
-        course.relay.branches = (course.relay.branches || []).filter(item => item.branch !== branch);
+        const branch = String(target.dataset.relayBranch || "").trim();
+        if (!branch) return;
         const leg = Number(target.value) || 0;
-        if (leg > 0) {
-          course.relay.branches.push({ branch, leg });
+        if (target.type === "checkbox") {
+          const allowed = new Set(relayBranchAllowedLegs(course.relay.branches || [], branch, course.relay.legs || Infinity));
+          if (target.checked && leg > 0) allowed.add(leg);
+          else allowed.delete(leg);
+          course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);
+          const legs = [...allowed].sort((a, b) => a - b);
+          if (legs.length) course.relay.branches.push({ branch, legs });
+        }
+        else {
+          course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);
+          if (leg > 0) {
+            course.relay.branches.push({ branch, legs: [leg] });
+          }
         }
       }, "Change relay branch");
       return;

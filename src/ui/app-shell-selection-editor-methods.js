@@ -516,9 +516,15 @@ export function createAppShellSelectionEditorMethods(deps) {
   courseEditor(course) {
     const eventModel = this.store.snapshot().eventModel;
     const finishRoute = finishRouteForCourse(eventModel, course.id);
-    const relay = course.relay || { firstTeam: 1, teams: 0, legs: 1, branches: [] };
+    const relay = course.relay || { firstTeam: 1, teams: 0, legs: 0, branches: [] };
     const assignments = relayAssignments(eventModel, course.id);
     const relaySizeOptions = relayTeamSizeOptions(eventModel, course.id);
+    const relayLegs = rawRelayLegCount(course);
+    const relayLegOptions = uniqueNumbers([
+      ...relaySizeOptions,
+      relayLegs
+    ].filter(value => Number(value) > 0)).sort((a, b) => a - b);
+    const relayLegsLocked = relayLegs > 0 && assignments.variations.length > 0;
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Name"))} <input data-field="course.name" value="${escapeAttr(course.name)}"></label>
@@ -542,17 +548,20 @@ export function createAppShellSelectionEditorMethods(deps) {
       ${course.kind === "team" ? "" : `
         <h3>${escapeHtml(this.t("Relay"))}</h3>
         <div class="form-grid">
-          <label>${escapeHtml(this.t("Teams"))} <input data-field="course.relay.teams" type="number" min="0" value="${relay.teams || 0}"></label>
           <label>${escapeHtml(this.t("Legs"))}
-            <select data-field="course.relay.legs">
-              ${relaySizeOptions.map(value => `<option value="${value}" ${value === assignments.legs ? "selected" : ""}>${value}</option>`).join("")}
+            <select data-field="course.relay.legs" ${relayLegsLocked ? "disabled" : ""}>
+              <option value="" ${relayLegs ? "" : "selected"}>-</option>
+              ${relayLegOptions.map(value => `<option value="${value}" ${value === relayLegs ? "selected" : ""}>${value}</option>`).join("")}
             </select>
           </label>
+          <label>${escapeHtml(this.t("Teams"))} <input data-field="course.relay.teams" type="number" min="0" value="${relay.teams || 0}"></label>
           <label>${escapeHtml(this.t("First team"))} <input data-field="course.relay.firstTeam" type="number" min="1" value="${relay.firstTeam || 1}"></label>
           <label class="check"><input data-field="course.hideVariationsOnMap" type="checkbox" ${course.hideVariationsOnMap ? "checked" : ""}> ${escapeHtml(this.t("Hide variation codes on map"))}</label>
         </div>
-        ${this.relayBranchEditor(course, assignments)}
-        ${this.relayAssignmentTable(assignments)}
+        ${relayLegs ? `
+          ${this.relayBranchEditor(course, assignments)}
+          ${this.relayAssignmentTable(assignments)}
+        ` : ""}
       `}
     `;
   },
@@ -830,4 +839,8 @@ export function createAppShellSelectionEditorMethods(deps) {
   }
 
   };
+}
+
+function rawRelayLegCount(course) {
+  return Math.max(0, Math.round(Number(course?.relay?.legs) || 0));
 }

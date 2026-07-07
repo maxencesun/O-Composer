@@ -1,4 +1,4 @@
-import { cloneDeep } from "./clone.js?v=20260707-2";
+import { cloneDeep } from "./clone.js?v=20260707-3";
 
 const DEFAULT_PRINT_AREA = Object.freeze({
   automatic: true,
@@ -168,7 +168,7 @@ export function createCourse(id, name = `Course ${id}`, kind = "normal", order =
     relay: {
       firstTeam: 1,
       teams: 0,
-      legs: 1,
+      legs: 0,
       branches: [],
       teamPrefix: "",
       teamDigits: 0,

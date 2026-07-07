@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260707-2";
+import { debugError } from "./debug-log.js?v=20260707-3";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -298,27 +298,57 @@ export function createAppShellVariationMethods(deps) {
     const topologyHtml = this.variationTopologySvg(eventModel, course.id, ui, branchCodes);
     const branchLegEditor = this.variationBranchLegEditor(course, assignments, selectedBranch, selectedBranchCode);
     const restrictionIssues = relayBranchRestrictionIssues(assignments.branchGroups || [], course.relay?.branches || []);
+    const legsSelected = relayLegCountSelected(course);
+    const legCountControl = this.variationLegCountControl(eventModel, course, variations);
+    if (!legsSelected) {
+      return `
+        <div class="variation-fixed-controls">
+          ${legCountControl}
+        </div>
+      `;
+    }
     return `
-      <div class="variation-actions">
-        <label>${escapeHtml(this.t("Branches"))}
-          <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
-        </label>
-        <button type="button" data-add-variation ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Variation"))}</button>
-        <button type="button" data-add-parallel-variation-branch ${canAddParallelBranch ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Parallel Branch"))}</button>
-        <button type="button" data-delete-variation-branch ${canDeleteSelectedBranch ? "" : "disabled"}>${iconSvg("trash")} ${escapeHtml(this.t("Delete Branch"))}</button>
+      <div class="variation-fixed-controls">
+        ${legCountControl}
+        <div class="variation-actions">
+          <label>${escapeHtml(this.t("Branches"))}
+            <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
+          </label>
+          <div class="variation-action-buttons">
+            <button type="button" data-add-variation ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Variation"))}</button>
+            <button type="button" data-add-parallel-variation-branch ${canAddParallelBranch ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Parallel Branch"))}</button>
+            <button type="button" data-delete-variation-branch ${canDeleteSelectedBranch ? "" : "disabled"}>${iconSvg("trash")} ${escapeHtml(this.t("Delete Branch"))}</button>
+          </div>
+        </div>
+        ${canAddVariation && anchorCourseControl && anchorControl
+          ? `<p class="muted">${escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))}</p>`
+          : ""}
+        ${selectedBranch ? `<p class="variation-branch-hint">${escapeHtml(this.t("Selected branch"))}: <strong>${escapeHtml(selectedBranchCode || controlDisplayName(getControl(eventModel, getCourseControl(eventModel, selectedBranch.branchCourseControl)?.control)))}</strong></p>` : ""}
+        ${branchLegEditor}
+        ${restrictionIssues.length ? `<p class="relay-branch-warning">${escapeHtml(this.t("Every parallel branch must declare allowed legs. Missing: {branches}.", { branches: uniqueStrings(restrictionIssues.flatMap(issue => issue.missingCodes)).join(", ") }))}</p>` : ""}
+        ${variations.length ? `
+          <div class="variation-code-list">${variations.map(variation => `<button type="button" data-course-variation-code-select="${escapeAttr(variation.code)}">${escapeHtml(variation.code)}</button>`).join("")}</div>
+        ` : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`}
+        ${this.relayAutoAssignmentPanel(eventModel, course, variations)}
       </div>
-      ${canAddVariation && anchorCourseControl && anchorControl
-        ? `<p class="muted">${escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))}</p>`
-        : ""}
-      ${selectedBranch ? `<p class="variation-branch-hint">${escapeHtml(this.t("Selected branch"))}: <strong>${escapeHtml(selectedBranchCode || controlDisplayName(getControl(eventModel, getCourseControl(eventModel, selectedBranch.branchCourseControl)?.control)))}</strong></p>` : ""}
-      ${branchLegEditor}
-      ${restrictionIssues.length ? `<p class="relay-branch-warning">${escapeHtml(this.t("Every parallel branch must declare allowed legs. Missing: {branches}.", { branches: uniqueStrings(restrictionIssues.flatMap(issue => issue.missingCodes)).join(", ") }))}</p>` : ""}
       <div class="variation-tree">${topologyHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
-      ${variations.length ? `
-        <h3>${escapeHtml(this.t("All variations"))}</h3>
-        <div class="variation-code-list">${variations.map(variation => `<button type="button" data-course-variation-code-select="${escapeAttr(variation.code)}">${escapeHtml(variation.code)}</button>`).join("")}</div>
-      ` : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`}
-      ${this.relayAutoAssignmentPanel(eventModel, course, variations)}
+    `;
+  },
+
+  variationLegCountControl(eventModel, course, variations) {
+    const selectedLegs = rawRelayLegCount(course);
+    const locked = selectedLegs > 0 && variations.length > 0;
+    const sizeOptions = uniqueNumbers([
+      ...relayTeamSizeOptions(eventModel, course.id),
+      selectedLegs
+    ].filter(value => Number(value) > 0)).sort((a, b) => a - b);
+    return `
+      <label class="variation-leg-count">${escapeHtml(this.t("Participants per team"))}
+        <select data-relay-settings-field="legs" ${locked ? "disabled" : ""}>
+          <option value="" ${selectedLegs ? "" : "selected"}>-</option>
+          ${sizeOptions.map(value => `<option value="${value}" ${value === selectedLegs ? "selected" : ""}>${value}</option>`).join("")}
+        </select>
+      </label>
     `;
   },
 
@@ -348,8 +378,7 @@ export function createAppShellVariationMethods(deps) {
     const relay = normalizedRelaySettings(course.relay);
     const recommendedSizeOptions = relayTeamSizeOptions(eventModel, course.id);
     const assignments = relayAssignments(eventModel, course.id);
-    const sizeOptions = recommendedSizeOptions.length ? recommendedSizeOptions : [assignments.legs || relay.legs || 1];
-    const selectedLegs = assignments.legs || relay.legs || 1;
+    const selectedLegs = rawRelayLegCount(course) || assignments.legs || relay.legs || 1;
     const legNameInputs = Array.from({ length: selectedLegs }, (_, index) => `
       <label>${escapeHtml(this.t("Leg {number} name", { number: index + 1 }))}
         <input data-relay-leg-name="${index}" value="${escapeAttr(relay.legNames[index] || "")}" placeholder="${escapeAttr(String(index + 1))}">
@@ -362,11 +391,6 @@ export function createAppShellVariationMethods(deps) {
           <div class="relay-auto-grid">
             <label>${escapeHtml(this.t("Total teams"))}
               <input data-relay-settings-field="teams" type="number" min="0" value="${relay.teams}">
-            </label>
-            <label>${escapeHtml(this.t("Participants per team"))}
-              <select data-relay-settings-field="legs">
-                ${sizeOptions.map(value => `<option value="${value}" ${value === selectedLegs ? "selected" : ""}>${value}</option>`).join("")}
-              </select>
             </label>
             <label>${escapeHtml(this.t("First team"))}
               <input data-relay-settings-field="firstTeam" type="number" min="1" value="${relay.firstTeam}">
@@ -1026,4 +1050,12 @@ export function createAppShellVariationMethods(deps) {
   }
 
   };
+}
+
+function rawRelayLegCount(course) {
+  return Math.max(0, Math.round(Number(course?.relay?.legs) || 0));
+}
+
+function relayLegCountSelected(course) {
+  return rawRelayLegCount(course) > 0;
 }

@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260707-3";
+import { debugError } from "./debug-log.js?v=20260707-4";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -300,6 +300,9 @@ export function createAppShellVariationMethods(deps) {
     const restrictionIssues = relayBranchRestrictionIssues(assignments.branchGroups || [], course.relay?.branches || []);
     const legsSelected = relayLegCountSelected(course);
     const legCountControl = this.variationLegCountControl(eventModel, course, variations);
+    const addVariationLabel = this.t("Add Variation");
+    const addParallelBranchLabel = this.t("Add Parallel Branch");
+    const deleteBranchLabel = this.t("Delete Branch");
     if (!legsSelected) {
       return `
         <div class="variation-fixed-controls">
@@ -315,11 +318,13 @@ export function createAppShellVariationMethods(deps) {
             <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
           </label>
           <div class="variation-action-buttons">
-            <button type="button" data-add-variation ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Variation"))}</button>
-            <button type="button" data-add-parallel-variation-branch ${canAddParallelBranch ? "" : "disabled"}>${iconSvg("plus")} ${escapeHtml(this.t("Add Parallel Branch"))}</button>
-            <button type="button" data-delete-variation-branch ${canDeleteSelectedBranch ? "" : "disabled"}>${iconSvg("trash")} ${escapeHtml(this.t("Delete Branch"))}</button>
+            <button type="button" data-add-variation title="${escapeAttr(addVariationLabel)}" aria-label="${escapeAttr(addVariationLabel)}" ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} <span>${escapeHtml(addVariationLabel)}</span></button>
+            <button type="button" data-add-parallel-variation-branch title="${escapeAttr(addParallelBranchLabel)}" aria-label="${escapeAttr(addParallelBranchLabel)}" ${canAddParallelBranch ? "" : "disabled"}>${iconSvg("plus")} <span>${escapeHtml(addParallelBranchLabel)}</span></button>
+            <button type="button" data-delete-variation-branch title="${escapeAttr(deleteBranchLabel)}" aria-label="${escapeAttr(deleteBranchLabel)}" ${canDeleteSelectedBranch ? "" : "disabled"}>${iconSvg("trash")} <span>${escapeHtml(deleteBranchLabel)}</span></button>
           </div>
         </div>
+      </div>
+      <div class="variation-scroll-area">
         ${canAddVariation && anchorCourseControl && anchorControl
           ? `<p class="muted">${escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))}</p>`
           : ""}
@@ -330,8 +335,8 @@ export function createAppShellVariationMethods(deps) {
           <div class="variation-code-list">${variations.map(variation => `<button type="button" data-course-variation-code-select="${escapeAttr(variation.code)}">${escapeHtml(variation.code)}</button>`).join("")}</div>
         ` : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`}
         ${this.relayAutoAssignmentPanel(eventModel, course, variations)}
+        <div class="variation-tree">${topologyHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
       </div>
-      <div class="variation-tree">${topologyHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
     `;
   },
 

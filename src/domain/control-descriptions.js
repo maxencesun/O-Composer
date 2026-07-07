@@ -1,4 +1,4 @@
-import { courseLength, courseLengthRange, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260707-3";
+import { courseLength, courseLengthRange, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260707-4";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([

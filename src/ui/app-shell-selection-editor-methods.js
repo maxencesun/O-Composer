@@ -559,7 +559,7 @@ export function createAppShellSelectionEditorMethods(deps) {
       ? uniqueStrings(assignments.variations.flatMap(variation => variation.code.split("")))
       : [];
     if (!branchCodes.length) {
-      return `<p class="muted">${escapeHtml(this.t("Add a fork or loop to this course to create relay variations."))}</p>`;
+      return `<p class="muted">${escapeHtml(this.t("Add forks to this course to create relay variations."))}</p>`;
     }
     const rows = branchCodes.map(code => {
       const fixed = course.relay?.branches?.find(branch => branch.branch === code);

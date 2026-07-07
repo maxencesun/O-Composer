@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260706-8";
+import { debugError } from "./debug-log.js?v=20260707-1";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -293,12 +293,6 @@ export function createAppShellVariationMethods(deps) {
     const topologyHtml = this.variationTopologySvg(eventModel, course.id, ui, branchCodes);
     return `
       <div class="variation-actions">
-        <label>${escapeHtml(this.t("Type"))}
-          <select data-variation-add-kind>
-            <option value="fork" ${(ui.variationAddKind || "fork") === "fork" ? "selected" : ""}>${escapeHtml(this.t("Fork"))}</option>
-            <option value="loop" ${ui.variationAddKind === "loop" ? "selected" : ""}>${escapeHtml(this.t("Loop"))}</option>
-          </select>
-        </label>
         <label>${escapeHtml(this.t("Branches"))}
           <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
         </label>
@@ -356,7 +350,7 @@ export function createAppShellVariationMethods(deps) {
           </div>
           <p class="muted">${escapeHtml(this.t("Recommended participants per team: {options}.", { options: recommendedSizeOptions.join(", ") }))}</p>
           <div class="relay-assignment-preview">${this.relayAssignmentListTable(assignments)}</div>
-        ` : `<p class="muted">${escapeHtml(this.t("Add a fork or loop to this course to create relay variations."))}</p>`}
+        ` : `<p class="muted">${escapeHtml(this.t("Add forks to this course to create relay variations."))}</p>`}
       </section>
     `;
   },
@@ -688,19 +682,15 @@ export function createAppShellVariationMethods(deps) {
   },
 
   handleVariationPanelChange(event) {
-    const kindSelect = event.target.closest("[data-variation-add-kind]");
     const branchesInput = event.target.closest("[data-variation-add-branches]");
     const relayField = event.target.closest("[data-relay-settings-field]");
     const relayLegName = event.target.closest("[data-relay-leg-name]");
-    if (!kindSelect && !branchesInput && !relayField && !relayLegName) return;
+    if (!branchesInput && !relayField && !relayLegName) return;
     if (relayField || relayLegName) {
       this.updateRelaySettingsFromVariationPanel(relayField, relayLegName);
       return;
     }
     this.store.updateUi(ui => {
-      if (kindSelect) {
-        ui.variationAddKind = kindSelect.value === "loop" ? "loop" : "fork";
-      }
       if (branchesInput) {
         ui.variationAddBranches = Math.max(2, Math.min(6, Math.round(Number(branchesInput.value) || 2)));
       }
@@ -769,7 +759,7 @@ export function createAppShellVariationMethods(deps) {
     }
     this.store.updateEvent(model => {
       const pending = addVariationAtCourseControl(model, courseId, anchor.id, {
-        kind: state.ui.variationAddKind || "fork",
+        kind: "fork",
         branches: state.ui.variationAddBranches || 2
       });
       model.metadata.pendingVariation = pending;

@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260706-8";
-import { cloneDeep } from "./clone.js?v=20260706-8";
+} from "./event-model.js?v=20260707-1";
+import { cloneDeep } from "./clone.js?v=20260707-1";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260706-8";
+} from "./course-service.js?v=20260707-1";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -601,8 +601,8 @@ export function addVariationAtCourseControl(eventModel, courseId, courseControlI
   if (!forkControl || !joinControl || forkControl.kind === "finish") return null;
 
   const branchCount = Math.max(2, Math.min(6, Math.round(Number(options.branches) || 2)));
-  const variation = options.kind === "loop" ? "loop" : "fork";
-  const joinCourseControlId = variation === "loop" ? forkCourseControl.id : joinCourseControl.id;
+  const variation = "fork";
+  const joinCourseControlId = joinCourseControl.id;
 
   // Relay variations are stored as a proper fork/join graph. The visible fork
   // course-control owns the variation metadata. Each branch gets its own hidden

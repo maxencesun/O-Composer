@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260707-1";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260707-1";
-import { findById } from "../domain/event-model.js?v=20260707-1";
+} from "./app-shell-config.js?v=20260707-2";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260707-2";
+import { findById } from "../domain/event-model.js?v=20260707-2";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260707-1";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260707-1";
+} from "../domain/control-descriptions.js?v=20260707-2";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260707-2";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -42,9 +42,9 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260707-1";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260707-1";
-import { t } from "./i18n.js?v=20260707-1";
+} from "../domain/course-service.js?v=20260707-2";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260707-2";
+import { t } from "./i18n.js?v=20260707-2";
 
 export function defaultPdfExportSettings() {
   return {
@@ -126,11 +126,32 @@ export function normalizedRelaySettings(relay = {}) {
     firstTeam: Math.max(1, Math.round(Number(relay.firstTeam) || 1)),
     teams: Math.max(0, Math.round(Number(relay.teams) || 0)),
     legs,
-    branches: Array.isArray(relay.branches) ? relay.branches : [],
+    branches: normalizeRelayBranchSettings(relay.branches, legs),
     teamPrefix: String(relay.teamPrefix || ""),
     teamDigits: Math.max(0, Math.min(8, Math.round(Number(relay.teamDigits) || 0))),
     legNames: Array.isArray(relay.legNames) ? relay.legNames.slice(0, legs).map(name => String(name || "")) : []
   };
+}
+
+function normalizeRelayBranchSettings(branches = [], maxLegs = Infinity) {
+  const result = new Map();
+  const limit = Number.isFinite(Number(maxLegs)) ? Math.max(1, Math.round(Number(maxLegs))) : Infinity;
+  for (const branch of Array.isArray(branches) ? branches : []) {
+    const code = String(branch?.branch || "").trim();
+    if (!code) continue;
+    const legs = [...new Set((Array.isArray(branch.legs) ? branch.legs : (Number(branch.leg) > 0 ? [branch.leg] : []))
+      .map(leg => Math.round(Number(leg) || 0))
+      .filter(leg => leg > 0 && leg <= limit))]
+      .sort((a, b) => a - b);
+    if (!legs.length) continue;
+    const existing = result.get(code) || new Set();
+    for (const leg of legs) existing.add(leg);
+    result.set(code, existing);
+  }
+  return [...result.entries()].map(([branch, legs]) => ({
+    branch,
+    legs: [...legs].sort((a, b) => a - b)
+  }));
 }
 
 export function applyRelayInputToSettings(relay, relayField, relayLegName) {

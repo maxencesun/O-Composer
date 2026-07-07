@@ -1,4 +1,5 @@
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const IMPOSSIBLE_BRANCH_CODE = "__no_allowed_branch__";
 
 export function courseHasVariations(eventModel, courseId) {
   const course = getCourse(eventModel, courseId);
@@ -156,6 +157,45 @@ export function relayTeamSizeOptions(eventModel, courseId) {
   return options.sort((a, b) => a - b);
 }
 
+export function relayBranchAllowedLegs(branchSettings = [], branchCode, maxLegs = Infinity) {
+  const code = String(branchCode || "").trim();
+  if (!code) return [];
+  const rawLegs = (branchSettings || [])
+    .filter(branch => String(branch.branch || "").trim() === code)
+    .flatMap(branch => Array.isArray(branch.legs)
+      ? branch.legs
+      : (Number(branch.leg) > 0 ? [branch.leg] : []));
+  const limit = Number.isFinite(Number(maxLegs)) ? Math.max(1, Math.round(Number(maxLegs))) : Infinity;
+  return [...new Set(rawLegs
+    .map(leg => Math.round(Number(leg) || 0))
+    .filter(leg => leg > 0 && leg <= limit))]
+    .sort((a, b) => a - b);
+}
+
+export function relayBranchLegLabel(relay = {}, branchCode, options = {}) {
+  const legs = relayBranchAllowedLegs(relay.branches || [], branchCode, relay.legs || Infinity);
+  if (!legs.length) return "";
+  if (options.short) return legs.map(leg => relayLegName(relay, leg)).join(",");
+  return legs.map(leg => `Leg ${relayLegName(relay, leg)}`).join(", ");
+}
+
+export function relayBranchRestrictionIssues(branchGroups = [], branchSettings = []) {
+  const issues = [];
+  for (const group of branchGroups || []) {
+    const codes = (group.codes || []).map(code => String(code || "").trim()).filter(Boolean);
+    if (codes.length <= 1) continue;
+    const declaredCodes = codes.filter(code => relayBranchAllowedLegs(branchSettings, code).length);
+    if (!declaredCodes.length || declaredCodes.length === codes.length) continue;
+    issues.push({
+      groupId: group.groupId,
+      codes,
+      declaredCodes,
+      missingCodes: codes.filter(code => !declaredCodes.includes(code))
+    });
+  }
+  return issues;
+}
+
 export function relayRequiredTeamSize(eventModel, courseId) {
   const groups = relayBranchGroups(eventModel, courseId).filter(group => group.codes.length > 1);
   if (!groups.length) return 1;
@@ -231,8 +271,9 @@ function planRelayAssignments(decoratedVariations, fixedBranches, teamCount, leg
   if (!decoratedVariations.length || teamCount <= 0 || legsPerTeam <= 0) return [];
   const effectiveBaseLegs = Math.max(1, Math.min(Math.max(1, Number(baseLegs) || 1), Math.max(1, Number(legsPerTeam) || 1)));
   const blockCount = Math.max(1, Math.ceil(legsPerTeam / effectiveBaseLegs));
+  const branchRules = relayBranchRuleMap(fixedBranches, legsPerTeam);
   const offsetSpace = relayOffsetSpace(decoratedVariations, branchGroups);
-  const blockShifts = chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, effectiveBaseLegs, blockCount);
+  const blockShifts = chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, effectiveBaseLegs, blockCount, branchRules);
   const offsetUse = new Map();
   const globalRouteUse = new Map();
   const slotRouteUse = Array.from({ length: legsPerTeam }, () => new Map());
@@ -247,7 +288,7 @@ function planRelayAssignments(decoratedVariations, fixedBranches, teamCount, leg
         offset,
         blockShifts,
         decoratedVariations,
-        fixedBranches,
+        branchRules,
         branchGroups,
         legsPerTeam,
         baseLegs: effectiveBaseLegs
@@ -293,7 +334,7 @@ function relayOffsetSpace(decoratedVariations, branchGroups) {
   return offsets.length ? offsets : [{ values: branchGroups.map(() => 0), key: "" }];
 }
 
-function chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, baseLegs, blockCount) {
+function chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, baseLegs, blockCount, branchRules = new Map()) {
   const shifts = [];
   const usedRoutes = new Map();
   const zeroOffset = { values: branchGroups.map(() => 0), key: branchGroups.map(() => 0).join(":") };
@@ -307,6 +348,7 @@ function chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, 
           offset: zeroOffset,
           blockShift: shift,
           branchGroups,
+          branchRules,
           legIndex: pos,
           baseLegs
         });
@@ -324,6 +366,7 @@ function chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, 
         offset: zeroOffset,
         blockShift: best,
         branchGroups,
+        branchRules,
         legIndex: pos,
         baseLegs
       });
@@ -335,7 +378,7 @@ function chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, 
   return shifts;
 }
 
-function buildRelayTeamPlan({ offset, blockShifts, decoratedVariations, fixedBranches, branchGroups, legsPerTeam, baseLegs }) {
+function buildRelayTeamPlan({ offset, blockShifts, decoratedVariations, branchRules, branchGroups, legsPerTeam, baseLegs }) {
   const legs = [];
   for (let legIndex = 0; legIndex < legsPerTeam; legIndex += 1) {
     const blockIndex = Math.floor(legIndex / baseLegs);
@@ -343,17 +386,18 @@ function buildRelayTeamPlan({ offset, blockShifts, decoratedVariations, fixedBra
       offset,
       blockShift: blockShifts[blockIndex] || blockShifts[0],
       branchGroups,
+      branchRules,
       legIndex,
       baseLegs
     });
-    const fixed = fixedRelaySignature(branchGroups, fixedBranches, legIndex + 1);
+    const fixed = fixedRelaySignature(branchGroups, branchRules, legIndex + 1);
     for (const [groupId, code] of fixed) {
       signature.set(groupId, code);
     }
     legs.push({
       signature,
       variation: findRelayVariationForSignature(decoratedVariations, signature)
-        || pickRelayVariation(decoratedVariations, fixedBranches, 0, legIndex + 1, legsPerTeam, branchGroups)
+        || pickRelayVariation(decoratedVariations, branchRules, 0, legIndex + 1, legsPerTeam, branchGroups)
     });
   }
   return { offset, legs };
@@ -373,12 +417,12 @@ function scoreRelayTeamPlan(candidate, offset, slotRouteUse, slotBranchUse, glob
   return score;
 }
 
-function relaySignatureForLeg({ offset, blockShift, branchGroups, legIndex, baseLegs }) {
+function relaySignatureForLeg({ offset, blockShift, branchGroups, branchRules = new Map(), legIndex, baseLegs }) {
   const signature = new Map();
   const posInBlock = positiveModulo(legIndex, baseLegs);
   for (let index = 0; index < branchGroups.length; index += 1) {
     const group = branchGroups[index];
-    const codes = group.codes || [];
+    const codes = relayEligibleCodesForLeg(group, branchRules, legIndex + 1);
     if (!codes.length) continue;
     const active = (group.parentPath || []).every(parent => signature.get(String(parent.groupId)) === parent.code);
     if (!active) continue;
@@ -398,10 +442,11 @@ function relaySignatureKey(signature) {
   return [...signature.entries()].map(([groupId, code]) => `${groupId}:${code}`).join("|");
 }
 
-function pickRelayVariation(decoratedVariations, fixedBranches, teamIndex, leg, legs, branchGroups = []) {
+function pickRelayVariation(decoratedVariations, branchRules, teamIndex, leg, legs, branchGroups = []) {
   if (!decoratedVariations.length) return null;
-  const desired = desiredRelaySignature(branchGroups, teamIndex, leg, legs);
-  const fixed = fixedRelaySignature(branchGroups, fixedBranches, leg);
+  const desired = desiredRelaySignature(branchGroups, branchRules, teamIndex, leg, legs);
+  const fixed = fixedRelaySignature(branchGroups, branchRules, leg);
+  if (relaySignatureIsImpossible(desired) || relaySignatureIsImpossible(fixed)) return null;
   const constraints = new Map(desired);
   for (const [groupId, code] of fixed) constraints.set(groupId, code);
 
@@ -451,41 +496,74 @@ function relayVariationSignature(variation, branchGroups) {
   return signature;
 }
 
-function desiredRelaySignature(branchGroups, teamIndex, leg, legs) {
+function desiredRelaySignature(branchGroups, branchRules, teamIndex, leg, legs) {
   const desired = new Map();
   const legCount = Math.max(1, Number(legs) || 1);
   const legIndex = positiveModulo((Math.max(1, Number(leg) || 1) - 1) + Math.max(0, Number(teamIndex) || 0), legCount);
   for (const group of branchGroups) {
-    if (!group.codes?.length || group.codes.length <= 1) continue;
+    const codes = relayEligibleCodesForLeg(group, branchRules, Math.max(1, Number(leg) || 1));
+    if (!codes.length) {
+      if ((group.codes || []).some(code => branchRules.has(String(code)))) {
+        desired.set(String(group.groupId), IMPOSSIBLE_BRANCH_CODE);
+      }
+      continue;
+    }
+    if (codes.length <= 1 && !(group.codes || []).some(code => branchRules.has(String(code)))) continue;
     const active = (group.parentPath || []).every(parent => desired.get(String(parent.groupId)) === parent.code);
     if (!active) continue;
     const contextDenominator = Math.max(1, Number(group.contextDenominator) || 1);
     const cycleIndex = Math.floor(legIndex / contextDenominator);
-    const code = group.codes[positiveModulo(cycleIndex, group.codes.length)];
+    const code = codes[positiveModulo(cycleIndex, codes.length)];
     if (code) desired.set(String(group.groupId), code);
   }
   return desired;
 }
 
-function fixedRelaySignature(branchGroups, fixedBranches, leg) {
+function fixedRelaySignature(branchGroups, branchRules, leg) {
   const signature = new Map();
-  const fixedCodes = (fixedBranches || [])
-    .filter(branch => Number(branch.leg) === Number(leg))
-    .map(branch => String(branch.branch || "").trim())
-    .filter(Boolean);
-  if (!fixedCodes.length) return signature;
-  for (const code of fixedCodes) {
-    const group = branchGroups.find(candidate => (candidate.codes || []).includes(code));
-    if (group) signature.set(String(group.groupId), code);
+  for (const group of branchGroups || []) {
+    const hasRule = (group.codes || []).some(code => branchRules.has(String(code)));
+    if (!hasRule) continue;
+    const eligibleCodes = relayEligibleCodesForLeg(group, branchRules, leg);
+    if (!eligibleCodes.length) {
+      signature.set(String(group.groupId), IMPOSSIBLE_BRANCH_CODE);
+    }
+    else if (eligibleCodes.length === 1) {
+      signature.set(String(group.groupId), eligibleCodes[0]);
+    }
   }
   return signature;
 }
 
 function relaySignatureMatches(signature, constraints) {
   for (const [groupId, code] of constraints) {
+    if (code === IMPOSSIBLE_BRANCH_CODE) return false;
     if (signature.get(String(groupId)) !== code) return false;
   }
   return true;
+}
+
+function relaySignatureIsImpossible(signature) {
+  return [...signature.values()].includes(IMPOSSIBLE_BRANCH_CODE);
+}
+
+function relayBranchRuleMap(branchSettings = [], maxLegs = Infinity) {
+  const map = new Map();
+  for (const setting of branchSettings || []) {
+    const code = String(setting.branch || "").trim();
+    if (!code) continue;
+    const legs = relayBranchAllowedLegs(branchSettings, code, maxLegs);
+    if (legs.length) map.set(code, new Set(legs));
+  }
+  return map;
+}
+
+function relayEligibleCodesForLeg(group, branchRules, leg) {
+  const codes = (group.codes || []).map(code => String(code || "").trim()).filter(Boolean);
+  if (!codes.length) return [];
+  const hasRule = codes.some(code => branchRules.has(code));
+  if (!hasRule) return codes;
+  return codes.filter(code => branchRules.get(code)?.has(Number(leg)));
 }
 
 function enumerateVariationChoices(eventModel, startId, visited = new Set()) {

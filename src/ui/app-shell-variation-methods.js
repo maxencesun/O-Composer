@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260707-1";
+import { debugError } from "./debug-log.js?v=20260707-2";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -89,7 +89,11 @@ export function createAppShellVariationMethods(deps) {
     allCourseVariations,
     courseHasVariations,
     relayAssignments,
+    relayBranchAllowedLegs,
+    relayBranchLegLabel,
+    relayBranchRestrictionIssues,
     relayEntryLabel,
+    relayLegName,
     relayTeamSizeOptions,
     relayVariationForLeg,
     variationBranchCodeMap,
@@ -282,6 +286,7 @@ export function createAppShellVariationMethods(deps) {
 
     const branchCodes = variationBranchCodeMap(eventModel, course.id);
     const variations = allCourseVariations(eventModel, course.id);
+    const assignments = relayAssignments(eventModel, course.id);
     const anchorCourseControl = variationAnchorCourseControl(eventModel, course.id, ui);
     const canAddVariation = canAddVariationAtCourseControl(eventModel, course, anchorCourseControl);
     const selectedBranch = normalizedVariationBranch(eventModel, course.id, ui.variationBranch);
@@ -291,6 +296,8 @@ export function createAppShellVariationMethods(deps) {
     const selectedBranchCode = selectedBranch ? branchCodes.get(Number(selectedBranch.branchCourseControl)) || "" : "";
     const anchorControl = getControl(eventModel, anchorCourseControl?.control);
     const topologyHtml = this.variationTopologySvg(eventModel, course.id, ui, branchCodes);
+    const branchLegEditor = this.variationBranchLegEditor(course, assignments, selectedBranch, selectedBranchCode);
+    const restrictionIssues = relayBranchRestrictionIssues(assignments.branchGroups || [], course.relay?.branches || []);
     return `
       <div class="variation-actions">
         <label>${escapeHtml(this.t("Branches"))}
@@ -304,12 +311,36 @@ export function createAppShellVariationMethods(deps) {
         ? `<p class="muted">${escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))}</p>`
         : ""}
       ${selectedBranch ? `<p class="variation-branch-hint">${escapeHtml(this.t("Selected branch"))}: <strong>${escapeHtml(selectedBranchCode || controlDisplayName(getControl(eventModel, getCourseControl(eventModel, selectedBranch.branchCourseControl)?.control)))}</strong></p>` : ""}
+      ${branchLegEditor}
+      ${restrictionIssues.length ? `<p class="relay-branch-warning">${escapeHtml(this.t("Every parallel branch must declare allowed legs. Missing: {branches}.", { branches: uniqueStrings(restrictionIssues.flatMap(issue => issue.missingCodes)).join(", ") }))}</p>` : ""}
       <div class="variation-tree">${topologyHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
       ${variations.length ? `
         <h3>${escapeHtml(this.t("All variations"))}</h3>
         <div class="variation-code-list">${variations.map(variation => `<button type="button" data-course-variation-code-select="${escapeAttr(variation.code)}">${escapeHtml(variation.code)}</button>`).join("")}</div>
       ` : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`}
       ${this.relayAutoAssignmentPanel(eventModel, course, variations)}
+    `;
+  },
+
+  variationBranchLegEditor(course, assignments, selectedBranch, selectedBranchCode) {
+    if (!selectedBranch || !selectedBranchCode) return "";
+    const relay = normalizedRelaySettings(course.relay);
+    const legs = Math.max(1, assignments.legs || relay.legs || 1);
+    const allowedLegs = new Set(relayBranchAllowedLegs(relay.branches || [], selectedBranchCode, legs));
+    const checks = Array.from({ length: legs }, (_, index) => {
+      const leg = index + 1;
+      return `
+        <label class="check">
+          <input data-variation-branch-leg="${escapeAttr(selectedBranchCode)}" type="checkbox" value="${leg}" ${allowedLegs.has(leg) ? "checked" : ""}>
+          ${escapeHtml(relayLegName(relay, leg))}
+        </label>
+      `;
+    }).join("");
+    return `
+      <div class="variation-branch-leg-editor">
+        <strong>${escapeHtml(this.t("Allowed legs for branch {branch}", { branch: selectedBranchCode }))}</strong>
+        <div class="variation-branch-leg-grid">${checks}</div>
+      </div>
     `;
   },
 
@@ -539,6 +570,10 @@ export function createAppShellVariationMethods(deps) {
           const labelX = forkStart.x + (forkStart.x < position.x ? -36 : 36);
           const labelY = forkStart.y + 2;
           labels.push(`<text class="variation-topology-code ${branchSelected ? "selected" : ""}" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY)}" text-anchor="middle"${branchAttrs}>(${escapeHtml(code)})</text>`);
+          const legLabel = relayBranchLegLabel(getCourse(eventModel, courseId)?.relay || {}, code, { short: true });
+          if (legLabel) {
+            labels.push(`<text class="variation-topology-branch-legs" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY + 16)}" text-anchor="middle"${branchAttrs}>${escapeHtml(legLabel)}</text>`);
+          }
         }
       }
       const joinHitPoint = commonJoinPoint;
@@ -683,9 +718,14 @@ export function createAppShellVariationMethods(deps) {
 
   handleVariationPanelChange(event) {
     const branchesInput = event.target.closest("[data-variation-add-branches]");
+    const branchLegInput = event.target.closest("[data-variation-branch-leg]");
     const relayField = event.target.closest("[data-relay-settings-field]");
     const relayLegName = event.target.closest("[data-relay-leg-name]");
-    if (!branchesInput && !relayField && !relayLegName) return;
+    if (!branchesInput && !branchLegInput && !relayField && !relayLegName) return;
+    if (branchLegInput) {
+      this.updateVariationBranchLegRestriction(branchLegInput);
+      return;
+    }
     if (relayField || relayLegName) {
       this.updateRelaySettingsFromVariationPanel(relayField, relayLegName);
       return;
@@ -695,6 +735,26 @@ export function createAppShellVariationMethods(deps) {
         ui.variationAddBranches = Math.max(2, Math.min(6, Math.round(Number(branchesInput.value) || 2)));
       }
     }, "Variation options");
+  },
+
+  updateVariationBranchLegRestriction(input) {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    const branch = String(input.dataset.variationBranchLeg || "").trim();
+    const leg = Math.max(1, Math.round(Number(input.value) || 1));
+    if (!courseId || courseId === "all" || !branch) return;
+    this.store.updateEvent(model => {
+      const course = getCourse(model, courseId);
+      if (!course) return;
+      course.relay = normalizedRelaySettings(course.relay);
+      const allowed = new Set(relayBranchAllowedLegs(course.relay.branches || [], branch, course.relay.legs || Infinity));
+      if (input.checked) allowed.add(leg);
+      else allowed.delete(leg);
+      course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);
+      const legs = [...allowed].sort((a, b) => a - b);
+      if (legs.length) course.relay.branches.push({ branch, legs });
+    }, "Change branch allowed legs");
+    this.refreshRelayAssignmentPreview(this.store.snapshot().eventModel, courseId);
   },
 
   updateRelaySettingsFromVariationPanel(relayField, relayLegName) {

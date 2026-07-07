@@ -585,6 +585,14 @@ button:hover {
   font-weight: 700;
 }
 
+.variation-topology-branch-legs {
+  fill: #dc2626;
+  font-size: 13px;
+  font-weight: 700;
+  dominant-baseline: middle;
+  cursor: pointer;
+}
+
 .variation-topology-node {
   cursor: pointer;
 }
@@ -646,6 +654,45 @@ button:hover {
   background: #eef8f5;
   color: #245a50;
   font-size: 12px;
+}
+
+.variation-branch-leg-editor,
+.relay-branch-leg-editor {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.variation-branch-leg-grid,
+.relay-branch-leg-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.relay-branch-leg-group {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.relay-branch-leg-group legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.relay-branch-leg-row {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0;
+}
+
+.relay-branch-warning {
+  margin: 6px 0;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .variation-code-list {

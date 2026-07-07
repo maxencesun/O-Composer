@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260707-6";
+import { debugError } from "./debug-log.js?v=20260707-7";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -499,7 +499,10 @@ export function createAppShellVariationMethods(deps) {
     const pushTopologyPath = (path, options = {}) => {
       paths.push(topologyPathSvg(path, options));
       if (options.branchAttrs) {
-        branchPriorityHits.push(topologyHitPathSvg(path, options));
+        branchPriorityHits.push({
+          priority: Number(options.branchHitPriority) || 0,
+          svg: topologyHitPathSvg(path, options)
+        });
       }
     };
     for (let index = 0; index < topology.length; index += 1) {
@@ -560,6 +563,9 @@ export function createAppShellVariationMethods(deps) {
         const branchAttrs = edgeBranch
           ? ` data-select-variation-branch data-fork-course-control="${edgeBranch.forkCourseControl}" data-branch-course-control="${edgeBranch.branchCourseControl}"`
           : "";
+        const forkOwnerPosition = Number.isInteger(edgeBranch?.forkIndex) ? layout.positions[edgeBranch.forkIndex] : null;
+        const branchLaneX = forkStart?.x ?? position.x;
+        const branchHitPriority = edgeBranch && forkOwnerPosition && Math.abs(branchLaneX - forkOwnerPosition.x) < 0.1 ? 2 : 1;
         const joinTarget = edgeBranch && Number(view.legTo[legIndex]) === Number(edgeBranch.joinIndex);
         if (joinTarget && edgeBranch && topology[edgeBranch.forkIndex]?.variation === "loop") {
           const ownerPosition = layout.positions[edgeBranch.forkIndex];
@@ -569,7 +575,7 @@ export function createAppShellVariationMethods(deps) {
           const path = forkStart && topologyBranchIsEmpty(view, legIndex)
             ? topologyEmptyLoopBranchPath(ownerPosition, forkStart, loopBottom, ownerRadius)
             : topologyLoopReturnPath(position, ownerPosition, loopBottom, startRadius, ownerRadius);
-          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected });
+          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, branchHitPriority, segmentKey, selected });
         }
         else if (joinTarget && !forkStart) {
           // For the last edge inside a branch, route only to the fork owner's
@@ -582,16 +588,16 @@ export function createAppShellVariationMethods(deps) {
             : null;
           const joinPoint = forkJoinPoint || commonJoinPoint || topologyBranchJoinPoint(position, targetPosition, startRadius, endRadius);
           const path = topologyBranchToJoinPath(position, joinPoint, startRadius);
-          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected });
+          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, branchHitPriority, segmentKey, selected });
         }
         else if (joinTarget && forkStart && topologyBranchIsEmpty(view, legIndex)) {
           const joinPoint = commonJoinPoint || topologyEmptyBranchJoinPoint(forkStart, targetPosition, endRadius);
           const path = topologyEmptyBranchPath(position, forkStart, joinPoint);
-          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected });
+          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, branchHitPriority, segmentKey, selected });
         }
         else {
           const path = topologyLegPath(position, targetPosition, forkStart, startRadius, endRadius, !!edgeBranch);
-          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected });
+          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, branchHitPriority, segmentKey, selected });
           // Loop fall-through is the only edge that leaves the loop. Loop
           // return paths are drawn beside/over it, so give the exit edge a
           // late hit path with priority; otherwise clicks on the middle stem
@@ -658,7 +664,7 @@ export function createAppShellVariationMethods(deps) {
         <g>${junctions.join("")}</g>
         <g>${paths.join("")}</g>
         <g>${priorityHits.join("")}</g>
-        <g>${branchPriorityHits.join("")}</g>
+        <g>${branchPriorityHits.sort((a, b) => a.priority - b.priority).map(hit => hit.svg).join("")}</g>
         <g>${labels.join("")}</g>
         <g>${nodes.join("")}</g>
       </svg>

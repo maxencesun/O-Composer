@@ -548,7 +548,15 @@ button:hover {
   flex: 0 0 auto;
   display: grid;
   gap: 6px;
-  max-height: 55%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.variation-scroll-area {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
@@ -565,23 +573,36 @@ button:hover {
 }
 
 .variation-action-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: nowrap;
   gap: 4px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .variation-action-buttons button {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
   min-width: 0;
   min-height: 30px;
   padding: 4px;
   font-size: 12px;
   line-height: 1.1;
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.variation-action-buttons button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .variation-tree {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 260px;
   min-height: 180px;
   overflow: auto;

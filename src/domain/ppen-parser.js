@@ -3,7 +3,7 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260707-2";
+} from "./event-model.js?v=20260707-3";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
@@ -333,7 +333,7 @@ function parseCourse(node) {
     relay: {
       firstTeam: 1,
       teams: 0,
-      legs: 1,
+      legs: 0,
       branches: []
     }
   };
@@ -385,7 +385,7 @@ function parseCourse(node) {
       case "relay":
         course.relay.firstTeam = intAttr(child, "first-team", 1);
         course.relay.teams = intAttr(child, "teams", 0);
-        course.relay.legs = intAttr(child, "legs", 1);
+        course.relay.legs = intAttr(child, "legs", 0);
         course.relay.teamPrefix = attr(child, "team-prefix", "");
         course.relay.teamDigits = intAttr(child, "team-digits", 0);
         course.relay.legNames = attr(child, "leg-names", "")
@@ -816,7 +816,7 @@ function writeCourse(lines, course, level, saveOptions = {}) {
     "description-kind": courseOptions.descriptionKind || "symbols"
   });
   if ((course.relay?.teams || 0) > 0
-    || (course.relay?.legs || 1) > 1
+    || (Number(course.relay?.legs) || 0) > 0
     || (!saveOptions.nativePpen && (
       course.relay?.teamPrefix
       || (course.relay?.teamDigits || 0) > 0
@@ -825,7 +825,7 @@ function writeCourse(lines, course, level, saveOptions = {}) {
     empty(lines, level + 1, "relay", {
       "first-team": course.relay.firstTeam || 1,
       teams: course.relay.teams || 0,
-      legs: course.relay.legs || 1,
+      legs: Number(course.relay.legs) > 0 ? course.relay.legs : undefined,
       "team-prefix": saveOptions.nativePpen ? undefined : course.relay.teamPrefix || "",
       "team-digits": saveOptions.nativePpen ? undefined : course.relay.teamDigits || 0,
       "leg-names": saveOptions.nativePpen ? undefined : (course.relay.legNames || []).join("|")

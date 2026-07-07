@@ -1004,6 +1004,21 @@ export function createAppShellCommandMethods(deps) {
         object.cellSize = Math.max(1.2, Number(target.value) || 5.2);
         return;
       }
+      if (field === "course.relay.legs") {
+        object.relay ||= { firstTeam: 1, teams: 0, legs: 0, branches: [], teamPrefix: "", teamDigits: 0, legNames: [] };
+        const legs = target.value === "" ? 0 : Math.max(1, Math.round(Number(target.value) || 1));
+        object.relay.legs = legs;
+        if (legs > 0) {
+          const relay = normalizedRelaySettings(object.relay);
+          object.relay.branches = relay.branches;
+          object.relay.legNames = relay.legNames;
+        }
+        else {
+          object.relay.branches = [];
+          object.relay.legNames = [];
+        }
+        return;
+      }
       if (field.startsWith("special.font.")) {
         if (!object.font) {
           object.font = { name: "Arial", bold: false, italic: false, height: -1 };

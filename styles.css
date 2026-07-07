@@ -453,8 +453,10 @@ button:hover {
 }
 
 .panel-block {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   border-bottom: 1px solid var(--line);
 }
@@ -462,6 +464,7 @@ button:hover {
 .panel-heading {
   position: sticky;
   top: 0;
+  flex: 0 0 auto;
   display: flex;
   gap: 4px;
   padding: 7px;
@@ -485,9 +488,30 @@ button:hover {
 
 .description-panel,
 .variation-panel,
+.constants-panel,
 .report-panel,
 .selection-panel {
   padding: 8px;
+}
+
+.description-panel,
+.constants-panel,
+.report-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.variation-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .selection-panel {
@@ -515,13 +539,24 @@ button:hover {
 
 .variation-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 74px;
+  grid-template-columns: 70px minmax(0, 1fr);
   gap: 6px;
-  align-items: end;
-  margin-bottom: 8px;
+  align-items: stretch;
 }
 
-.variation-actions label {
+.variation-fixed-controls {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 6px;
+  max-height: 55%;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.variation-actions label,
+.variation-leg-count {
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -529,15 +564,32 @@ button:hover {
   font-size: 12px;
 }
 
-.variation-actions button {
-  grid-column: 1 / -1;
+.variation-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+
+.variation-action-buttons button {
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px;
+  font-size: 12px;
+  line-height: 1.1;
+  white-space: normal;
 }
 
 .variation-tree {
+  flex: 1 1 auto;
   min-width: 260px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  min-height: 180px;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
   padding-bottom: 4px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .variation-topology {

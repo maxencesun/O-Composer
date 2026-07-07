@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260707-2";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260707-2";
-import { findById } from "../domain/event-model.js?v=20260707-2";
+} from "./app-shell-config.js?v=20260707-3";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260707-3";
+import { findById } from "../domain/event-model.js?v=20260707-3";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260707-2";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260707-2";
+} from "../domain/control-descriptions.js?v=20260707-3";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260707-3";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -42,9 +42,9 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260707-2";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260707-2";
-import { t } from "./i18n.js?v=20260707-2";
+} from "../domain/course-service.js?v=20260707-3";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260707-3";
+import { t } from "./i18n.js?v=20260707-3";
 
 export function defaultPdfExportSettings() {
   return {
@@ -135,7 +135,7 @@ export function normalizedRelaySettings(relay = {}) {
 
 function normalizeRelayBranchSettings(branches = [], maxLegs = Infinity) {
   const result = new Map();
-  const limit = Number.isFinite(Number(maxLegs)) ? Math.max(1, Math.round(Number(maxLegs))) : Infinity;
+  const limit = Number.isFinite(Number(maxLegs)) ? Math.max(0, Math.round(Number(maxLegs))) : Infinity;
   for (const branch of Array.isArray(branches) ? branches : []) {
     const code = String(branch?.branch || "").trim();
     if (!code) continue;
@@ -158,7 +158,10 @@ export function applyRelayInputToSettings(relay, relayField, relayLegName) {
   if (relayField) {
     const field = relayField.dataset.relaySettingsField;
     if (field === "teams") relay.teams = Math.max(0, Math.round(Number(relayField.value) || 0));
-    else if (field === "legs") relay.legs = Math.max(1, Math.round(Number(relayField.value) || 1));
+    else if (field === "legs") {
+      relay.legs = relayField.value === "" ? 0 : Math.max(1, Math.round(Number(relayField.value) || 1));
+      relay.branches = normalizeRelayBranchSettings(relay.branches, relay.legs);
+    }
     else if (field === "firstTeam") relay.firstTeam = Math.max(1, Math.round(Number(relayField.value) || 1));
     else if (field === "teamDigits") relay.teamDigits = Math.max(0, Math.min(8, Math.round(Number(relayField.value) || 0)));
     else if (field === "teamPrefix") relay.teamPrefix = String(relayField.value || "");
@@ -168,7 +171,7 @@ export function applyRelayInputToSettings(relay, relayField, relayLegName) {
     relay.legNames ||= [];
     relay.legNames[index] = String(relayLegName.value || "").trim();
   }
-  relay.legNames = (relay.legNames || []).slice(0, Math.max(1, relay.legs || 1));
+  relay.legNames = (relay.legNames || []).slice(0, Math.max(0, Math.round(Number(relay.legs) || 0)));
 }
 
 export function vectorPdfProgressPhase(stage) {

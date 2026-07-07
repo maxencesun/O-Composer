@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260707-7";
+import { debugError } from "./debug-log.js?v=20260707-8";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -950,9 +950,24 @@ export function createAppShellVariationMethods(deps) {
       }, "Delete variation branch");
       return;
     }
+    const previousBranchCodes = variationBranchCodeMap(state.eventModel, courseId);
+    const previousCourse = getCourse(state.eventModel, courseId);
+    const previousRelayBranches = previousCourse?.relay?.branches || [];
+    const previousRelayLegs = previousCourse?.relay?.legs || Infinity;
     let removed = false;
     this.store.updateEvent(model => {
       removed = removeVariationBranch(model, courseId, selectedBranch);
+      if (removed) {
+        const course = getCourse(model, courseId);
+        if (course?.relay?.branches) {
+          const nextBranchCodes = variationBranchCodeMap(model, courseId);
+          course.relay.branches = [...nextBranchCodes.entries()].flatMap(([branchId, nextCode]) => {
+            const previousCode = previousBranchCodes.get(Number(branchId));
+            const legs = relayBranchAllowedLegs(previousRelayBranches, previousCode, previousRelayLegs);
+            return legs.length ? [{ branch: nextCode, legs }] : [];
+          });
+        }
+      }
     }, "Delete variation branch");
     this.store.updateUi(ui => {
       ui.variationBranch = null;

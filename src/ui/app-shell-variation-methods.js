@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260707-4";
+import { debugError } from "./debug-log.js?v=20260707-5";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -268,7 +268,9 @@ export function createAppShellVariationMethods(deps) {
   return {
   renderVariation({ eventModel, ui }) {
     const panel = this.querySelector("#variationPanel");
+    const scrollState = captureVariationScrollState(panel);
     panel.innerHTML = this.variationPanelHtml(eventModel, ui);
+    restoreVariationScrollState(panel, scrollState);
   },
 
   variationPanelHtml(eventModel, ui) {
@@ -1063,4 +1065,38 @@ function rawRelayLegCount(course) {
 
 function relayLegCountSelected(course) {
   return rawRelayLegCount(course) > 0;
+}
+
+function captureVariationScrollState(panel) {
+  if (!panel) return null;
+  const scrollArea = panel.querySelector(".variation-scroll-area");
+  const tree = panel.querySelector(".variation-tree");
+  return {
+    scrollAreaTop: scrollArea?.scrollTop || 0,
+    scrollAreaLeft: scrollArea?.scrollLeft || 0,
+    treeTop: tree?.scrollTop || 0,
+    treeLeft: tree?.scrollLeft || 0,
+    treeOffsetTop: tree?.offsetTop || 0
+  };
+}
+
+function restoreVariationScrollState(panel, state) {
+  if (!panel || !state) return;
+  const restore = () => {
+    const scrollArea = panel.querySelector(".variation-scroll-area");
+    const tree = panel.querySelector(".variation-tree");
+    if (scrollArea) {
+      const treeOffsetDelta = tree ? tree.offsetTop - state.treeOffsetTop : 0;
+      scrollArea.scrollTop = state.scrollAreaTop + treeOffsetDelta;
+      scrollArea.scrollLeft = state.scrollAreaLeft;
+    }
+    if (tree) {
+      tree.scrollTop = state.treeTop;
+      tree.scrollLeft = state.treeLeft;
+    }
+  };
+  restore();
+  if (typeof window !== "undefined" && window.requestAnimationFrame) {
+    window.requestAnimationFrame(restore);
+  }
 }

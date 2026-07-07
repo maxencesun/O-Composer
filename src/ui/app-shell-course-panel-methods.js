@@ -1,4 +1,4 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260706-8";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260707-1";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -305,7 +305,6 @@ export function createAppShellCoursePanelMethods(deps) {
       || this.renderKeys.variationInsertAfterCourseControl !== keys.variationInsertAfterCourseControl
       || this.renderKeys.variationInsertBeforeCourseControl !== keys.variationInsertBeforeCourseControl
       || this.renderKeys.variationSelectedSegment !== keys.variationSelectedSegment
-      || this.renderKeys.variationAddKind !== keys.variationAddKind
       || this.renderKeys.variationAddBranches !== keys.variationAddBranches;
 
     if (shouldRenderCourse) {

@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260707-5";
+import { debugError } from "./debug-log.js?v=20260707-6";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -492,9 +492,16 @@ export function createAppShellVariationMethods(deps) {
     };
     const paths = [];
     const priorityHits = [];
+    const branchPriorityHits = [];
     const junctions = [];
     const labels = [];
     const nodes = [];
+    const pushTopologyPath = (path, options = {}) => {
+      paths.push(topologyPathSvg(path, options));
+      if (options.branchAttrs) {
+        branchPriorityHits.push(topologyHitPathSvg(path, options));
+      }
+    };
     for (let index = 0; index < topology.length; index += 1) {
       const view = topology[index];
       const position = layout.positions[index];
@@ -506,11 +513,11 @@ export function createAppShellVariationMethods(deps) {
         junctions.push(`<circle class="variation-topology-junction-hit" cx="${formatSvgNumber(position.x)}" cy="${formatSvgNumber(forkY)}" r="22" data-select-variation-course-control="${forkOwnerCourseControlId}"></circle>`);
         const stemStartY = position.y + topologyConnectionRadius(view.control, nodeRadius);
         const stemPath = `M ${formatSvgNumber(position.x)} ${formatSvgNumber(stemStartY)} V ${formatSvgNumber(forkY)}`;
-        paths.push(topologyPathSvg(stemPath, {
+        pushTopologyPath(stemPath, {
           insertAfterCourseControl: forkOwnerCourseControlId,
           segmentKey: `stem:${index}`,
           selected: ui.variationSelectedSegment === `stem:${index}`
-        }));
+        });
         priorityHits.push(topologyHitPathSvg(stemPath, {
           insertAfterCourseControl: forkOwnerCourseControlId,
           segmentKey: `stem:${index}`
@@ -562,7 +569,7 @@ export function createAppShellVariationMethods(deps) {
           const path = forkStart && topologyBranchIsEmpty(view, legIndex)
             ? topologyEmptyLoopBranchPath(ownerPosition, forkStart, loopBottom, ownerRadius)
             : topologyLoopReturnPath(position, ownerPosition, loopBottom, startRadius, ownerRadius);
-          paths.push(topologyPathSvg(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected }));
+          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected });
         }
         else if (joinTarget && !forkStart) {
           // For the last edge inside a branch, route only to the fork owner's
@@ -575,16 +582,16 @@ export function createAppShellVariationMethods(deps) {
             : null;
           const joinPoint = forkJoinPoint || commonJoinPoint || topologyBranchJoinPoint(position, targetPosition, startRadius, endRadius);
           const path = topologyBranchToJoinPath(position, joinPoint, startRadius);
-          paths.push(topologyPathSvg(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected }));
+          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected });
         }
         else if (joinTarget && forkStart && topologyBranchIsEmpty(view, legIndex)) {
           const joinPoint = commonJoinPoint || topologyEmptyBranchJoinPoint(forkStart, targetPosition, endRadius);
           const path = topologyEmptyBranchPath(position, forkStart, joinPoint);
-          paths.push(topologyPathSvg(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected }));
+          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected });
         }
         else {
           const path = topologyLegPath(position, targetPosition, forkStart, startRadius, endRadius, !!edgeBranch);
-          paths.push(topologyPathSvg(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected }));
+          pushTopologyPath(path, { insertAfterCourseControl, insertBeforeCourseControl, branchAttrs, segmentKey, selected });
           // Loop fall-through is the only edge that leaves the loop. Loop
           // return paths are drawn beside/over it, so give the exit edge a
           // late hit path with priority; otherwise clicks on the middle stem
@@ -625,11 +632,11 @@ export function createAppShellVariationMethods(deps) {
             // checkpoint after the branch block and before the join checkpoint.
             // The domain insertion code promotes the new checkpoint to the
             // variationEnd so branch tails do not treat it as a per-branch point.
-            paths.push(topologyPathSvg(preJoinPath, {
+            pushTopologyPath(preJoinPath, {
               insertBeforeCourseControl: joinCourseControlId,
               segmentKey: preJoinSegmentKey,
               selected: ui.variationSelectedSegment === preJoinSegmentKey
-            }));
+            });
             priorityHits.push(topologyHitPathSvg(preJoinPath, {
               insertBeforeCourseControl: joinCourseControlId,
               segmentKey: preJoinSegmentKey
@@ -651,6 +658,7 @@ export function createAppShellVariationMethods(deps) {
         <g>${junctions.join("")}</g>
         <g>${paths.join("")}</g>
         <g>${priorityHits.join("")}</g>
+        <g>${branchPriorityHits.join("")}</g>
         <g>${labels.join("")}</g>
         <g>${nodes.join("")}</g>
       </svg>

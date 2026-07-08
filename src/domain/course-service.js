@@ -1,5 +1,5 @@
-import { findById } from "./event-model.js?v=20260707-8";
-import { allCourseVariations } from "./relay-variations.js?v=20260707-8";
+import { findById } from "./event-model.js?v=20260708-1";
+import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260708-1";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -857,12 +857,10 @@ export function formatLengthRange(range) {
 }
 
 
-const ALL_BRANCH_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
 function allBranchOrdinalMap(eventModel, course) {
   const result = new Map();
   if (!course) return result;
-  const branchCodes = branchCodeMapForCourse(eventModel, course);
+  const branchCodes = variationBranchCodeMap(eventModel, course.id);
   const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 50);
   let steps = 0;
 
@@ -933,48 +931,6 @@ function allBranchOrdinalMap(eventModel, course) {
   }
 
   visit(course.firstCourseControl, null, course.firstControlOrdinal || 1, "", "root");
-  return result;
-}
-
-function branchCodeMapForCourse(eventModel, course) {
-  const result = new Map();
-  let next = 0;
-  const seen = new Set();
-  const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 50);
-  let steps = 0;
-
-  function visit(startId, stopId = null) {
-    let currentId = Number(startId) || 0;
-    const stop = Number(stopId) || 0;
-    while (currentId && currentId !== stop && steps++ < maxSteps) {
-      if (seen.has(currentId)) break;
-      seen.add(currentId);
-      const courseControl = getCourseControl(eventModel, currentId);
-      if (!courseControl) break;
-      if (courseControl.variation && courseControl.variationCourseControls?.length) {
-        for (const branchId of courseControl.variationCourseControls || []) {
-          const id = Number(branchId) || 0;
-          if (id && !result.has(id)) {
-            result.set(id, ALL_BRANCH_LETTERS[next] || `V${next + 1}`);
-            next += 1;
-          }
-          const branchCourseControl = getCourseControl(eventModel, id);
-          if (branchCourseControl) {
-            const branchStartId = Number(branchCourseControl.control) === Number(courseControl.control)
-              ? Number(branchCourseControl.nextCourseControl) || null
-              : Number(branchCourseControl.id) || null;
-            visit(branchStartId, courseControl.variationEnd);
-          }
-        }
-        currentId = Number(courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
-      }
-      else {
-        currentId = Number(courseControl.nextCourseControl) || 0;
-      }
-    }
-  }
-
-  visit(course?.firstCourseControl);
   return result;
 }
 

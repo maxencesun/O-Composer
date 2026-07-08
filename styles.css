@@ -632,6 +632,11 @@ button:hover {
   pointer-events: stroke;
 }
 
+.variation-topology-leg-hit-tight {
+  stroke-width: 16;
+  stroke-linecap: butt;
+}
+
 .variation-topology-leg {
   fill: none;
   stroke: #111827;

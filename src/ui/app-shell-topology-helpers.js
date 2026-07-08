@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260708-5";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260708-5";
-import { findById } from "../domain/event-model.js?v=20260708-5";
+} from "./app-shell-config.js?v=20260708-6";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260708-6";
+import { findById } from "../domain/event-model.js?v=20260708-6";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260708-5";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260708-5";
+} from "../domain/control-descriptions.js?v=20260708-6";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260708-6";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,10 +43,10 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260708-5";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260708-5";
-import { t } from "./i18n.js?v=20260708-5";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260708-5";
+} from "../domain/course-service.js?v=20260708-6";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260708-6";
+import { t } from "./i18n.js?v=20260708-6";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260708-6";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
@@ -318,7 +318,8 @@ export function topologyPathSvg(path, options = {}) {
 }
 
 export function topologyHitPathSvg(path, options = {}) {
-  return `<path class="variation-topology-leg-hit" d="${path}"${topologyPathAttrs(options)}></path>`;
+  const extraClass = options.hitClass ? ` ${escapeAttr(options.hitClass)}` : "";
+  return `<path class="variation-topology-leg-hit${extraClass}" d="${path}"${topologyPathAttrs(options)}></path>`;
 }
 
 export function topologyPathAttrs(options = {}) {

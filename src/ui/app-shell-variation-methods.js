@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260708-5";
+import { debugError } from "./debug-log.js?v=20260708-6";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -508,6 +508,7 @@ export function createAppShellVariationMethods(deps) {
     const paths = [];
     const priorityHits = [];
     const branchPriorityHits = [];
+    const topPriorityHits = [];
     const junctions = [];
     const labels = [];
     const nodes = [];
@@ -663,6 +664,12 @@ export function createAppShellVariationMethods(deps) {
               insertBeforeCourseControl: joinCourseControlId,
               segmentKey: preJoinSegmentKey
             }));
+            topPriorityHits.push(topologyHitPathSvg(preJoinPath, {
+              insertBeforeCourseControl: joinCourseControlId,
+              branchAttrs: preJoinBranchAttrs,
+              segmentKey: preJoinSegmentKey,
+              hitClass: "variation-topology-leg-hit-tight"
+            }));
           }
         }
       }
@@ -683,6 +690,7 @@ export function createAppShellVariationMethods(deps) {
         <g>${branchPriorityHits.sort((a, b) => a.priority - b.priority).map(hit => hit.svg).join("")}</g>
         <g>${labels.join("")}</g>
         <g>${nodes.join("")}</g>
+        <g>${topPriorityHits.join("")}</g>
       </svg>
     `;
   },

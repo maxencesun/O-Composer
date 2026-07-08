@@ -339,7 +339,7 @@ requestAnimationFrame(() => {
   updateBootLoadingProgress({ percent: 18, detail: text.moduleDetail, indeterminate: true });
 });
 
-import("./ui/app-shell.js?v=20260708-4")
+import("./ui/app-shell.js?v=20260708-5")
   .then(({ OComposerApp }) => {
     updateBootLoadingProgress({ percent: 52, detail: text.initializeDetail, indeterminate: false });
     customElements.define("o-composer-app", OComposerApp);

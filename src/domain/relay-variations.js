@@ -418,20 +418,34 @@ function scoreRelayTeamPlan(candidate, offset, slotRouteUse, slotBranchUse, glob
 }
 
 function relaySignatureForLeg({ offset, blockShift, branchGroups, branchRules = new Map(), legIndex, baseLegs }) {
-  const signature = new Map();
-  const posInBlock = positiveModulo(legIndex, baseLegs);
+  const signatures = relaySignaturesForBlock({ offset, blockShift, branchGroups, branchRules, legIndex, baseLegs });
+  return signatures[positiveModulo(legIndex, signatures.length || 1)] || new Map();
+}
+
+function relaySignaturesForBlock({ offset, blockShift, branchGroups, branchRules = new Map(), legIndex, baseLegs }) {
+  const blockSize = Math.max(1, Number(baseLegs) || 1);
+  const posInBlock = positiveModulo(legIndex, blockSize);
+  const blockStart = Math.max(0, Number(legIndex) || 0) - posInBlock;
+  const signatures = Array.from({ length: blockSize }, () => new Map());
+  const activeCounts = new Map();
+
   for (let index = 0; index < branchGroups.length; index += 1) {
     const group = branchGroups[index];
-    const codes = relayEligibleCodesForLeg(group, branchRules, legIndex + 1);
-    if (!codes.length) continue;
-    const active = (group.parentPath || []).every(parent => signature.get(String(parent.groupId)) === parent.code);
-    if (!active) continue;
-    const contextDenominator = Math.max(1, Number(group.contextDenominator) || 1);
-    const cycleIndex = Math.floor(posInBlock / contextDenominator);
-    const branchIndex = positiveModulo((offset.values[index] || 0) + (blockShift.values[index] || 0) + cycleIndex, codes.length);
-    signature.set(String(group.groupId), codes[branchIndex]);
+    const groupId = String(group.groupId);
+    for (let pos = 0; pos < blockSize; pos += 1) {
+      const leg = blockStart + pos + 1;
+      const codes = relayEligibleCodesForLeg(group, branchRules, leg);
+      if (!codes.length) continue;
+      const active = (group.parentPath || []).every(parent => signatures[pos].get(String(parent.groupId)) === parent.code);
+      if (!active) continue;
+      const occurrence = activeCounts.get(groupId) || 0;
+      const branchIndex = positiveModulo((offset.values[index] || 0) + (blockShift.values[index] || 0) + occurrence, codes.length);
+      signatures[pos].set(groupId, codes[branchIndex]);
+      activeCounts.set(groupId, occurrence + 1);
+    }
   }
-  return signature;
+
+  return signatures;
 }
 
 function findRelayVariationForSignature(decoratedVariations, signature) {

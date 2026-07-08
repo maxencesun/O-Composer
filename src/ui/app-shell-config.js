@@ -33,7 +33,7 @@ export const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 export const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 export const APP_VERSION = "0.0.0";
-export const APP_CACHE_VERSION = "20260708-2";
+export const APP_CACHE_VERSION = "20260708-3";
 export const APP_RESOURCE_CACHE_PREFIX = "o-composer-resources-";
 export const APP_RESOURCE_CACHE_NAME = `${APP_RESOURCE_CACHE_PREFIX}${APP_CACHE_VERSION}`;
 export const APP_RESOURCE_URLS = Object.freeze([

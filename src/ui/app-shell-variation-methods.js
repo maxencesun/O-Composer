@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260708-2";
+import { debugError } from "./debug-log.js?v=20260708-3";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -446,7 +446,18 @@ export function createAppShellVariationMethods(deps) {
     const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui);
     const branchEdges = topologyBranchEdgeMap(topology);
     const commonJoinPoints = topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
-    const previousCourseControls = topologyPreviousCourseControlMap(topology);
+    const containingBranchForView = viewIndex => {
+      for (const [key, branch] of branchEdges) {
+        const toIndex = Number(key.split(":")[1]);
+        if (toIndex === Number(viewIndex) && Number(branch.joinIndex) !== Number(viewIndex)) {
+          return branch;
+        }
+      }
+      return null;
+    };
+    const branchAttrsFor = branch => branch
+      ? ` data-select-variation-branch data-fork-course-control="${branch.forkCourseControl}" data-branch-course-control="${branch.branchCourseControl}"`
+      : "";
     const forkBranchFirstVerticalGap = (startIndex, joinIndex, commonJoinPoint) => {
       const startPosition = layout.positions[startIndex];
       const startView = topology[startIndex];
@@ -560,9 +571,7 @@ export function createAppShellVariationMethods(deps) {
           : null;
         const segmentKey = `edge:${index}:${legIndex}:${view.legTo[legIndex]}`;
         const selected = ui.variationSelectedSegment === segmentKey;
-        const branchAttrs = edgeBranch
-          ? ` data-select-variation-branch data-fork-course-control="${edgeBranch.forkCourseControl}" data-branch-course-control="${edgeBranch.branchCourseControl}"`
-          : "";
+        const branchAttrs = branchAttrsFor(edgeBranch);
         const forkOwnerPosition = Number.isInteger(edgeBranch?.forkIndex) ? layout.positions[edgeBranch.forkIndex] : null;
         const branchLaneX = forkStart?.x ?? position.x;
         const branchHitPriority = edgeBranch && forkOwnerPosition && Math.abs(branchLaneX - forkOwnerPosition.x) < 0.1 ? 2 : 1;
@@ -632,6 +641,8 @@ export function createAppShellVariationMethods(deps) {
           const joinTopY = joinPosition.y - topologyConnectionRadius(topology[view.joinIndex]?.control, nodeRadius);
           if (joinHitPoint.y < joinTopY - 0.5) {
             const preJoinPath = `M ${formatSvgNumber(joinHitPoint.x)} ${formatSvgNumber(joinHitPoint.y)} V ${formatSvgNumber(joinTopY)}`;
+            const preJoinBranch = containingBranchForView(index);
+            const preJoinBranchAttrs = branchAttrsFor(preJoinBranch);
             // The visible common segment after all branch lanes have merged is
             // outside the per-branch lanes, but it is still before the join
             // checkpoint itself. Clicking this segment means: insert one shared
@@ -640,6 +651,7 @@ export function createAppShellVariationMethods(deps) {
             // variationEnd so branch tails do not treat it as a per-branch point.
             pushTopologyPath(preJoinPath, {
               insertBeforeCourseControl: joinCourseControlId,
+              branchAttrs: preJoinBranchAttrs,
               segmentKey: preJoinSegmentKey,
               selected: ui.variationSelectedSegment === preJoinSegmentKey
             });
@@ -700,12 +712,13 @@ export function createAppShellVariationMethods(deps) {
       const branchCourseControl = Number(branchButton.dataset.branchCourseControl) || null;
       const forkCourseControl = Number(branchButton.dataset.forkCourseControl) || null;
       const insertAfterCourseControl = Number(branchButton.dataset.insertAfterCourseControl) || null;
+      const insertBeforeCourseControl = Number(branchButton.dataset.insertBeforeCourseControl) || null;
       const segment = branchButton.dataset.variationSegment || "";
       this.store.updateUi(ui => {
         ui.variationBranch = { forkCourseControl, branchCourseControl };
-        ui.variationAnchorCourseControl = insertAfterCourseControl || forkCourseControl;
+        ui.variationAnchorCourseControl = insertAfterCourseControl || insertBeforeCourseControl || forkCourseControl;
         ui.variationInsertAfterCourseControl = insertAfterCourseControl;
-        ui.variationInsertBeforeCourseControl = null;
+        ui.variationInsertBeforeCourseControl = insertBeforeCourseControl;
         ui.variationSelectedSegment = segment;
         ui.variationMode = "all";
         ui.status = this.t("Branch selected. Add controls to insert them on this branch.");

@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260708-3";
+import { debugError } from "./debug-log.js?v=20260708-4";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -458,6 +458,17 @@ export function createAppShellVariationMethods(deps) {
     const branchAttrsFor = branch => branch
       ? ` data-select-variation-branch data-fork-course-control="${branch.forkCourseControl}" data-branch-course-control="${branch.branchCourseControl}"`
       : "";
+    const branchMatchesSelected = branch => selectedBranch
+      && branch
+      && Number(selectedBranch.forkCourseControl) === Number(branch.forkCourseControl)
+      && Number(selectedBranch.branchCourseControl) === Number(branch.branchCourseControl);
+    const selectedBranchForForkView = view => {
+      if (!selectedBranch || Number(selectedBranch.forkCourseControl) !== Number(topologyNodeCourseControlId(view))) {
+        return null;
+      }
+      const branchIds = (view?.branchCourseControlIds || []).map(Number);
+      return branchIds.includes(Number(selectedBranch.branchCourseControl)) ? selectedBranch : null;
+    };
     const forkBranchFirstVerticalGap = (startIndex, joinIndex, commonJoinPoint) => {
       const startPosition = layout.positions[startIndex];
       const startView = topology[startIndex];
@@ -641,7 +652,7 @@ export function createAppShellVariationMethods(deps) {
           const joinTopY = joinPosition.y - topologyConnectionRadius(topology[view.joinIndex]?.control, nodeRadius);
           if (joinHitPoint.y < joinTopY - 0.5) {
             const preJoinPath = `M ${formatSvgNumber(joinHitPoint.x)} ${formatSvgNumber(joinHitPoint.y)} V ${formatSvgNumber(joinTopY)}`;
-            const preJoinBranch = containingBranchForView(index);
+            const preJoinBranch = containingBranchForView(index) || selectedBranchForForkView(view);
             const preJoinBranchAttrs = branchAttrsFor(preJoinBranch);
             // The visible common segment after all branch lanes have merged is
             // outside the per-branch lanes, but it is still before the join
@@ -653,7 +664,7 @@ export function createAppShellVariationMethods(deps) {
               insertBeforeCourseControl: joinCourseControlId,
               branchAttrs: preJoinBranchAttrs,
               segmentKey: preJoinSegmentKey,
-              selected: ui.variationSelectedSegment === preJoinSegmentKey
+              selected: ui.variationSelectedSegment === preJoinSegmentKey || branchMatchesSelected(preJoinBranch)
             });
             priorityHits.push(topologyHitPathSvg(preJoinPath, {
               insertBeforeCourseControl: joinCourseControlId,

@@ -3,7 +3,7 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260708-1";
+} from "./event-model.js?v=20260708-2";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 

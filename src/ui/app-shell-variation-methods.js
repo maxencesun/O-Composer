@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260708-7";
+import { debugError } from "./debug-log.js?v=20260708-8";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -135,6 +135,7 @@ export function createAppShellVariationMethods(deps) {
     teamCourseDescriptionPanelRows,
     courseDisplayOptions,
     TOPOLOGY_HEIGHT_UNIT,
+    TOPOLOGY_MIN_VERTICAL_SEGMENT,
     layoutVariationTopology,
     topologyLegPath,
     topologyBranchJoinPoint,
@@ -503,7 +504,12 @@ export function createAppShellVariationMethods(deps) {
       if (!lowerGaps.length) return originalForkY;
       const desiredGap = Math.max(4, Math.min(...lowerGaps));
       const symmetricY = branchTopY - desiredGap;
-      return Math.max(ownerBottomY + 8, Math.min(branchTopY - 4, symmetricY));
+      const minY = ownerBottomY + TOPOLOGY_MIN_VERTICAL_SEGMENT;
+      const maxY = branchTopY - TOPOLOGY_MIN_VERTICAL_SEGMENT;
+      if (maxY >= minY) {
+        return Math.min(maxY, Math.max(minY, symmetricY));
+      }
+      return Math.max(ownerBottomY + 4, Math.min(branchTopY - 4, symmetricY));
     };
     const paths = [];
     const priorityHits = [];

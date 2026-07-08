@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260708-7";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260708-7";
-import { findById } from "../domain/event-model.js?v=20260708-7";
+} from "./app-shell-config.js?v=20260708-8";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260708-8";
+import { findById } from "../domain/event-model.js?v=20260708-8";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260708-7";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260708-7";
+} from "../domain/control-descriptions.js?v=20260708-8";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260708-8";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,10 +43,10 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260708-7";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260708-7";
-import { t } from "./i18n.js?v=20260708-7";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260708-7";
+} from "../domain/course-service.js?v=20260708-8";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260708-8";
+import { t } from "./i18n.js?v=20260708-8";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260708-8";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
@@ -55,6 +55,8 @@ export const TOPOLOGY_HEIGHT_UNIT = 52;
 export const TOPOLOGY_PADDING_X = 44;
 
 export const TOPOLOGY_PADDING_Y = 26;
+
+export const TOPOLOGY_MIN_VERTICAL_SEGMENT = 18;
 
 export function layoutVariationTopology(topology, branchCodes) {
   const abstractPositions = Array(topology.length).fill(null);
@@ -71,7 +73,7 @@ export function layoutVariationTopology(topology, branchCodes) {
       const view = topology[index];
       const legTo = view.legTo || [];
       const numForks = legTo.length;
-      abstractPositions[index] = { x, y, forkStart: null };
+      abstractPositions[index] = { x, y, forkStart: null, spacerYs: [] };
       totalWidth = Math.max(totalWidth, 1);
       totalHeight += 1;
       y += 1;
@@ -119,7 +121,10 @@ export function layoutVariationTopology(topology, branchCodes) {
           const branchStartY = loop ? forkStart[branchIndex].y + 1 : forkStart[branchIndex].y + 1;
           assign(legTo[branchIndex], view.joinIndex, forkStart[branchIndex].x, branchStartY);
         }
-        const forkBlockHeight = loop ? maxForkHeight + 2 : maxForkHeight + 2;
+        const forkBlockHeight = loop ? maxForkHeight + 2 : maxForkHeight + 4;
+        if (!loop) {
+          abstractPositions[index].spacerYs.push(y + forkBlockHeight - 1);
+        }
         totalHeight += forkBlockHeight;
         y += forkBlockHeight;
         totalWidth = Math.max(totalWidth, totalForkWidth);
@@ -157,7 +162,8 @@ export function layoutVariationTopology(topology, branchCodes) {
   const yGrid = topologyCoordinateGrid(abstractPositions, position => [
     position,
     Number.isFinite(position?.loopBottom) ? { y: position.loopBottom } : null,
-    ...(position?.forkStart || [])
+    ...(position?.forkStart || []),
+    ...(position?.spacerYs || []).map(y => ({ y }))
   ], "y");
 
   const positions = abstractPositions.map(position => position && ({
@@ -425,6 +431,7 @@ export function topologyCommonJoinPoint(view, topology, positions, nodeRadius, o
   const sideMergeYs = [];
   const centerTailBottomYs = [];
   const emptyMergeYs = [];
+  const tailLowerBounds = [];
 
   for (let legIndex = 0; legIndex < (view.legTo || []).length; legIndex += 1) {
     const startIndex = view.legTo[legIndex];
@@ -443,6 +450,7 @@ export function topologyCommonJoinPoint(view, topology, positions, nodeRadius, o
       const tailPosition = positions[tailIndex];
       if (!tailPosition) continue;
       const tailStartY = tailPosition.y + topologyConnectionRadius(topology[tailIndex]?.control, nodeRadius);
+      tailLowerBounds.push(tailStartY + TOPOLOGY_MIN_VERTICAL_SEGMENT);
       if (Math.abs(tailPosition.x - joinPosition.x) < 0.1) {
         // A centered branch is visually on the same x as the common post-merge
         // stem.  It must stop at the shared merge bus, not force that bus down
@@ -464,7 +472,12 @@ export function topologyCommonJoinPoint(view, topology, positions, nodeRadius, o
   // only require the bus to be below their checkpoint label; they must not
   // collapse the bus onto the join checkpoint, because that hides the public
   // post-branch edge and merges two different insertion targets.
-  const y = Math.min(joinTopY, Math.max(...mergeYs));
+  const baseY = Math.max(...mergeYs);
+  const minimumY = tailLowerBounds.length ? Math.max(...tailLowerBounds) : baseY;
+  const maximumY = joinTopY - TOPOLOGY_MIN_VERTICAL_SEGMENT;
+  const y = minimumY <= maximumY
+    ? Math.min(Math.max(baseY, minimumY), maximumY)
+    : Math.min(baseY, maximumY);
   return { x: joinPosition.x, y };
 }
 

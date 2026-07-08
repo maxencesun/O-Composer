@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260708-6";
+import { debugError } from "./debug-log.js?v=20260708-7";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -664,12 +664,15 @@ export function createAppShellVariationMethods(deps) {
               insertBeforeCourseControl: joinCourseControlId,
               segmentKey: preJoinSegmentKey
             }));
-            topPriorityHits.push(topologyHitPathSvg(preJoinPath, {
-              insertBeforeCourseControl: joinCourseControlId,
-              branchAttrs: preJoinBranchAttrs,
-              segmentKey: preJoinSegmentKey,
-              hitClass: "variation-topology-leg-hit-tight"
-            }));
+            topPriorityHits.push({
+              publicSegment: !preJoinBranchAttrs,
+              svg: topologyHitPathSvg(preJoinPath, {
+                insertBeforeCourseControl: joinCourseControlId,
+                branchAttrs: preJoinBranchAttrs,
+                segmentKey: preJoinSegmentKey,
+                hitClass: "variation-topology-leg-hit-tight"
+              })
+            });
           }
         }
       }
@@ -690,7 +693,7 @@ export function createAppShellVariationMethods(deps) {
         <g>${branchPriorityHits.sort((a, b) => a.priority - b.priority).map(hit => hit.svg).join("")}</g>
         <g>${labels.join("")}</g>
         <g>${nodes.join("")}</g>
-        <g>${topPriorityHits.join("")}</g>
+        <g>${topPriorityHits.sort((a, b) => Number(a.publicSegment) - Number(b.publicSegment)).map(hit => hit.svg).join("")}</g>
       </svg>
     `;
   },

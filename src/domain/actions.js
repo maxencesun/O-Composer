@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260708-8";
-import { cloneDeep } from "./clone.js?v=20260708-8";
+} from "./event-model.js?v=20260708-9";
+import { cloneDeep } from "./clone.js?v=20260708-9";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260708-8";
+} from "./course-service.js?v=20260708-9";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);

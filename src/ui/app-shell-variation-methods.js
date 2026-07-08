@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260708-8";
+import { debugError } from "./debug-log.js?v=20260708-9";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -664,7 +664,7 @@ export function createAppShellVariationMethods(deps) {
               insertBeforeCourseControl: joinCourseControlId,
               branchAttrs: preJoinBranchAttrs,
               segmentKey: preJoinSegmentKey,
-              selected: ui.variationSelectedSegment === preJoinSegmentKey || branchMatchesSelected(preJoinBranch)
+              selected: ui.variationSelectedSegment === preJoinSegmentKey
             });
             priorityHits.push(topologyHitPathSvg(preJoinPath, {
               insertBeforeCourseControl: joinCourseControlId,

@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260709-1";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260709-1";
-import { findById } from "../domain/event-model.js?v=20260709-1";
+} from "./app-shell-config.js?v=20260709-2";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260709-2";
+import { findById } from "../domain/event-model.js?v=20260709-2";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260709-1";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260709-1";
+} from "../domain/control-descriptions.js?v=20260709-2";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260709-2";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,10 +43,10 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260709-1";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260709-1";
-import { t } from "./i18n.js?v=20260709-1";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260709-1";
+} from "../domain/course-service.js?v=20260709-2";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260709-2";
+import { t } from "./i18n.js?v=20260709-2";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260709-2";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
@@ -301,11 +301,12 @@ export function topologyEmptyLoopBranchPath(owner, forkStart, loopBottom, ownerR
 
 export function topologyEmptyBranchJoinPoint(forkStart, join, endRadius) {
   const joinTopY = join.y - endRadius;
-  const desiredGap = TOPOLOGY_HEIGHT_UNIT * 0.45;
-  return {
-    x: join.x,
-    y: Math.min(joinTopY, Math.max(forkStart.y + desiredGap, joinTopY - desiredGap))
-  };
+  const minimumY = forkStart.y + TOPOLOGY_MIN_VERTICAL_SEGMENT;
+  const maximumY = joinTopY - TOPOLOGY_MIN_VERTICAL_SEGMENT;
+  const y = maximumY >= minimumY
+    ? maximumY
+    : Math.min(joinTopY, Math.max(minimumY, maximumY));
+  return { x: join.x, y };
 }
 
 export function topologyEmptyBranchPath(from, forkStart, joinPoint) {
@@ -430,9 +431,6 @@ export function topologyCommonJoinPoint(view, topology, positions, nodeRadius, o
   const joinPosition = positions[view.joinIndex];
   if (!joinPosition) return null;
   const joinTopY = joinPosition.y - topologyConnectionRadius(topology[view.joinIndex]?.control, nodeRadius);
-  const sideMergeYs = [];
-  const centerTailBottomYs = [];
-  const emptyMergeYs = [];
   const tailLowerBounds = [];
 
   for (let legIndex = 0; legIndex < (view.legTo || []).length; legIndex += 1) {
@@ -442,7 +440,7 @@ export function topologyCommonJoinPoint(view, topology, positions, nodeRadius, o
     const startsAtJoin = Number(startIndex) === Number(view.joinIndex);
 
     if (startsAtJoin && forkStart && topologyBranchIsEmpty(view, legIndex)) {
-      emptyMergeYs.push(topologyEmptyBranchJoinPoint(forkStart, joinPosition, topologyConnectionRadius(topology[view.joinIndex]?.control, nodeRadius)).y);
+      tailLowerBounds.push(forkStart.y + TOPOLOGY_MIN_VERTICAL_SEGMENT);
       continue;
     }
 
@@ -453,33 +451,16 @@ export function topologyCommonJoinPoint(view, topology, positions, nodeRadius, o
       if (!tailPosition) continue;
       const tailStartY = tailPosition.y + topologyConnectionRadius(topology[tailIndex]?.control, nodeRadius);
       tailLowerBounds.push(tailStartY + TOPOLOGY_MIN_VERTICAL_SEGMENT);
-      if (Math.abs(tailPosition.x - joinPosition.x) < 0.1) {
-        // A centered branch is visually on the same x as the common post-merge
-        // stem.  It must stop at the shared merge bus, not force that bus down
-        // to the join checkpoint; otherwise the shared stem disappears.
-        centerTailBottomYs.push(tailStartY);
-      }
-      else {
-        sideMergeYs.push((tailStartY + joinTopY) / 2);
-      }
     }
   }
 
-  const mergeYs = sideMergeYs.length
-    ? sideMergeYs.concat(centerTailBottomYs)
-    : (centerTailBottomYs.length ? centerTailBottomYs : emptyMergeYs);
-  if (!mergeYs.length) return null;
   // Use one shared merge bus for every branch before the join checkpoint.
-  // Side branches determine the visible horizontal merge bus. Center branches
-  // only require the bus to be below their checkpoint label; they must not
-  // collapse the bus onto the join checkpoint, because that hides the public
-  // post-branch edge and merges two different insertion targets.
-  const baseY = Math.max(...mergeYs);
-  const minimumY = tailLowerBounds.length ? Math.max(...tailLowerBounds) : baseY;
+  // Keep the public post-merge stem at the same minimum visible length as
+  // branch stems; branch tails stretch upward as needed to align with it.
+  if (!tailLowerBounds.length) return null;
+  const minimumY = Math.max(...tailLowerBounds);
   const maximumY = joinTopY - TOPOLOGY_MIN_VERTICAL_SEGMENT;
-  const y = minimumY <= maximumY
-    ? Math.min(Math.max(baseY, minimumY), maximumY)
-    : Math.min(baseY, maximumY);
+  const y = minimumY <= maximumY ? maximumY : Math.min(minimumY, joinTopY);
   return { x: joinPosition.x, y };
 }
 

@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260709-1";
+import { debugError } from "./debug-log.js?v=20260709-2";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -463,29 +463,6 @@ export function createAppShellVariationMethods(deps) {
       && branch
       && Number(selectedBranch.forkCourseControl) === Number(branch.forkCourseControl)
       && Number(selectedBranch.branchCourseControl) === Number(branch.branchCourseControl);
-    const forkBranchFirstVerticalGap = (startIndex, joinIndex, commonJoinPoint) => {
-      const startPosition = layout.positions[startIndex];
-      const startView = topology[startIndex];
-      if (!startPosition || !startView) return null;
-      const startBottomY = startPosition.y + topologyConnectionRadius(startView.control, nodeRadius);
-      const nextIndices = (startView.legTo || []).filter(Number.isInteger);
-      const gaps = [];
-      for (const nextIndex of nextIndices) {
-        if (Number(nextIndex) === Number(joinIndex)) {
-          gaps.push(commonJoinPoint.y - startBottomY);
-          continue;
-        }
-        const nextPosition = layout.positions[nextIndex];
-        const nextView = topology[nextIndex];
-        if (!nextPosition) continue;
-        const nextTopY = nextPosition.y - topologyConnectionRadius(nextView?.control, nodeRadius);
-        const firstSegmentEndY = Math.abs(nextPosition.x - startPosition.x) < 0.1
-          ? nextTopY
-          : (startBottomY + nextTopY) / 2;
-        gaps.push(firstSegmentEndY - startBottomY);
-      }
-      return gaps.filter(gap => Number.isFinite(gap) && gap > 0.1).sort((a, b) => a - b)[0] || null;
-    };
     const forkBusYForView = (view, position, originalForkY, commonJoinPoint) => {
       if (!view || view.variation === "loop" || !Number.isFinite(originalForkY) || !commonJoinPoint) {
         return originalForkY;
@@ -498,18 +475,12 @@ export function createAppShellVariationMethods(deps) {
         branch.position.y - topologyConnectionRadius(branch.view?.control, nodeRadius)
       )));
       const ownerBottomY = position.y + topologyConnectionRadius(view.control, nodeRadius);
-      const lowerGaps = branchStarts
-        .map(branch => forkBranchFirstVerticalGap(branch.index, view.joinIndex, commonJoinPoint))
-        .filter(gap => Number.isFinite(gap) && gap > 0.1);
-      if (!lowerGaps.length) return originalForkY;
-      const desiredGap = Math.max(4, Math.min(...lowerGaps));
-      const symmetricY = branchTopY - desiredGap;
       const minY = ownerBottomY + TOPOLOGY_MIN_VERTICAL_SEGMENT;
       const maxY = branchTopY - TOPOLOGY_MIN_VERTICAL_SEGMENT;
       if (maxY >= minY) {
-        return Math.min(maxY, Math.max(minY, symmetricY));
+        return minY;
       }
-      return Math.max(ownerBottomY + 4, Math.min(branchTopY - 4, symmetricY));
+      return Math.max(ownerBottomY, Math.min(branchTopY, originalForkY));
     };
     const paths = [];
     const priorityHits = [];

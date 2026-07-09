@@ -1,5 +1,5 @@
-import { findById } from "./event-model.js?v=20260709-3";
-import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260709-3";
+import { findById } from "./event-model.js?v=20260709-4";
+import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260709-4";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);

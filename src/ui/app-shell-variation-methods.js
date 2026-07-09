@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260709-3";
+import { debugError } from "./debug-log.js?v=20260709-4";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -441,12 +441,67 @@ export function createAppShellVariationMethods(deps) {
     if (!topology.length) return "";
     const layout = layoutVariationTopology(topology, branchCodes);
     const nodeRadius = 16;
-    const width = Math.max(180, Math.ceil(layout.width));
-    const height = Math.max(120, Math.ceil(layout.height));
     const selectedBranch = normalizedVariationBranch(eventModel, courseId, ui.variationBranch);
     const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui);
     const branchEdges = topologyBranchEdgeMap(topology);
-    const commonJoinPoints = topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
+    const equalizePostJoinStemSpacing = () => {
+      const shiftReachable = (startIndex, delta, seen = new Set()) => {
+        if (!Number.isInteger(startIndex) || startIndex < 0 || startIndex >= topology.length || seen.has(startIndex)) return;
+        seen.add(startIndex);
+        const position = layout.positions[startIndex];
+        if (position) {
+          position.y += delta;
+          if (Number.isFinite(position.loopBottom)) position.loopBottom += delta;
+          for (const fork of position.forkStart || []) {
+            if (fork) fork.y += delta;
+          }
+        }
+        for (const nextIndex of topology[startIndex]?.legTo || []) {
+          shiftReachable(nextIndex, delta, seen);
+        }
+      };
+
+      for (let attempt = 0; attempt < topology.length; attempt += 1) {
+        const joinPoints = topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
+        let adjusted = false;
+        for (let index = 0; index < topology.length; index += 1) {
+          const view = topology[index];
+          if (!view || view.variation === "loop" || (view.legTo || []).length <= 1) continue;
+          const joinIndex = Number(view.joinIndex);
+          const joinPoint = joinPoints.get(index);
+          const joinPosition = layout.positions[joinIndex];
+          const joinView = topology[joinIndex];
+          const nextIndex = (joinView?.legTo || []).find(Number.isInteger);
+          const nextPosition = layout.positions[nextIndex];
+          const nextView = topology[nextIndex];
+          if (!joinPoint || !joinPosition || !nextPosition || !nextView) continue;
+          const joinRadius = topologyConnectionRadius(joinView?.control, nodeRadius);
+          const nextRadius = topologyConnectionRadius(nextView?.control, nodeRadius);
+          const joinTopY = joinPosition.y - joinRadius;
+          const joinBottomY = joinPosition.y + joinRadius;
+          const nextTopY = nextPosition.y - nextRadius;
+          const mergeToJoinGap = joinTopY - joinPoint.y;
+          const joinToNextGap = nextTopY - joinBottomY;
+          const delta = mergeToJoinGap - joinToNextGap;
+          if (delta > 0.5) {
+            shiftReachable(nextIndex, delta);
+            adjusted = true;
+            break;
+          }
+        }
+        if (!adjusted) return joinPoints;
+      }
+      return topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
+    };
+    const commonJoinPoints = equalizePostJoinStemSpacing();
+    const maxPositionY = Math.max(
+      0,
+      ...layout.positions
+        .filter(Boolean)
+        .map(position => Math.max(position.y, Number.isFinite(position.loopBottom) ? position.loopBottom : position.y))
+    );
+    const width = Math.max(180, Math.ceil(layout.width));
+    const height = Math.max(120, Math.ceil(Math.max(layout.height, maxPositionY + TOPOLOGY_HEIGHT_UNIT)));
     const containingBranchForView = viewIndex => {
       for (const [key, branch] of branchEdges) {
         const toIndex = Number(key.split(":")[1]);

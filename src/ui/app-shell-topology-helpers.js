@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260709-4";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260709-4";
-import { findById } from "../domain/event-model.js?v=20260709-4";
+} from "./app-shell-config.js?v=20260709-5";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260709-5";
+import { findById } from "../domain/event-model.js?v=20260709-5";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260709-4";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260709-4";
+} from "../domain/control-descriptions.js?v=20260709-5";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260709-5";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,14 +43,14 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260709-4";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260709-4";
-import { t } from "./i18n.js?v=20260709-4";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260709-4";
+} from "../domain/course-service.js?v=20260709-5";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260709-5";
+import { t } from "./i18n.js?v=20260709-5";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260709-5";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
-export const TOPOLOGY_MIN_VERTICAL_SEGMENT = 18;
+export const TOPOLOGY_MIN_VERTICAL_SEGMENT = 4;
 
 const TOPOLOGY_NORMAL_CONTROL_RADIUS = 20;
 
@@ -301,12 +301,7 @@ export function topologyEmptyLoopBranchPath(owner, forkStart, loopBottom, ownerR
 
 export function topologyEmptyBranchJoinPoint(forkStart, join, endRadius) {
   const joinTopY = join.y - endRadius;
-  const minimumY = forkStart.y + TOPOLOGY_MIN_VERTICAL_SEGMENT;
-  const maximumY = joinTopY - TOPOLOGY_MIN_VERTICAL_SEGMENT;
-  const y = maximumY >= minimumY
-    ? maximumY
-    : Math.min(joinTopY, Math.max(minimumY, maximumY));
-  return { x: join.x, y };
+  return { x: join.x, y: (forkStart.y + joinTopY) / 2 };
 }
 
 export function topologyEmptyBranchPath(from, forkStart, joinPoint) {
@@ -455,16 +450,11 @@ export function topologyCommonJoinPoint(view, topology, positions, nodeRadius, o
   }
 
   // Use one shared merge bus for every branch before the join checkpoint.
-  // Balance the extra gap between the deepest branch tail and the public
-  // post-merge stem, while enforcing the same minimum visible length on both.
+  // Split the visible gap between the deepest branch tail and the join
+  // checkpoint, matching how fork buses split the gap before the first branch.
   if (!tailStartYs.length) return null;
   const deepestTailStartY = Math.max(...tailStartYs);
-  const balancedY = (deepestTailStartY + joinTopY) / 2;
-  const minimumY = deepestTailStartY + TOPOLOGY_MIN_VERTICAL_SEGMENT;
-  const maximumY = joinTopY - TOPOLOGY_MIN_VERTICAL_SEGMENT;
-  const y = minimumY <= maximumY
-    ? Math.min(Math.max(balancedY, minimumY), maximumY)
-    : Math.min(Math.max(deepestTailStartY, balancedY), joinTopY);
+  const y = (deepestTailStartY + joinTopY) / 2;
   return { x: joinPosition.x, y };
 }
 

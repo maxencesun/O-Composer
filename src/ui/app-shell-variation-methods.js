@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260708-9";
+import { debugError } from "./debug-log.js?v=20260709-1";
 
 export function createAppShellVariationMethods(deps) {
   const {

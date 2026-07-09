@@ -1,4 +1,4 @@
-import { debugLog } from "./debug-log.js?v=20260709-4";
+import { debugLog } from "./debug-log.js?v=20260709-5";
 
 export function createAppShellFileExportMethods(deps) {
   const {

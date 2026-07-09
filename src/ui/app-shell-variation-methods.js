@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260709-4";
+import { debugError } from "./debug-log.js?v=20260709-5";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -135,7 +135,6 @@ export function createAppShellVariationMethods(deps) {
     teamCourseDescriptionPanelRows,
     courseDisplayOptions,
     TOPOLOGY_HEIGHT_UNIT,
-    TOPOLOGY_MIN_VERTICAL_SEGMENT,
     layoutVariationTopology,
     topologyLegPath,
     topologyBranchJoinPoint,
@@ -444,56 +443,7 @@ export function createAppShellVariationMethods(deps) {
     const selectedBranch = normalizedVariationBranch(eventModel, courseId, ui.variationBranch);
     const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui);
     const branchEdges = topologyBranchEdgeMap(topology);
-    const equalizePostJoinStemSpacing = () => {
-      const shiftReachable = (startIndex, delta, seen = new Set()) => {
-        if (!Number.isInteger(startIndex) || startIndex < 0 || startIndex >= topology.length || seen.has(startIndex)) return;
-        seen.add(startIndex);
-        const position = layout.positions[startIndex];
-        if (position) {
-          position.y += delta;
-          if (Number.isFinite(position.loopBottom)) position.loopBottom += delta;
-          for (const fork of position.forkStart || []) {
-            if (fork) fork.y += delta;
-          }
-        }
-        for (const nextIndex of topology[startIndex]?.legTo || []) {
-          shiftReachable(nextIndex, delta, seen);
-        }
-      };
-
-      for (let attempt = 0; attempt < topology.length; attempt += 1) {
-        const joinPoints = topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
-        let adjusted = false;
-        for (let index = 0; index < topology.length; index += 1) {
-          const view = topology[index];
-          if (!view || view.variation === "loop" || (view.legTo || []).length <= 1) continue;
-          const joinIndex = Number(view.joinIndex);
-          const joinPoint = joinPoints.get(index);
-          const joinPosition = layout.positions[joinIndex];
-          const joinView = topology[joinIndex];
-          const nextIndex = (joinView?.legTo || []).find(Number.isInteger);
-          const nextPosition = layout.positions[nextIndex];
-          const nextView = topology[nextIndex];
-          if (!joinPoint || !joinPosition || !nextPosition || !nextView) continue;
-          const joinRadius = topologyConnectionRadius(joinView?.control, nodeRadius);
-          const nextRadius = topologyConnectionRadius(nextView?.control, nodeRadius);
-          const joinTopY = joinPosition.y - joinRadius;
-          const joinBottomY = joinPosition.y + joinRadius;
-          const nextTopY = nextPosition.y - nextRadius;
-          const mergeToJoinGap = joinTopY - joinPoint.y;
-          const joinToNextGap = nextTopY - joinBottomY;
-          const delta = mergeToJoinGap - joinToNextGap;
-          if (delta > 0.5) {
-            shiftReachable(nextIndex, delta);
-            adjusted = true;
-            break;
-          }
-        }
-        if (!adjusted) return joinPoints;
-      }
-      return topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
-    };
-    const commonJoinPoints = equalizePostJoinStemSpacing();
+    const commonJoinPoints = topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
     const maxPositionY = Math.max(
       0,
       ...layout.positions
@@ -530,12 +480,7 @@ export function createAppShellVariationMethods(deps) {
         branch.position.y - topologyConnectionRadius(branch.view?.control, nodeRadius)
       )));
       const ownerBottomY = position.y + topologyConnectionRadius(view.control, nodeRadius);
-      const minY = ownerBottomY + TOPOLOGY_MIN_VERTICAL_SEGMENT;
-      const maxY = branchTopY - TOPOLOGY_MIN_VERTICAL_SEGMENT;
-      if (maxY >= minY) {
-        return minY;
-      }
-      return Math.max(ownerBottomY, Math.min(branchTopY, originalForkY));
+      return (ownerBottomY + branchTopY) / 2;
     };
     const paths = [];
     const priorityHits = [];

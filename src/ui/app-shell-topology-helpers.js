@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260709-6";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260709-6";
-import { findById } from "../domain/event-model.js?v=20260709-6";
+} from "./app-shell-config.js?v=20260709-7";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260709-7";
+import { findById } from "../domain/event-model.js?v=20260709-7";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260709-6";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260709-6";
+} from "../domain/control-descriptions.js?v=20260709-7";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260709-7";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,10 +43,10 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260709-6";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260709-6";
-import { t } from "./i18n.js?v=20260709-6";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260709-6";
+} from "../domain/course-service.js?v=20260709-7";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260709-7";
+import { t } from "./i18n.js?v=20260709-7";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260709-7";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
@@ -123,10 +123,7 @@ export function layoutVariationTopology(topology, branchCodes) {
           const branchStartY = loop ? forkStart[branchIndex].y + 1 : forkStart[branchIndex].y + 1;
           assign(legTo[branchIndex], view.joinIndex, forkStart[branchIndex].x, branchStartY);
         }
-        const forkBlockHeight = loop ? maxForkHeight + 2 : maxForkHeight + 4;
-        if (!loop) {
-          abstractPositions[index].spacerYs.push(y + forkBlockHeight - 1);
-        }
+        const forkBlockHeight = maxForkHeight + 2;
         totalHeight += forkBlockHeight;
         y += forkBlockHeight;
         totalWidth = Math.max(totalWidth, totalForkWidth);

@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260708-9";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260708-9";
-import { findById } from "../domain/event-model.js?v=20260708-9";
+} from "./app-shell-config.js?v=20260709-1";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260709-1";
+import { findById } from "../domain/event-model.js?v=20260709-1";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260708-9";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260708-9";
+} from "../domain/control-descriptions.js?v=20260709-1";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260709-1";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -43,20 +43,22 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260708-9";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260708-9";
-import { t } from "./i18n.js?v=20260708-9";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260708-9";
+} from "../domain/course-service.js?v=20260709-1";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260709-1";
+import { t } from "./i18n.js?v=20260709-1";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260709-1";
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
-export const TOPOLOGY_HEIGHT_UNIT = 52;
+export const TOPOLOGY_MIN_VERTICAL_SEGMENT = 18;
+
+const TOPOLOGY_NORMAL_CONTROL_RADIUS = 20;
+
+export const TOPOLOGY_HEIGHT_UNIT = TOPOLOGY_NORMAL_CONTROL_RADIUS * 2 + TOPOLOGY_MIN_VERTICAL_SEGMENT;
 
 export const TOPOLOGY_PADDING_X = 44;
 
 export const TOPOLOGY_PADDING_Y = 26;
-
-export const TOPOLOGY_MIN_VERTICAL_SEGMENT = 18;
 
 export function layoutVariationTopology(topology, branchCodes) {
   const abstractPositions = Array(topology.length).fill(null);
@@ -509,7 +511,7 @@ export function topologyConnectionRadius(control, symbolRadius) {
   // incoming edge from the outgoing edge, so the line and its hit area must stop
   // above the label and resume below it instead of running through the number.
   // Otherwise clicking near the checkpoint can select the wrong insertion edge.
-  return control.kind === "normal" ? 20 : symbolRadius + 2;
+  return control.kind === "normal" ? TOPOLOGY_NORMAL_CONTROL_RADIUS : symbolRadius + 2;
 }
 
 export function topologyNodeSvg(control, position, courseControlId, selected, options = {}) {

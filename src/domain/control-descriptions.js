@@ -1,5 +1,5 @@
-import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260710-18";
-import { relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260710-18";
+import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260711-1";
+import { relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260711-1";
 import {
   layoutVariationTopology,
   TOPOLOGY_HEIGHT_UNIT,
@@ -9,7 +9,7 @@ import {
   topologyBranchIsEmpty,
   topologyCommonJoinPointMap,
   topologyEdgeKey
-} from "./variation-topology-layout.js?v=20260710-18";
+} from "./variation-topology-layout.js?v=20260711-1";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([

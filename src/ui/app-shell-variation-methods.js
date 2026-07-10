@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260710-18";
+import { debugError } from "./debug-log.js?v=20260711-1";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -294,6 +294,7 @@ export function createAppShellVariationMethods(deps) {
     const column = this.querySelector("#variationTopologyColumn");
     const topologyLeftDivider = this.querySelector("#topologyLeftDivider");
     const show = !!column && column.dataset.hasTopology === "true" && !!panel && !panel.hidden;
+    const visibilityChanged = workspace?.classList.contains("show-variation-topology-column") !== show;
     if (column) {
       column.hidden = !show;
     }
@@ -303,6 +304,16 @@ export function createAppShellVariationMethods(deps) {
     workspace?.classList.toggle("show-variation-topology-column", show);
     if (this.resolvedUiMode?.() === UI_MODES.DESKTOP) {
       this.applyResponsiveInlineOverrides?.(false);
+    }
+    if (visibilityChanged && this.mapView) {
+      const state = this.store.snapshot();
+      // Force the new grid width to resolve before synchronizing the canvas
+      // backing buffer. Otherwise the browser stretches the previous bitmap
+      // until another map interaction happens to trigger a redraw.
+      this.mapView.canvas?.getBoundingClientRect();
+      this.mapView.resizeForDpi?.(state.ui);
+      this.mapView.invalidateOmapLayer?.();
+      this.mapView.requestDraw?.(state);
     }
   },
 

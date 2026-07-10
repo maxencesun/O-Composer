@@ -1,6 +1,9 @@
-import { relayAssignments } from "../src/domain/relay-variations.js";
+import { relayAssignments, relayBranchDisplayLegs } from "../src/domain/relay-variations.js";
+import { descriptionMetrics } from "../src/domain/control-descriptions.js";
 
 const eventModel = {
+  event: { map: { scale: 15000 }, descriptions: { color: "black" } },
+  legs: [],
   courses: [{
     id: 1,
     name: "Relay",
@@ -53,6 +56,33 @@ for (const row of rows) {
   if (counts.A !== 2 || counts.B !== 2 || counts.C !== 1 || counts.D !== 1) {
     throw new Error(`branch coverage is not balanced for ${row.join(",")}: ${JSON.stringify(counts)}`);
   }
+}
+
+const unrestrictedLegs = relayBranchDisplayLegs([], "A", 4);
+if (JSON.stringify(unrestrictedLegs) !== JSON.stringify([1, 2, 3, 4])) {
+  throw new Error(`unrestricted branch should display all legs: ${JSON.stringify(unrestrictedLegs)}`);
+}
+
+const restrictedLegs = relayBranchDisplayLegs([{ branch: "A", legs: [2, 4] }], "A", 4);
+if (JSON.stringify(restrictedLegs) !== JSON.stringify([2, 4])) {
+  throw new Error(`restricted branch display mismatch: ${JSON.stringify(restrictedLegs)}`);
+}
+
+const descriptionSpecial = {
+  kind: "descriptions",
+  locations: [{ x: 0, y: 0 }, { x: 5, y: 0 }],
+  courses: [{ course: 1 }],
+  cellSize: 5.2,
+  descriptionKind: "symbols",
+  color: "black"
+};
+const allBranchesDescription = descriptionMetrics(eventModel, descriptionSpecial, 1, { allBranches: true });
+if (allBranchesDescription.kind !== "topology" || !allBranchesDescription.layout?.positions?.length) {
+  throw new Error("all-branches descriptions should use the variation topology");
+}
+const singleVariationDescription = descriptionMetrics(eventModel, descriptionSpecial, 1, { allBranches: false });
+if (singleVariationDescription.kind !== "symbols") {
+  throw new Error(`single-variation descriptions should stay tabular: ${singleVariationDescription.kind}`);
 }
 
 console.log("relay variations smoke passed");

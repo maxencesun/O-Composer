@@ -1,4 +1,15 @@
-import { courseLength, courseLengthRange, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260709-7";
+import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260710-18";
+import { relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260710-18";
+import {
+  layoutVariationTopology,
+  TOPOLOGY_HEIGHT_UNIT,
+  TOPOLOGY_NORMAL_CONTROL_RADIUS,
+  topologyBranchCourseControlId,
+  topologyBranchEdgeMap,
+  topologyBranchIsEmpty,
+  topologyCommonJoinPointMap,
+  topologyEdgeKey
+} from "./variation-topology-layout.js?v=20260710-18";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -524,9 +535,15 @@ export function descriptionMetrics(eventModel, special, selectedCourseId = "all"
   const targetCourseId = descriptionCoursesTarget(special, selectedCourseId);
   const kind = descriptionKindForSpecial(special, eventModel, targetCourseId);
   const options = String(targetCourseId) === String(selectedCourseId) ? (displayOptions || {}) : {};
+  const cellSize = descriptionCellSizeMap(eventModel, targetCourseId, special);
+  const topologyMetrics = options.allBranches
+    ? variationTopologyDescriptionMetrics(eventModel, targetCourseId, cellSize)
+    : null;
+  if (topologyMetrics) {
+    return { targetCourseId, kind: "topology", rows: [], columns: 1, rowsPerColumn: 0, widthCells: 0, cellSize, ...topologyMetrics };
+  }
   const rows = buildControlDescriptionRows(eventModel, targetCourseId, kind, options);
   const columns = Math.max(1, Number(special?.numColumns) || 1);
-  const cellSize = descriptionCellSizeMap(eventModel, targetCourseId, special);
   const widthCells = kind === "symbols-and-text" ? 13 : 8;
   const rowsPerColumn = Math.max(1, Math.ceil(rows.length / columns));
   const columnWidth = widthCells * cellSize;
@@ -546,6 +563,17 @@ export function resizedDescriptionSpecial(eventModel, special, anchor, target, s
   const targetCourseId = descriptionCoursesTarget(special, selectedCourseId);
   const printScale = printScaleForDescription(eventModel, targetCourseId);
   const minCellSizeMap = paperMmToMapUnits(MIN_CELL_SIZE, printScale);
+  if (metrics.kind === "topology") {
+    const desiredWidth = Math.max(Math.abs(target.x - anchor.x), minCellSizeMap);
+    const desiredHeight = Math.max(Math.abs(anchor.y - target.y), minCellSizeMap);
+    const cellSizeMap = Math.max(minCellSizeMap, Math.min(
+      desiredWidth * 40 / metrics.topologyTotalWidth,
+      desiredHeight * 40 / metrics.topologyTotalHeight
+    ));
+    const cellSize = cellSizeMap / printScale * 1000;
+    const topLeft = { x: Math.min(anchor.x, target.x), y: Math.max(anchor.y, target.y) };
+    return { ...special, numColumns: 1, cellSize, locations: [topLeft, { x: topLeft.x + cellSizeMap, y: topLeft.y }] };
+  }
   const rowCount = Math.max(1, metrics.rows.length);
   const desiredWidth = Math.max(Math.abs(target.x - anchor.x), minCellSizeMap * metrics.widthCells);
   const desiredHeight = Math.max(Math.abs(anchor.y - target.y), minCellSizeMap * 2);
@@ -574,6 +602,24 @@ export function drawControlDescriptionBlock(ctx, eventModel, special, selectedCo
   const bounds = descriptionBounds(eventModel, special, selectedCourseId, displayOptions);
   const topLeft = toScreen({ x: bounds.left, y: bounds.top });
   const bottomRight = toScreen({ x: bounds.right, y: bounds.bottom });
+  if (bounds.metrics.kind === "topology") {
+    const scaleX = (bottomRight.x - topLeft.x) / bounds.width;
+    const scaleY = (bottomRight.y - topLeft.y) / bounds.height;
+    ctx.save();
+    ctx.translate(topLeft.x, topLeft.y);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, bounds.width * scaleX, bounds.height * scaleY);
+    drawVariationTopologyDescription(
+      ctx,
+      eventModel,
+      bounds.metrics,
+      descriptionColor(special.color || eventModel?.event?.descriptions?.color),
+      scaleX,
+      scaleY
+    );
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.translate(topLeft.x, topLeft.y);
   ctx.scale((bottomRight.x - topLeft.x) / bounds.width, (bottomRight.y - topLeft.y) / bounds.height);
@@ -585,6 +631,10 @@ function drawDescriptionLocal(ctx, eventModel, special, metrics) {
   const color = descriptionColor(special.color || eventModel?.event?.descriptions?.color);
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, metrics.width, metrics.height);
+  if (metrics.kind === "topology") {
+    drawVariationTopologyDescription(ctx, eventModel, metrics, color);
+    return;
+  }
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.lineJoin = "miter";
@@ -595,6 +645,196 @@ function drawDescriptionLocal(ctx, eventModel, special, metrics) {
     const end = Math.min(metrics.rows.length, start + metrics.rowsPerColumn);
     if (start < metrics.rows.length) drawDescriptionColumn(ctx, metrics, colX, start, end);
   }
+}
+
+function variationTopologyDescriptionMetrics(eventModel, courseId, cellSize) {
+  if (!courseId || courseId === "all") return null;
+  const topology = courseTopology(eventModel, courseId);
+  if (!topology.some(view => (view?.legTo || []).length > 1)) return null;
+  const branchCodes = variationBranchCodeMap(eventModel, courseId);
+  const layout = layoutVariationTopology(topology, branchCodes);
+  const maxPositionY = Math.max(
+    0,
+    ...layout.positions.filter(Boolean).map(position => Math.max(position.y, Number.isFinite(position.loopBottom) ? position.loopBottom : position.y))
+  );
+  const topologyContentWidth = Math.max(180, Math.ceil(layout.width));
+  const topologyContentHeight = Math.max(120, Math.ceil(Math.max(layout.height, maxPositionY + TOPOLOGY_HEIGHT_UNIT)));
+  const topologyMargin = 20;
+  const topologyScale = cellSize / 40;
+  const topologyTotalWidth = topologyContentWidth + topologyMargin * 2;
+  const topologyTotalHeight = topologyContentHeight + topologyMargin * 2;
+  return {
+    topology,
+    branchCodes,
+    layout,
+    topologyScale,
+    topologyMargin,
+    topologyContentWidth,
+    topologyContentHeight,
+    topologyTotalWidth,
+    topologyTotalHeight,
+    width: topologyTotalWidth * topologyScale,
+    height: topologyTotalHeight * topologyScale
+  };
+}
+
+function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outputScaleX = 1, outputScaleY = 1) {
+  const { topology, branchCodes, layout, topologyScale: scale, topologyMargin: margin } = metrics;
+  const course = getCourse(eventModel, metrics.targetCourseId);
+  const point = raw => ({
+    x: (raw.x + margin) * scale * outputScaleX,
+    y: (raw.y + margin) * scale * outputScaleY
+  });
+  const outputScale = (Math.abs(outputScaleX) + Math.abs(outputScaleY)) / 2;
+  const radius = view => view?.control?.kind === "normal" ? TOPOLOGY_NORMAL_CONTROL_RADIUS : 16;
+  const branchEdges = topologyBranchEdgeMap(topology);
+  const commonJoinPoints = topologyCommonJoinPointMap(topology, layout.positions, 16);
+  const strokePath = points => {
+    if (points.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index += 1) {
+      ctx.lineTo(points[index].x, points[index].y);
+    }
+    ctx.stroke();
+  };
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = Math.max(0.5, 3 * scale * outputScale);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  for (let index = 0; index < topology.length; index += 1) {
+    const view = topology[index];
+    const from = layout.positions[index];
+    if (!from) continue;
+    for (let legIndex = 0; legIndex < (view.legTo || []).length; legIndex += 1) {
+      const targetIndex = view.legTo[legIndex];
+      const to = layout.positions[targetIndex];
+      const targetView = topology[targetIndex];
+      if (!to || !targetView) continue;
+      const startY = from.y + radius(view);
+      const endY = to.y - radius(targetView);
+      const fork = from.forkStart?.[legIndex] || null;
+      const directBranch = (view.legTo || []).length > 1 && topologyBranchCourseControlId(view, legIndex)
+        ? { forkIndex: index, branchCourseControl: topologyBranchCourseControlId(view, legIndex), joinIndex: view.joinIndex }
+        : null;
+      const edgeBranch = directBranch || branchEdges.get(topologyEdgeKey(index, targetIndex));
+      const joinTarget = edgeBranch && Number(targetIndex) === Number(edgeBranch.joinIndex);
+      const commonJoinPoint = Number.isInteger(edgeBranch?.forkIndex) ? commonJoinPoints.get(edgeBranch.forkIndex) : null;
+      let rawPoints;
+      if (fork?.loopFallThru) {
+        rawPoints = [{ x: from.x, y: startY }, { x: from.x, y: endY }];
+      }
+      else if (joinTarget && fork && topologyBranchIsEmpty(view, legIndex) && commonJoinPoint) {
+        rawPoints = [
+          { x: from.x, y: startY },
+          { x: from.x, y: fork.y },
+          { x: fork.x, y: fork.y },
+          { x: fork.x, y: commonJoinPoint.y },
+          commonJoinPoint
+        ];
+      }
+      else if (joinTarget && commonJoinPoint) {
+        rawPoints = [
+          { x: from.x, y: startY },
+          { x: from.x, y: commonJoinPoint.y },
+          commonJoinPoint
+        ];
+      }
+      else if (fork) {
+        rawPoints = [
+          { x: from.x, y: startY },
+          { x: from.x, y: fork.y },
+          { x: fork.x, y: fork.y },
+          { x: fork.x, y: endY }
+        ];
+      }
+      else if (Math.abs(from.x - to.x) < 0.1) {
+        rawPoints = [{ x: from.x, y: startY }, { x: to.x, y: endY }];
+      }
+      else {
+        const midY = (startY + endY) / 2;
+        rawPoints = [
+          { x: from.x, y: startY },
+          { x: from.x, y: midY },
+          { x: to.x, y: midY },
+          { x: to.x, y: endY }
+        ];
+      }
+      strokePath(rawPoints.map(point));
+
+      const branchId = topologyBranchCourseControlId(view, legIndex);
+      const code = fork && branchId ? branchCodes.get(Number(branchId)) || "" : "";
+      if (code) {
+        const labelX = fork.x + (fork.x < from.x ? -36 : 36);
+        const label = point({ x: labelX, y: fork.y + 2 });
+        ctx.fillStyle = "#8a9198";
+        ctx.font = `${Math.max(5, 16 * scale) * outputScale}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`(${code})`, label.x, label.y);
+        const legLabel = relayBranchLegLabel(course?.relay || {}, code, { short: true });
+        if (legLabel) {
+          const allowed = point({ x: labelX, y: fork.y + 18 });
+          ctx.fillStyle = "#dc2626";
+          ctx.font = `bold ${Math.max(4, 13 * scale) * outputScale}px Arial`;
+          ctx.fillText(legLabel, allowed.x, allowed.y);
+        }
+        ctx.fillStyle = color;
+      }
+    }
+  }
+
+  for (const [forkIndex, joinPoint] of commonJoinPoints) {
+    const joinIndex = topology[forkIndex]?.joinIndex;
+    const joinPosition = layout.positions[joinIndex];
+    const joinView = topology[joinIndex];
+    if (!joinPosition || !joinView) continue;
+    const joinTopY = joinPosition.y - radius(joinView);
+    if (joinPoint.y < joinTopY - 0.1) {
+      strokePath([point(joinPoint), point({ x: joinPoint.x, y: joinTopY })]);
+    }
+  }
+
+  for (let index = 0; index < topology.length; index += 1) {
+    const view = topology[index];
+    const position = layout.positions[index];
+    if (!position || !view?.control) continue;
+    const center = point(position);
+    const control = view.control;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = "#fff";
+    ctx.lineWidth = Math.max(0.5, 1.5 * scale * outputScale);
+    if (control.kind === "start") {
+      ctx.beginPath();
+      ctx.moveTo(center.x, center.y - 18 * scale * outputScaleY);
+      ctx.lineTo(center.x - 14 * scale * outputScaleX, center.y + 10 * scale * outputScaleY);
+      ctx.lineTo(center.x + 14 * scale * outputScaleX, center.y + 10 * scale * outputScaleY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    else if (control.kind === "finish") {
+      for (const rawRadius of [13, 9]) {
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, rawRadius * scale * outputScale, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+    else {
+      const label = control.kind === "normal" ? control.code || "" : control.kind || "";
+      ctx.fillStyle = color;
+      ctx.font = `${Math.max(6, (control.kind === "normal" ? 26 : 12) * scale) * outputScale}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, center.x, center.y);
+    }
+  }
+  ctx.restore();
 }
 
 function drawDescriptionColumn(ctx, metrics, x, start, end) {

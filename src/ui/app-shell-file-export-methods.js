@@ -1,4 +1,4 @@
-import { debugLog } from "./debug-log.js?v=20260709-7";
+import { debugLog } from "./debug-log.js?v=20260710-18";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -787,6 +787,19 @@ export function createAppShellFileExportMethods(deps) {
     };
     if (!courseHasVariations(state.eventModel, course.id)) {
       return [baseTarget];
+    }
+
+    const exportsCurrentAllBranches = (settings.courseScope || PDF_COURSE_SCOPES.CURRENT) === PDF_COURSE_SCOPES.CURRENT
+      && Number(state.ui.selectedCourseId) === Number(course.id)
+      && state.ui.variationMode === "all";
+    if (exportsCurrentAllBranches) {
+      return [{
+        ...baseTarget,
+        exportUi: {
+          variationMode: "all",
+          variationCode: ""
+        }
+      }];
     }
 
     const variations = allCourseVariations(state.eventModel, course.id);

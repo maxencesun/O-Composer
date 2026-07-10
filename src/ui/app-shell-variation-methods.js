@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260709-7";
+import { debugError } from "./debug-log.js?v=20260710-18";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -90,6 +90,7 @@ export function createAppShellVariationMethods(deps) {
     courseHasVariations,
     relayAssignments,
     relayBranchAllowedLegs,
+    relayBranchDisplayLegs,
     relayBranchLegLabel,
     relayBranchRestrictionIssues,
     relayEntryLabel,
@@ -270,7 +271,39 @@ export function createAppShellVariationMethods(deps) {
     const panel = this.querySelector("#variationPanel");
     const scrollState = captureVariationScrollState(panel);
     panel.innerHTML = this.variationPanelHtml(eventModel, ui);
+    this.renderVariationTopologyColumn(panel);
+    this.syncVariationTopologyColumnVisibility();
     restoreVariationScrollState(panel, scrollState);
+  },
+
+  renderVariationTopologyColumn(panel = this.querySelector("#variationPanel")) {
+    const column = this.querySelector("#variationTopologyColumn");
+    const content = this.querySelector("#variationTopologyColumnContent");
+    if (!column || !content) return;
+    const inlineTree = panel?.querySelector(".variation-tree-inline");
+    const treeHtml = inlineTree?.innerHTML || "";
+    content.innerHTML = treeHtml.trim()
+      ? `<div class="variation-tree variation-tree-external">${treeHtml}</div>`
+      : "";
+    column.dataset.hasTopology = treeHtml.trim() ? "true" : "false";
+  },
+
+  syncVariationTopologyColumnVisibility() {
+    const workspace = this.querySelector(".workspace");
+    const panel = this.querySelector("#variationPanel");
+    const column = this.querySelector("#variationTopologyColumn");
+    const topologyLeftDivider = this.querySelector("#topologyLeftDivider");
+    const show = !!column && column.dataset.hasTopology === "true" && !!panel && !panel.hidden;
+    if (column) {
+      column.hidden = !show;
+    }
+    if (topologyLeftDivider) {
+      topologyLeftDivider.hidden = !show;
+    }
+    workspace?.classList.toggle("show-variation-topology-column", show);
+    if (this.resolvedUiMode?.() === UI_MODES.DESKTOP) {
+      this.applyResponsiveInlineOverrides?.(false);
+    }
   },
 
   variationPanelHtml(eventModel, ui) {
@@ -295,16 +328,15 @@ export function createAppShellVariationMethods(deps) {
     const selectedBranchFork = selectedBranch ? getCourseControl(eventModel, selectedBranch.forkCourseControl) : null;
     const canAddParallelBranch = !!selectedBranch && (selectedBranchFork?.variationCourseControls || []).length < 6;
     const canDeleteSelectedBranch = !!selectedBranch && (selectedBranchFork?.variationCourseControls || []).length > 1;
-    const selectedBranchCode = selectedBranch ? branchCodes.get(Number(selectedBranch.branchCourseControl)) || "" : "";
     const anchorControl = getControl(eventModel, anchorCourseControl?.control);
     const topologyHtml = this.variationTopologySvg(eventModel, course.id, ui, branchCodes);
-    const branchLegEditor = this.variationBranchLegEditor(course, assignments, selectedBranch, selectedBranchCode);
     const restrictionIssues = relayBranchRestrictionIssues(assignments.branchGroups || [], course.relay?.branches || []);
     const legsSelected = relayLegCountSelected(course);
     const legCountControl = this.variationLegCountControl(eventModel, course, variations);
     const addVariationLabel = this.t("Add Variation");
     const addParallelBranchLabel = this.t("Add Parallel Branch");
     const deleteBranchLabel = this.t("Delete Branch");
+    const relayAutoLabel = this.t("Relay auto assignment");
     if (!legsSelected) {
       return `
         <div class="variation-fixed-controls">
@@ -316,28 +348,28 @@ export function createAppShellVariationMethods(deps) {
       <div class="variation-fixed-controls">
         ${legCountControl}
         <div class="variation-actions">
-          <label>${escapeHtml(this.t("Branches"))}
-            <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
-          </label>
-          <div class="variation-action-buttons">
+          <div class="variation-action-row variation-action-row-primary">
+            <label>${escapeHtml(this.t("Branches"))}
+              <input data-variation-add-branches type="number" min="2" max="6" value="${Math.max(2, Math.min(6, Number(ui.variationAddBranches) || 2))}">
+            </label>
             <button type="button" data-add-variation title="${escapeAttr(addVariationLabel)}" aria-label="${escapeAttr(addVariationLabel)}" ${canAddVariation ? "" : "disabled"}>${iconSvg("plus")} <span>${escapeHtml(addVariationLabel)}</span></button>
+          </div>
+          <div class="variation-action-row variation-action-row-secondary">
             <button type="button" data-add-parallel-variation-branch title="${escapeAttr(addParallelBranchLabel)}" aria-label="${escapeAttr(addParallelBranchLabel)}" ${canAddParallelBranch ? "" : "disabled"}>${iconSvg("plus")} <span>${escapeHtml(addParallelBranchLabel)}</span></button>
             <button type="button" data-delete-variation-branch title="${escapeAttr(deleteBranchLabel)}" aria-label="${escapeAttr(deleteBranchLabel)}" ${canDeleteSelectedBranch ? "" : "disabled"}>${iconSvg("trash")} <span>${escapeHtml(deleteBranchLabel)}</span></button>
           </div>
+          ${variations.length ? `
+            <button class="variation-relay-auto-button" type="button" data-show-relay-auto-assignment title="${escapeAttr(relayAutoLabel)}" aria-label="${escapeAttr(relayAutoLabel)}">${iconSvg("table")} <span>${escapeHtml(relayAutoLabel)}</span></button>
+          ` : ""}
         </div>
       </div>
       <div class="variation-scroll-area">
         ${canAddVariation && anchorCourseControl && anchorControl
           ? `<p class="muted">${escapeHtml(this.t("Variation will start at {control}.", { control: controlDisplayName(anchorControl) }))}</p>`
           : ""}
-        ${selectedBranch ? `<p class="variation-branch-hint">${escapeHtml(this.t("Selected branch"))}: <strong>${escapeHtml(selectedBranchCode || controlDisplayName(getControl(eventModel, getCourseControl(eventModel, selectedBranch.branchCourseControl)?.control)))}</strong></p>` : ""}
-        ${branchLegEditor}
         ${restrictionIssues.length ? `<p class="relay-branch-warning">${escapeHtml(this.t("Every parallel branch must declare allowed legs. Missing: {branches}.", { branches: uniqueStrings(restrictionIssues.flatMap(issue => issue.missingCodes)).join(", ") }))}</p>` : ""}
-        ${variations.length ? `
-          <div class="variation-code-list">${variations.map(variation => `<button type="button" data-course-variation-code-select="${escapeAttr(variation.code)}">${escapeHtml(variation.code)}</button>`).join("")}</div>
-        ` : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`}
-        ${this.relayAutoAssignmentPanel(eventModel, course, variations)}
-        <div class="variation-tree">${topologyHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
+        ${variations.length ? "" : `<p class="muted">${escapeHtml(this.t("This course has no variations."))}</p>`}
+        <div class="variation-tree variation-tree-inline">${topologyHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
       </div>
     `;
   },
@@ -363,7 +395,7 @@ export function createAppShellVariationMethods(deps) {
     if (!selectedBranch || !selectedBranchCode) return "";
     const relay = normalizedRelaySettings(course.relay);
     const legs = Math.max(1, assignments.legs || relay.legs || 1);
-    const allowedLegs = new Set(relayBranchAllowedLegs(relay.branches || [], selectedBranchCode, legs));
+    const allowedLegs = new Set(relayBranchDisplayLegs(relay.branches || [], selectedBranchCode, legs));
     const checks = Array.from({ length: legs }, (_, index) => {
       const leg = index + 1;
       return `
@@ -450,8 +482,25 @@ export function createAppShellVariationMethods(deps) {
         .filter(Boolean)
         .map(position => Math.max(position.y, Number.isFinite(position.loopBottom) ? position.loopBottom : position.y))
     );
-    const width = Math.max(180, Math.ceil(layout.width));
-    const height = Math.max(120, Math.ceil(Math.max(layout.height, maxPositionY + TOPOLOGY_HEIGHT_UNIT)));
+    const contentWidth = Math.max(180, Math.ceil(layout.width));
+    const contentHeight = Math.max(120, Math.ceil(Math.max(layout.height, maxPositionY + TOPOLOGY_HEIGHT_UNIT)));
+    const svgBounds = {
+      minX: 0,
+      maxX: contentWidth,
+      minY: 0,
+      maxY: contentHeight
+    };
+    const includeSvgBounds = (minX, maxX, minY, maxY) => {
+      svgBounds.minX = Math.min(svgBounds.minX, minX);
+      svgBounds.maxX = Math.max(svgBounds.maxX, maxX);
+      svgBounds.minY = Math.min(svgBounds.minY, minY);
+      svgBounds.maxY = Math.max(svgBounds.maxY, maxY);
+    };
+    const includeCenteredTextBounds = (x, y, text, fontSize, charWidth) => {
+      const content = String(text || "");
+      const halfWidth = Math.max(fontSize, content.length * charWidth / 2);
+      includeSvgBounds(x - halfWidth, x + halfWidth, y - fontSize, y + fontSize);
+    };
     const containingBranchForView = viewIndex => {
       for (const [key, branch] of branchEdges) {
         const toIndex = Number(key.split(":")[1]);
@@ -486,6 +535,7 @@ export function createAppShellVariationMethods(deps) {
     const priorityHits = [];
     const branchPriorityHits = [];
     const topPriorityHits = [];
+    const visiblePreJoinPaths = new Set();
     const junctions = [];
     const labels = [];
     const nodes = [];
@@ -518,6 +568,14 @@ export function createAppShellVariationMethods(deps) {
           insertAfterCourseControl: forkOwnerCourseControlId,
           segmentKey: `stem:${index}`
         }));
+        topPriorityHits.push({
+          publicSegment: true,
+          svg: topologyHitPathSvg(stemPath, {
+            insertAfterCourseControl: forkOwnerCourseControlId,
+            segmentKey: `stem:${index}`,
+            hitClass: "variation-topology-leg-hit-tight"
+          })
+        });
       }
       for (let legIndex = 0; legIndex < view.legTo.length; legIndex += 1) {
         const targetPosition = layout.positions[view.legTo[legIndex]];
@@ -604,9 +662,11 @@ export function createAppShellVariationMethods(deps) {
         if (forkStart && code) {
           const labelX = forkStart.x + (forkStart.x < position.x ? -36 : 36);
           const labelY = forkStart.y + 2;
+          includeCenteredTextBounds(labelX, labelY, `(${code})`, 16, 8.5);
           labels.push(`<text class="variation-topology-code ${branchSelected ? "selected" : ""}" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY)}" text-anchor="middle"${branchAttrs}>(${escapeHtml(code)})</text>`);
           const legLabel = relayBranchLegLabel(getCourse(eventModel, courseId)?.relay || {}, code, { short: true });
           if (legLabel) {
+            includeCenteredTextBounds(labelX, labelY + 16, legLabel, 13, 7.5);
             labels.push(`<text class="variation-topology-branch-legs" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY + 16)}" text-anchor="middle"${branchAttrs}>${escapeHtml(legLabel)}</text>`);
           }
         }
@@ -631,25 +691,28 @@ export function createAppShellVariationMethods(deps) {
             // checkpoint after the branch block and before the join checkpoint.
             // The domain insertion code promotes the new checkpoint to the
             // variationEnd so branch tails do not treat it as a per-branch point.
-            pushTopologyPath(preJoinPath, {
-              insertBeforeCourseControl: joinCourseControlId,
-              branchAttrs: preJoinBranchAttrs,
-              segmentKey: preJoinSegmentKey,
-              selected: ui.variationSelectedSegment === preJoinSegmentKey
-            });
-            priorityHits.push(topologyHitPathSvg(preJoinPath, {
-              insertBeforeCourseControl: joinCourseControlId,
-              segmentKey: preJoinSegmentKey
-            }));
-            topPriorityHits.push({
-              publicSegment: !preJoinBranchAttrs,
-              svg: topologyHitPathSvg(preJoinPath, {
+            if (!visiblePreJoinPaths.has(preJoinPath)) {
+              visiblePreJoinPaths.add(preJoinPath);
+              pushTopologyPath(preJoinPath, {
                 insertBeforeCourseControl: joinCourseControlId,
                 branchAttrs: preJoinBranchAttrs,
                 segmentKey: preJoinSegmentKey,
-                hitClass: "variation-topology-leg-hit-tight"
-              })
-            });
+                selected: ui.variationSelectedSegment === preJoinSegmentKey
+              });
+              priorityHits.push(topologyHitPathSvg(preJoinPath, {
+                insertBeforeCourseControl: joinCourseControlId,
+                segmentKey: preJoinSegmentKey
+              }));
+              topPriorityHits.push({
+                publicSegment: !preJoinBranchAttrs,
+                svg: topologyHitPathSvg(preJoinPath, {
+                  insertBeforeCourseControl: joinCourseControlId,
+                  branchAttrs: preJoinBranchAttrs,
+                  segmentKey: preJoinSegmentKey,
+                  hitClass: "variation-topology-leg-hit-tight"
+                })
+              });
+            }
           }
         }
       }
@@ -660,10 +723,21 @@ export function createAppShellVariationMethods(deps) {
       if (!position) continue;
       const courseControlId = topologyNodeCourseControlId(view);
       const selected = Number(selectedAnchor?.id) === Number(courseControlId);
+      includeCenteredTextBounds(position.x, position.y, view.control?.code || "", 26, 14);
       nodes.push(topologyNodeSvg(view.control, position, courseControlId, selected));
     }
+    const viewPaddingX = 18;
+    const viewPaddingY = 18;
+    const viewMinX = Math.floor(svgBounds.minX - viewPaddingX);
+    const viewMinY = Math.floor(svgBounds.minY - viewPaddingY);
+    const viewMaxX = Math.ceil(svgBounds.maxX + viewPaddingX);
+    const viewMaxY = Math.ceil(svgBounds.maxY + viewPaddingY);
+    const viewBoxWidth = Math.max(180, viewMaxX - viewMinX);
+    const viewBoxHeight = Math.max(120, viewMaxY - viewMinY);
+    const width = contentWidth;
+    const height = Math.max(120, Math.ceil(viewBoxHeight * (width / viewBoxWidth)));
     return `
-      <svg class="variation-topology" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttr(this.t("Variation"))}">
+      <svg class="variation-topology" width="${width}" height="${height}" viewBox="${viewMinX} ${viewMinY} ${viewBoxWidth} ${viewBoxHeight}" role="img" aria-label="${escapeAttr(this.t("Variation"))}">
         <g>${junctions.join("")}</g>
         <g>${paths.join("")}</g>
         <g>${priorityHits.join("")}</g>
@@ -691,11 +765,21 @@ export function createAppShellVariationMethods(deps) {
       this.deleteSelectedVariationBranch();
       return;
     }
-    const variationCodeButton = event.target.closest("[data-course-variation-code-select]");
+    const relayAutoButton = event.target.closest("[data-show-relay-auto-assignment]");
+    if (relayAutoButton) {
+      this.store.updateUi(ui => {
+        ui.variationAdjustmentMode = "relay-auto";
+        ui.selection = null;
+        ui.status = this.t("Relay auto assignment");
+      }, "Relay auto assignment");
+      return;
+    }
+    const variationCodeButton = event.target.closest("button[data-course-variation-code-select]");
     if (variationCodeButton) {
       this.store.updateUi(ui => {
         ui.variationMode = "variation";
         ui.variationCode = variationCodeButton.dataset.courseVariationCodeSelect || "";
+        ui.variationAdjustmentMode = "";
       }, "Select variation");
       return;
     }
@@ -708,11 +792,13 @@ export function createAppShellVariationMethods(deps) {
       const segment = branchButton.dataset.variationSegment || "";
       this.store.updateUi(ui => {
         ui.variationBranch = { forkCourseControl, branchCourseControl };
-        ui.variationAnchorCourseControl = insertAfterCourseControl || insertBeforeCourseControl || forkCourseControl;
+        ui.variationAnchorCourseControl = null;
         ui.variationInsertAfterCourseControl = insertAfterCourseControl;
         ui.variationInsertBeforeCourseControl = insertBeforeCourseControl;
         ui.variationSelectedSegment = segment;
+        ui.selection = null;
         ui.variationMode = "all";
+        ui.variationAdjustmentMode = "branch";
         ui.status = this.t("Branch selected. Add controls to insert them on this branch.");
       }, "Select variation branch");
       return;
@@ -725,10 +811,12 @@ export function createAppShellVariationMethods(deps) {
       this.store.updateUi(ui => {
         ui.variationInsertAfterCourseControl = insertAfterCourseControl;
         ui.variationInsertBeforeCourseControl = insertBeforeCourseControl;
-        ui.variationAnchorCourseControl = insertAfterCourseControl || insertBeforeCourseControl;
+        ui.variationAnchorCourseControl = null;
         ui.variationBranch = null;
         ui.variationSelectedSegment = segment;
+        ui.selection = null;
         ui.variationMode = "all";
+        ui.variationAdjustmentMode = "";
         ui.status = this.t("Variation insertion point selected.");
       }, "Select variation insertion");
       return;
@@ -748,6 +836,7 @@ export function createAppShellVariationMethods(deps) {
         ui.variationInsertBeforeCourseControl = null;
         ui.variationSelectedSegment = `node:${courseControlId}`;
         ui.variationBranch = null;
+        ui.variationAdjustmentMode = "";
         ui.selection = courseControl ? { type: "control", id: courseControl.control, courseControl: courseControl.id } : ui.selection;
         ui.variationMode = "all";
         ui.status = isForkOwner
@@ -797,12 +886,14 @@ export function createAppShellVariationMethods(deps) {
       const course = getCourse(model, courseId);
       if (!course) return;
       course.relay = normalizedRelaySettings(course.relay);
-      const allowed = new Set(relayBranchAllowedLegs(course.relay.branches || [], branch, course.relay.legs || Infinity));
-      if (input.checked) allowed.add(leg);
-      else allowed.delete(leg);
+      const inputs = [...input.closest(".variation-branch-leg-editor")?.querySelectorAll("[data-variation-branch-leg]") || []]
+        .filter(candidate => String(candidate.dataset.variationBranchLeg || "").trim() === branch);
+      const allowed = new Set(inputs
+        .filter(candidate => candidate.checked)
+        .map(candidate => Math.max(1, Math.round(Number(candidate.value) || 1))));
       course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);
       const legs = [...allowed].sort((a, b) => a - b);
-      if (legs.length) course.relay.branches.push({ branch, legs });
+      if (legs.length && legs.length < inputs.length) course.relay.branches.push({ branch, legs });
     }, "Change branch allowed legs");
     this.refreshRelayAssignmentPreview(this.store.snapshot().eventModel, courseId);
   },
@@ -886,6 +977,7 @@ export function createAppShellVariationMethods(deps) {
         ui.variationInsertBeforeCourseControl = null;
         ui.variationSelectedSegment = pending.branchCourseControl ? `node:${pending.branchCourseControl}` : "";
         ui.variationMode = "all";
+        ui.variationAdjustmentMode = "branch";
         ui.selection = pending.control ? { type: "control", id: pending.control, courseControl: pending.branchCourseControl || null } : ui.selection;
         ui.status = this.t("Variation added. The first branch is selected; add controls or choose another branch.");
       }
@@ -928,6 +1020,7 @@ export function createAppShellVariationMethods(deps) {
         ui.variationInsertBeforeCourseControl = null;
         ui.variationSelectedSegment = pending.branchCourseControl ? `node:${pending.branchCourseControl}` : "";
         ui.variationMode = "all";
+        ui.variationAdjustmentMode = "branch";
         ui.selection = pending.control ? { type: "control", id: pending.control, courseControl: pending.branchCourseControl || null } : ui.selection;
         ui.status = this.t("Parallel branch added. Add controls to the new branch.");
       }
@@ -980,6 +1073,7 @@ export function createAppShellVariationMethods(deps) {
       ui.variationInsertBeforeCourseControl = null;
       ui.variationSelectedSegment = "";
       ui.variationMode = "all";
+      ui.variationAdjustmentMode = "";
       ui.status = removed
         ? this.t("Branch deleted.")
         : this.t("Could not delete this branch.");
@@ -1105,12 +1199,15 @@ function captureVariationScrollState(panel) {
   if (!panel) return null;
   const scrollArea = panel.querySelector(".variation-scroll-area");
   const tree = panel.querySelector(".variation-tree");
+  const externalTree = panel.closest("o-composer-app")?.querySelector("#variationTopologyColumn .variation-tree");
   return {
     scrollAreaTop: scrollArea?.scrollTop || 0,
     scrollAreaLeft: scrollArea?.scrollLeft || 0,
     treeTop: tree?.scrollTop || 0,
     treeLeft: tree?.scrollLeft || 0,
-    treeOffsetTop: tree?.offsetTop || 0
+    treeOffsetTop: tree?.offsetTop || 0,
+    externalTreeTop: externalTree?.scrollTop || 0,
+    externalTreeLeft: externalTree?.scrollLeft || 0
   };
 }
 
@@ -1127,6 +1224,11 @@ function restoreVariationScrollState(panel, state) {
     if (tree) {
       tree.scrollTop = state.treeTop;
       tree.scrollLeft = state.treeLeft;
+    }
+    const externalTree = panel.closest("o-composer-app")?.querySelector("#variationTopologyColumn .variation-tree");
+    if (externalTree) {
+      externalTree.scrollTop = state.externalTreeTop || 0;
+      externalTree.scrollLeft = state.externalTreeLeft || 0;
     }
   };
   restore();

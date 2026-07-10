@@ -1,4 +1,4 @@
-import { Store } from "../state/store.js?v=20260709-7";
+import { Store } from "../state/store.js?v=20260710-18";
 import {
   acceptCookieConsent,
   hasCookieConsent,
@@ -6,15 +6,15 @@ import {
   loadCachedSession,
   saveCachedPdfBasemap,
   saveCachedSession
-} from "../state/cookie-cache.js?v=20260709-7";
-import { parseOmap } from "../domain/omap-parser.js?v=20260709-7";
-import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260709-7";
+} from "../state/cookie-cache.js?v=20260710-18";
+import { parseOmap } from "../domain/omap-parser.js?v=20260710-18";
+import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260710-18";
 import {
   CONTROL_KINDS,
   cloneEvent,
   createBlankEvent,
   findById
-} from "../domain/event-model.js?v=20260709-7";
+} from "../domain/event-model.js?v=20260710-18";
 import {
   addControlAt,
   addExistingControlToCourse,
@@ -32,7 +32,7 @@ import {
   removeUnusedControls,
   setCourseOrder,
   updateControlDescription
-} from "../domain/actions.js?v=20260709-7";
+} from "../domain/actions.js?v=20260710-18";
 import {
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
@@ -52,7 +52,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=20260709-7";
+} from "../domain/control-descriptions.js?v=20260710-18";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -63,9 +63,9 @@ import {
   printAreaFromPoints,
   printAreaTargetLabel,
   setPrintArea
-} from "../domain/print-area.js?v=20260709-7";
-import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260709-7";
-import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260709-7";
+} from "../domain/print-area.js?v=20260710-18";
+import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260710-18";
+import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260710-18";
 import {
   allControlsView,
   controlKindLabel,
@@ -88,23 +88,24 @@ import {
   getCourseControl,
   isTeamFreeCourseControl,
   sortedCourses
-} from "../domain/course-service.js?v=20260709-7";
+} from "../domain/course-service.js?v=20260710-18";
 import {
   exportCourseSvg,
   exportGpx,
   exportIofXml,
   exportKml,
   exportRouteGadgetXml
-} from "../domain/exporters.js?v=20260709-7";
+} from "../domain/exporters.js?v=20260710-18";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance
-} from "./course-symbols.js?v=20260709-7";
+} from "./course-symbols.js?v=20260710-18";
 import {
   allCourseVariations,
   courseHasVariations,
   relayAssignments,
   relayBranchAllowedLegs,
+  relayBranchDisplayLegs,
   relayBranchLegLabel,
   relayBranchRestrictionIssues,
   relayEntryLabel,
@@ -114,28 +115,28 @@ import {
   variationBranchCodeMap,
   variationDisplayLabel,
   variationForCode
-} from "../domain/relay-variations.js?v=20260709-7";
-import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260709-7";
-import { iconSvg } from "./icons.js?v=20260709-7";
-import { MapView } from "./map-view.js?v=20260709-7";
-import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260709-7";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260709-7";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260709-7";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260709-7";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260709-7";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260709-7";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260709-7";
-import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260709-7";
-import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260709-7";
+} from "../domain/relay-variations.js?v=20260710-18";
+import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260710-18";
+import { iconSvg } from "./icons.js?v=20260710-18";
+import { MapView } from "./map-view.js?v=20260710-18";
+import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260710-18";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260710-18";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260710-18";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260710-18";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260710-18";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260710-18";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260710-18";
+import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260710-18";
+import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260710-18";
 import {
   RENDER_QUALITIES,
   isRenderQualityId,
   readRenderQualityPreference,
   setRenderQualityPreference,
   renderQualityHighQuality
-} from "./render-quality.js?v=20260709-7";
-import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260709-7";
-import { debugWarn } from "./debug-log.js?v=20260709-7";
+} from "./render-quality.js?v=20260710-18";
+import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260710-18";
+import { debugWarn } from "./debug-log.js?v=20260710-18";
 
 import {
   PAPER_SIZES,
@@ -162,7 +163,7 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260709-7";
+} from "./app-shell-config.js?v=20260710-18";
 import {
   teamAddControlRoleFromSelection,
   objectForSelection,
@@ -300,7 +301,7 @@ import {
   formatBytes,
   escapeHtml,
   escapeAttr
-} from "./app-shell-helpers.js?v=20260709-7";
+} from "./app-shell-helpers.js?v=20260710-18";
 
 function updateBootLoadingProgress(percent, detail) {
   globalThis.__oComposerBootLoading?.update?.({ percent, detail, indeterminate: false });
@@ -737,12 +738,14 @@ export class OComposerApp extends HTMLElement {
     const workspace = this.querySelector(".workspace");
     const leftPanel = this.querySelector(".left-panel");
     const divider = this.querySelector("#workspaceDivider");
+    const topologyLeftDivider = this.querySelector("#topologyLeftDivider");
+    const topologyColumn = this.querySelector("#variationTopologyColumn");
     const mapPanel = this.querySelector(".map-panel");
     const courseBanner = this.querySelector("#courseBanner");
     const canvas = this.querySelector("#mapCanvas");
     const statusbar = this.querySelector(".statusbar");
     if (phoneUi) {
-      for (const element of [this, appFrame, menubar, toolbar, courseTabs, workspace, leftPanel, divider, mapPanel, courseBanner, canvas, statusbar]) {
+      for (const element of [this, appFrame, menubar, toolbar, courseTabs, workspace, leftPanel, divider, topologyLeftDivider, topologyColumn, mapPanel, courseBanner, canvas, statusbar]) {
         element?.removeAttribute("style");
       }
       return;
@@ -754,11 +757,16 @@ export class OComposerApp extends HTMLElement {
     this.updateViewportMetrics();
     const viewportWidth = Math.max(1, Math.round(Number(window.visualViewport?.width) || window.innerWidth || document.documentElement.clientWidth || 0));
     const saved = Number(localStorage.getItem("oComposerLeftPanelWidth"));
-    const maxPanelWidth = Math.max(180, Math.min(340, Math.floor(viewportWidth * 0.42)));
+    const savedTopologyWidth = Number(localStorage.getItem("oComposerVariationTopologyColumnWidth"));
+    const maxPanelWidth = Math.max(260, viewportWidth - 360);
     const defaultPanelWidth = Math.max(200, Math.min(320, Math.floor(viewportWidth * 0.34)));
     const width = Number.isFinite(saved) && saved > 0
-      ? clamp(saved, 180, maxPanelWidth)
+      ? clamp(saved, 260, maxPanelWidth)
       : defaultPanelWidth;
+    const topologyWidth = Number.isFinite(savedTopologyWidth) && savedTopologyWidth > 0
+      ? clamp(savedTopologyWidth, 260, Math.max(260, viewportWidth - width - 372))
+      : Math.min(430, Math.max(300, Math.floor(viewportWidth * 0.32)));
+    const showTopologyColumn = !!topologyColumn && !topologyColumn.hidden && workspace?.classList.contains("show-variation-topology-column");
 
     this.style.display = "block";
     this.style.width = "var(--o-composer-viewport-width, 100vw)";
@@ -791,7 +799,9 @@ export class OComposerApp extends HTMLElement {
     }
     if (workspace) {
       workspace.style.display = "grid";
-      workspace.style.gridTemplateColumns = `${width}px 6px minmax(0, 1fr)`;
+      workspace.style.gridTemplateColumns = showTopologyColumn
+        ? `${width}px 6px ${topologyWidth}px 6px minmax(0, 1fr)`
+        : `${width}px 6px minmax(0, 1fr)`;
       workspace.style.gridTemplateRows = "minmax(0, 1fr)";
       workspace.style.width = "100%";
       workspace.style.maxWidth = "100%";
@@ -801,6 +811,7 @@ export class OComposerApp extends HTMLElement {
       workspace.style.height = "auto";
       workspace.style.overflow = "hidden";
       workspace.style.setProperty("--left-panel-width", `${width}px`);
+      workspace.style.setProperty("--variation-topology-column-width", `${topologyWidth}px`);
     }
     if (leftPanel) {
       leftPanel.hidden = false;
@@ -816,14 +827,31 @@ export class OComposerApp extends HTMLElement {
     }
     if (divider) {
       divider.hidden = false;
-      divider.style.gridColumn = "2";
+      divider.style.gridColumn = showTopologyColumn ? "4" : "2";
       divider.style.gridRow = "1";
       divider.style.display = "block";
       divider.style.width = "6px";
       divider.style.minWidth = "6px";
     }
+    if (topologyLeftDivider) {
+      topologyLeftDivider.hidden = !showTopologyColumn;
+      topologyLeftDivider.style.gridColumn = "2";
+      topologyLeftDivider.style.gridRow = "1";
+      topologyLeftDivider.style.display = showTopologyColumn ? "block" : "none";
+      topologyLeftDivider.style.width = "6px";
+      topologyLeftDivider.style.minWidth = "6px";
+    }
+    if (topologyColumn) {
+      topologyColumn.style.gridColumn = "3";
+      topologyColumn.style.gridRow = "1";
+      topologyColumn.style.display = showTopologyColumn ? "flex" : "none";
+      topologyColumn.style.flexDirection = "column";
+      topologyColumn.style.minWidth = "0";
+      topologyColumn.style.minHeight = "0";
+      topologyColumn.style.overflow = "hidden";
+    }
     if (mapPanel) {
-      mapPanel.style.gridColumn = "3";
+      mapPanel.style.gridColumn = showTopologyColumn ? "5" : "3";
       mapPanel.style.gridRow = "1";
       mapPanel.style.display = "flex";
       mapPanel.style.flexDirection = "column";
@@ -1023,6 +1051,7 @@ const APP_SHELL_METHOD_DEPS = {
   courseHasVariations,
   relayAssignments,
   relayBranchAllowedLegs,
+  relayBranchDisplayLegs,
   relayBranchLegLabel,
   relayBranchRestrictionIssues,
   relayEntryLabel,

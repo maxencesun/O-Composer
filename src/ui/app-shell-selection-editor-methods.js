@@ -86,6 +86,7 @@ export function createAppShellSelectionEditorMethods(deps) {
     courseHasVariations,
     relayAssignments,
     relayBranchAllowedLegs,
+    relayBranchDisplayLegs,
     relayBranchRestrictionIssues,
     relayEntryLabel,
     relayLegName,
@@ -264,6 +265,14 @@ export function createAppShellSelectionEditorMethods(deps) {
   renderSelection({ eventModel, ui }) {
     const panel = this.querySelector("#selectionPanel");
     const selection = ui.selection;
+    if (ui.variationAdjustmentMode === "relay-auto") {
+      panel.innerHTML = this.variationRelayAutoAdjustmentEditor(eventModel, ui);
+      return;
+    }
+    if (ui.variationBranch) {
+      panel.innerHTML = this.variationBranchAdjustmentEditor(eventModel, ui);
+      return;
+    }
     if (!selection || selection.type === "event") {
       panel.innerHTML = this.eventAdjustmentEditor(eventModel);
       return;
@@ -301,6 +310,31 @@ export function createAppShellSelectionEditorMethods(deps) {
     }
     this.bindSelectionColorInputs(panel);
     this.paintIscdCanvases(panel);
+  },
+
+  variationBranchAdjustmentEditor(eventModel, ui) {
+    const courseId = ui.selectedCourseId;
+    const course = courseId && courseId !== "all" ? getCourse(eventModel, courseId) : null;
+    if (!course) return `<p class="muted">${escapeHtml(this.t("No item selected."))}</p>`;
+    const selectedBranch = normalizedVariationBranch(eventModel, course.id, ui.variationBranch);
+    const branchCodes = variationBranchCodeMap(eventModel, course.id);
+    const selectedBranchCode = selectedBranch ? branchCodes.get(Number(selectedBranch.branchCourseControl)) || "" : "";
+    if (!selectedBranch || !selectedBranchCode) {
+      return `<p class="muted">${escapeHtml(this.t("No item selected."))}</p>`;
+    }
+    const assignments = relayAssignments(eventModel, course.id);
+    return `
+      <p class="variation-branch-hint">${escapeHtml(this.t("Selected branch"))}: <strong>${escapeHtml(selectedBranchCode)}</strong></p>
+      ${this.variationBranchLegEditor(course, assignments, selectedBranch, selectedBranchCode)}
+    `;
+  },
+
+  variationRelayAutoAdjustmentEditor(eventModel, ui) {
+    const courseId = ui.selectedCourseId;
+    const course = courseId && courseId !== "all" ? getCourse(eventModel, courseId) : null;
+    if (!course) return `<p class="muted">${escapeHtml(this.t("Select a course first."))}</p>`;
+    const variations = allCourseVariations(eventModel, course.id);
+    return this.relayAutoAssignmentPanel(eventModel, course, variations);
   },
 
   eventAdjustmentEditor(eventModel) {
@@ -583,7 +617,7 @@ export function createAppShellSelectionEditorMethods(deps) {
     const issues = relayBranchRestrictionIssues(groups, course.relay?.branches || []);
     const rows = groups.map(group => {
       const branchRows = (group.codes || []).map(code => {
-        const allowedLegs = new Set(relayBranchAllowedLegs(course.relay?.branches || [], code, legs));
+        const allowedLegs = new Set(relayBranchDisplayLegs(course.relay?.branches || [], code, legs));
         const checks = Array.from({ length: legs }, (_, index) => {
           const leg = index + 1;
           return `

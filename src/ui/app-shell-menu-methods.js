@@ -361,6 +361,7 @@ export function createAppShellMenuMethods(deps) {
 
     const selectionPanel = this.querySelector("#selectionPanel");
     selectionPanel.addEventListener("change", event => this.updateSelectionField(event));
+    selectionPanel.addEventListener("input", event => this.handleSelectionPanelInput(event));
     selectionPanel.addEventListener("click", event => this.handleSelectionPanelClick(event));
     this.bindContainedScroll(selectionPanel.closest(".selection-panel") || selectionPanel, selectionPanel);
     this.bindWorkspaceResizer();
@@ -371,6 +372,12 @@ export function createAppShellMenuMethods(deps) {
     this.querySelector("#variationPanel").addEventListener("click", event => this.handleVariationPanelClick(event));
     this.querySelector("#variationPanel").addEventListener("input", event => this.handleVariationPanelInput(event));
     this.querySelector("#variationPanel").addEventListener("change", event => this.handleVariationPanelChange(event));
+    const variationTopologyColumn = this.querySelector("#variationTopologyColumn");
+    const variationTopologyScroller = this.querySelector("#variationTopologyColumnContent");
+    variationTopologyColumn?.addEventListener("click", event => this.handleVariationPanelClick(event));
+    if (variationTopologyColumn && variationTopologyScroller) {
+      this.bindContainedScroll(variationTopologyColumn, variationTopologyScroller);
+    }
     this.querySelector("#constantsPanel").addEventListener("click", event => this.handleConstantsPanelClick(event));
     this.querySelector("#constantsPanel").addEventListener("change", event => this.handleConstantsPanelChange(event));
     this.querySelector("#printAreaForm").addEventListener("submit", event => {

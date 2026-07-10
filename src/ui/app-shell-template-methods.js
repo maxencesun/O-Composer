@@ -539,6 +539,9 @@ export function createAppShellTemplateMethods(deps) {
           min-height: 0 !important;
           overflow: hidden !important;
         }
+        o-composer-app.desktop-ui .workspace.show-variation-topology-column {
+          grid-template-columns: var(--left-panel-width, 300px) 6px var(--variation-topology-column-width, minmax(300px, min(32vw, 430px))) 6px minmax(0, 1fr) !important;
+        }
         o-composer-app.desktop-ui .left-panel {
           grid-column: 1 !important;
           grid-row: 1 !important;
@@ -547,6 +550,36 @@ export function createAppShellTemplateMethods(deps) {
           min-width: 0 !important;
           min-height: 0 !important;
           overflow: auto !important;
+        }
+        o-composer-app.desktop-ui .variation-topology-column {
+          grid-column: 3 !important;
+          grid-row: 1 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          overflow: hidden !important;
+          border-right: 1px solid var(--line) !important;
+          background: #fff !important;
+        }
+        o-composer-app.desktop-ui .workspace:not(.show-variation-topology-column) .variation-topology-column {
+          display: none !important;
+        }
+        o-composer-app.desktop-ui .workspace.show-variation-topology-column .variation-panel .variation-tree-inline {
+          display: none !important;
+        }
+        o-composer-app.desktop-ui .workspace.show-variation-topology-column .topology-left-divider {
+          grid-column: 2 !important;
+          display: block !important;
+        }
+        o-composer-app.desktop-ui .workspace.show-variation-topology-column #workspaceDivider {
+          grid-column: 4 !important;
+        }
+        o-composer-app.desktop-ui .workspace:not(.show-variation-topology-column) .topology-left-divider {
+          display: none !important;
+        }
+        o-composer-app.desktop-ui .workspace.show-variation-topology-column .map-panel {
+          grid-column: 5 !important;
         }
         o-composer-app.desktop-ui .workspace-divider {
           grid-column: 2 !important;
@@ -999,6 +1032,10 @@ export function createAppShellTemplateMethods(deps) {
               <h2>${escapeHtml(this.t("Adjustment"))}</h2>
               <div id="selectionPanel"></div>
             </section>
+          </aside>
+          <div id="topologyLeftDivider" class="workspace-divider topology-left-divider" role="separator" aria-orientation="vertical" aria-label="${escapeAttr(this.t("Resize panels"))}" hidden></div>
+          <aside id="variationTopologyColumn" class="variation-topology-column" hidden>
+            <div id="variationTopologyColumnContent" class="variation-topology-column-content"></div>
           </aside>
           <div id="workspaceDivider" class="workspace-divider" role="separator" aria-orientation="vertical" aria-label="${escapeAttr(this.t("Resize panels"))}"></div>
           <section class="map-panel">

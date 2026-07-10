@@ -1,4 +1,4 @@
-import { cloneEvent, createBlankEvent } from "../domain/event-model.js?v=20260709-7";
+import { cloneEvent, createBlankEvent } from "../domain/event-model.js?v=20260710-18";
 
 export class Store {
   constructor() {
@@ -17,6 +17,7 @@ export class Store {
         showAllControls: true,
         variationMode: "default",
         variationCode: "",
+        variationAdjustmentMode: "",
         variationAddBranches: 2,
         teamAddControlRole: "mandatory",
         variationAnchorCourseControl: null,

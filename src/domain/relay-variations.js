@@ -172,28 +172,22 @@ export function relayBranchAllowedLegs(branchSettings = [], branchCode, maxLegs 
     .sort((a, b) => a - b);
 }
 
+export function relayBranchDisplayLegs(branchSettings = [], branchCode, maxLegs = Infinity) {
+  const limit = Number.isFinite(Number(maxLegs)) ? Math.max(1, Math.round(Number(maxLegs))) : 0;
+  const allowed = relayBranchAllowedLegs(branchSettings, branchCode, limit || Infinity);
+  if (allowed.length || !limit) return allowed;
+  return Array.from({ length: limit }, (_, index) => index + 1);
+}
+
 export function relayBranchLegLabel(relay = {}, branchCode, options = {}) {
-  const legs = relayBranchAllowedLegs(relay.branches || [], branchCode, relay.legs || Infinity);
+  const legs = relayBranchDisplayLegs(relay.branches || [], branchCode, relay.legs || Infinity);
   if (!legs.length) return "";
   if (options.short) return legs.map(leg => relayLegName(relay, leg)).join(",");
   return legs.map(leg => `Leg ${relayLegName(relay, leg)}`).join(", ");
 }
 
 export function relayBranchRestrictionIssues(branchGroups = [], branchSettings = []) {
-  const issues = [];
-  for (const group of branchGroups || []) {
-    const codes = (group.codes || []).map(code => String(code || "").trim()).filter(Boolean);
-    if (codes.length <= 1) continue;
-    const declaredCodes = codes.filter(code => relayBranchAllowedLegs(branchSettings, code).length);
-    if (!declaredCodes.length || declaredCodes.length === codes.length) continue;
-    issues.push({
-      groupId: group.groupId,
-      codes,
-      declaredCodes,
-      missingCodes: codes.filter(code => !declaredCodes.includes(code))
-    });
-  }
-  return issues;
+  return [];
 }
 
 export function relayRequiredTeamSize(eventModel, courseId) {

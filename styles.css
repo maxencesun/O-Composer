@@ -436,6 +436,28 @@ button:hover {
   background: #fff;
 }
 
+.left-panel.has-variation-branch-adjustment {
+  grid-template-rows: minmax(220px, 0.85fr) minmax(260px, 1fr);
+}
+
+o-composer-app.desktop-ui .left-panel.has-active-variation-panel > .panel-block:not(.selection-panel),
+o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .panel-block:not(.selection-panel) {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+o-composer-app.desktop-ui .left-panel.has-active-variation-panel > .selection-panel,
+o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selection-panel {
+  position: static !important;
+  inset: auto !important;
+  width: auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  box-shadow: none !important;
+}
+
 .mobile-side-controls {
   display: none;
 }
@@ -539,9 +561,23 @@ button:hover {
 
 .variation-actions {
   display: grid;
-  grid-template-columns: 70px minmax(0, 1fr);
   gap: 6px;
   align-items: stretch;
+}
+
+.variation-action-row {
+  display: grid;
+  gap: 6px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.variation-action-row-primary {
+  grid-template-columns: minmax(82px, 0.75fr) minmax(0, 1.25fr);
+}
+
+.variation-action-row-secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .variation-fixed-controls {
@@ -572,33 +608,28 @@ button:hover {
   font-size: 12px;
 }
 
-.variation-action-buttons {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 4px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.variation-action-buttons button {
-  flex: 1 1 0;
+.variation-action-row button,
+.variation-relay-auto-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
+  width: 100%;
   min-width: 0;
-  min-height: 30px;
-  padding: 4px;
+  min-height: 38px;
+  padding: 5px 6px;
   font-size: 12px;
   line-height: 1.1;
-  white-space: nowrap;
-  overflow: hidden;
+  white-space: normal;
+  overflow: visible;
 }
 
-.variation-action-buttons button span {
+.variation-action-row button span,
+.variation-relay-auto-button span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .variation-tree {
@@ -613,11 +644,34 @@ button:hover {
   -webkit-overflow-scrolling: touch;
 }
 
+.variation-topology-column {
+  display: none;
+}
+
+.variation-topology-column-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.variation-topology-column .variation-tree {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  overflow: visible;
+  border-top: 0;
+  padding: 0 0 8px;
+}
+
 .variation-topology {
   display: block;
   width: auto;
   height: auto;
-  max-width: none;
+  max-width: 100%;
   min-height: 220px;
   background: #fff;
 }
@@ -789,6 +843,10 @@ button:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+.selection-panel .relay-auto-grid {
+  grid-template-columns: 1fr;
 }
 
 .relay-auto-grid label {
@@ -1615,6 +1673,10 @@ button:hover {
     overflow: hidden;
   }
 
+  .workspace.has-variation-branch-adjustment {
+    grid-template-rows: minmax(160px, 26dvh) minmax(0, 1fr);
+  }
+
   .workspace-divider {
     display: none;
   }
@@ -1626,6 +1688,40 @@ button:hover {
     grid-template-rows: minmax(180px, 1fr) minmax(180px, 1fr);
     border-right: 0;
     border-top: 1px solid var(--line);
+  }
+
+  .left-panel.has-variation-branch-adjustment {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .left-panel.has-variation-branch-adjustment .selection-panel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(29px + env(safe-area-inset-bottom, 0px));
+    height: clamp(250px, 34dvh, 340px);
+    min-height: 250px;
+    z-index: 90;
+    border-top: 1px solid var(--line);
+    border-bottom: 0;
+    box-shadow: 0 -10px 22px rgba(15, 23, 42, 0.12);
+    background: #fff;
+  }
+
+  .left-panel.has-variation-branch-adjustment .selection-panel h2 {
+    margin: 0 0 8px;
+  }
+
+  .left-panel.has-variation-branch-adjustment .variation-scroll-area {
+    padding-bottom: clamp(250px, 34dvh, 340px);
+  }
+
+  .left-panel.has-variation-branch-adjustment .variation-tree {
+    min-height: 120px;
+  }
+
+  .left-panel.has-variation-branch-adjustment .variation-topology {
+    min-height: 160px;
   }
 
   .map-panel {

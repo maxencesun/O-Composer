@@ -83,6 +83,7 @@ export function createAppShellCommandMethods(deps) {
     courseHasVariations,
     relayAssignments,
     relayBranchAllowedLegs,
+    relayBranchDisplayLegs,
     relayEntryLabel,
     relayTeamSizeOptions,
     relayVariationForLeg,
@@ -864,6 +865,17 @@ export function createAppShellCommandMethods(deps) {
       this.updateEventAdjustmentField(target.dataset.eventField, valueFromInput(target));
       return;
     }
+    if (target.dataset.variationBranchLeg !== undefined) {
+      this.updateVariationBranchLegRestriction(target);
+      return;
+    }
+    if (target.dataset.relaySettingsField !== undefined || target.dataset.relayLegName !== undefined) {
+      this.updateRelaySettingsFromVariationPanel(
+        target.dataset.relaySettingsField !== undefined ? target : null,
+        target.dataset.relayLegName !== undefined ? target : null
+      );
+      return;
+    }
     if (!selection) return;
 
     if (target.dataset.descriptionTextBox && selection.type === "control") {
@@ -900,12 +912,14 @@ export function createAppShellCommandMethods(deps) {
         if (!branch) return;
         const leg = Number(target.value) || 0;
         if (target.type === "checkbox") {
-          const allowed = new Set(relayBranchAllowedLegs(course.relay.branches || [], branch, course.relay.legs || Infinity));
-          if (target.checked && leg > 0) allowed.add(leg);
-          else allowed.delete(leg);
+          const inputs = [...target.closest(".relay-branch-leg-row")?.querySelectorAll("[data-relay-branch]") || []]
+            .filter(candidate => String(candidate.dataset.relayBranch || "").trim() === branch);
+          const allowed = new Set(inputs
+            .filter(candidate => candidate.checked)
+            .map(candidate => Math.max(1, Math.round(Number(candidate.value) || 1))));
           course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);
           const legs = [...allowed].sort((a, b) => a - b);
-          if (legs.length) course.relay.branches.push({ branch, legs });
+          if (legs.length && legs.length < inputs.length) course.relay.branches.push({ branch, legs });
         }
         else {
           course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);

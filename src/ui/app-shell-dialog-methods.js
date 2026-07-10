@@ -267,6 +267,8 @@ export function createAppShellDialogMethods(deps) {
     for (const button of this.querySelectorAll("[data-panel]")) {
       button.classList.toggle("active", button.dataset.panel === nextPanel);
     }
+    this.querySelector(".left-panel")?.classList.toggle("has-active-variation-panel", nextPanel === "variation");
+    this.syncVariationTopologyColumnVisibility?.();
   },
 
   handleKey(event) {
@@ -472,6 +474,12 @@ export function createAppShellDialogMethods(deps) {
 
   handleSelectionPanelInput(event) {
     const target = event.target;
+    const relayField = target.closest("[data-relay-settings-field]");
+    const relayLegName = target.closest("[data-relay-leg-name]");
+    if (relayField || relayLegName) {
+      this.previewRelaySettingsFromVariationPanel(relayField, relayLegName);
+      return;
+    }
     if (target.dataset.backgroundField !== undefined) {
       this.updateBackgroundField(target.dataset.backgroundField, target.value);
       this.syncBackgroundFields(target);
@@ -564,42 +572,86 @@ export function createAppShellDialogMethods(deps) {
   bindWorkspaceResizer() {
     const workspace = this.querySelector(".workspace");
     const divider = this.querySelector("#workspaceDivider");
+    const topologyLeftDivider = this.querySelector("#topologyLeftDivider");
+    const leftPanel = this.querySelector(".left-panel");
+    const topologyColumn = this.querySelector("#variationTopologyColumn");
     if (!workspace || !divider) return;
+    const leftWidthKey = "oComposerLeftPanelWidth";
+    const topologyWidthKey = "oComposerVariationTopologyColumnWidth";
+    const dividerWidth = 6;
+    const setLeftWidth = width => {
+      workspace.style.setProperty("--left-panel-width", `${width}px`);
+      if (leftPanel && this.resolvedUiMode() === UI_MODES.DESKTOP) {
+        leftPanel.style.width = `${width}px`;
+        leftPanel.style.maxWidth = `${width}px`;
+      }
+      localStorage.setItem(leftWidthKey, String(Math.round(width)));
+    };
+    const setTopologyWidth = width => {
+      workspace.style.setProperty("--variation-topology-column-width", `${width}px`);
+      localStorage.setItem(topologyWidthKey, String(Math.round(width)));
+    };
+    const topologyColumnVisible = () => !!topologyColumn && !topologyColumn.hidden && workspace.classList.contains("show-variation-topology-column");
+    const currentLeftWidth = () => {
+      const rectWidth = leftPanel?.getBoundingClientRect().width || 0;
+      const savedWidth = Number(localStorage.getItem(leftWidthKey) || 0);
+      return rectWidth || savedWidth || 300;
+    };
+    const currentTopologyWidth = () => {
+      const rectWidth = topologyColumn?.getBoundingClientRect().width || 0;
+      const savedWidth = Number(localStorage.getItem(topologyWidthKey) || 0);
+      return rectWidth || savedWidth || Math.min(430, Math.max(300, Math.floor(window.innerWidth * 0.32)));
+    };
     const saved = Number(localStorage.getItem("oComposerLeftPanelWidth") || 0);
     if (saved > 0) {
       const width = clamp(saved, 260, Math.max(320, window.innerWidth - 360));
-      workspace.style.setProperty("--left-panel-width", `${width}px`);
-      if (this.resolvedUiMode() === UI_MODES.DESKTOP) {
-        workspace.style.gridTemplateColumns = `${width}px 6px minmax(0, 1fr)`;
-      }
+      setLeftWidth(width);
     }
-    divider.addEventListener("pointerdown", event => {
+    const savedTopologyWidth = Number(localStorage.getItem(topologyWidthKey) || 0);
+    if (savedTopologyWidth > 0) {
+      setTopologyWidth(clamp(savedTopologyWidth, 260, Math.max(260, window.innerWidth - 620)));
+    }
+    const bindDividerDrag = (handle, kind) => {
+      if (!handle) return;
+      handle.addEventListener("pointerdown", event => {
       if (event.button !== 0) return;
       event.preventDefault();
-      divider.setPointerCapture(event.pointerId);
-      divider.classList.add("dragging");
+      handle.setPointerCapture(event.pointerId);
+      handle.classList.add("dragging");
       const rect = workspace.getBoundingClientRect();
+      const startTopologyWidth = currentTopologyWidth();
       const move = moveEvent => {
-        const width = clamp(moveEvent.clientX - rect.left, 260, Math.max(260, rect.width - 360));
-        workspace.style.setProperty("--left-panel-width", `${width}px`);
-        if (this.resolvedUiMode() === UI_MODES.DESKTOP) {
-          workspace.style.gridTemplateColumns = `${width}px 6px minmax(0, 1fr)`;
+        if (kind === "left" && topologyColumnVisible()) {
+          const maxLeftWidth = Math.max(260, rect.width - startTopologyWidth - dividerWidth * 2 - 360);
+          setLeftWidth(clamp(moveEvent.clientX - rect.left, 260, maxLeftWidth));
         }
-        localStorage.setItem("oComposerLeftPanelWidth", String(Math.round(width)));
+        else if (kind === "map" && topologyColumnVisible()) {
+          const leftWidth = currentLeftWidth();
+          const maxTopologyWidth = Math.max(260, rect.width - leftWidth - dividerWidth * 2 - 360);
+          const width = moveEvent.clientX - rect.left - leftWidth - dividerWidth;
+          setTopologyWidth(clamp(width, 260, maxTopologyWidth));
+        }
+        else {
+          const width = clamp(moveEvent.clientX - rect.left, 260, Math.max(260, rect.width - 360));
+          setLeftWidth(width);
+        }
         this.mapView.requestDraw(this.store.snapshot());
       };
       const stop = stopEvent => {
-        divider.classList.remove("dragging");
-        divider.releasePointerCapture?.(stopEvent.pointerId);
-        divider.removeEventListener("pointermove", move);
-        divider.removeEventListener("pointerup", stop);
-        divider.removeEventListener("pointercancel", stop);
+        handle.classList.remove("dragging");
+        handle.releasePointerCapture?.(stopEvent.pointerId);
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", stop);
+        handle.removeEventListener("pointercancel", stop);
         this.mapView.requestDraw(this.store.snapshot());
       };
-      divider.addEventListener("pointermove", move);
-      divider.addEventListener("pointerup", stop);
-      divider.addEventListener("pointercancel", stop);
-    });
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", stop);
+      handle.addEventListener("pointercancel", stop);
+      });
+    };
+    bindDividerDrag(topologyLeftDivider, "left");
+    bindDividerDrag(divider, "map");
   },
 
   enablePanelDrag(dialog) {

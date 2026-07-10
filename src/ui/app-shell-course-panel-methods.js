@@ -1,4 +1,4 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260709-7";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260710-18";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -267,6 +267,10 @@ export function createAppShellCoursePanelMethods(deps) {
     const state = this.store.snapshot();
     this.store.updateUi(ui => {
       ui.selection = selection;
+      if (selection) {
+        ui.variationBranch = null;
+        ui.variationAdjustmentMode = "";
+      }
       const role = teamAddControlRoleFromSelection(state.eventModel, ui, selection);
       if (role) {
         ui.teamAddControlRole = role;
@@ -276,7 +280,11 @@ export function createAppShellCoursePanelMethods(deps) {
 
   render(state) {
     const keys = renderKeysFor(state);
-    const preserveSelectionPanelInput = this.shouldPreserveSelectionPanelInput();
+    const selectionContextChanged = !this.renderKeys
+      || this.renderKeys.selection !== keys.selection
+      || this.renderKeys.variationBranch !== keys.variationBranch
+      || this.renderKeys.variationAdjustmentMode !== keys.variationAdjustmentMode;
+    const preserveSelectionPanelInput = this.shouldPreserveSelectionPanelInput() && !selectionContextChanged;
     const shouldRenderCourse = !this.renderKeys
       || this.renderKeys.eventModel !== keys.eventModel
       || this.renderKeys.selectedCourseId !== keys.selectedCourseId
@@ -286,8 +294,7 @@ export function createAppShellCoursePanelMethods(deps) {
       || this.renderKeys.relayTeam !== keys.relayTeam
       || this.renderKeys.relayLeg !== keys.relayLeg;
     const shouldRenderSelection = !preserveSelectionPanelInput && (shouldRenderCourse
-      || !this.renderKeys
-      || this.renderKeys.selection !== keys.selection);
+      || selectionContextChanged);
     const shouldRenderReport = !this.renderKeys
       || this.renderKeys.reportTitle !== keys.reportTitle
       || this.renderKeys.reportKind !== keys.reportKind
@@ -332,6 +339,9 @@ export function createAppShellCoursePanelMethods(deps) {
     }
     this.renderStatus(state);
     this.syncUiModeToggle();
+    const hasVariationAdjustment = !!state.ui.variationBranch || state.ui.variationAdjustmentMode === "relay-auto";
+    this.querySelector(".workspace")?.classList.toggle("has-variation-branch-adjustment", hasVariationAdjustment);
+    this.querySelector(".left-panel")?.classList.toggle("has-variation-branch-adjustment", hasVariationAdjustment);
     this.querySelector("#zoomSlider").value = Math.round(state.ui.zoom * 100);
     this.querySelector("#intensitySlider").value = Math.round(state.ui.mapIntensity * 100);
     this.mapView.requestDraw(state);

@@ -124,7 +124,7 @@ def verify_app_files() -> None:
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.2"' in app_config, "app version should be centrally maintained at 0.0.2"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CACHE_VERSION = "20260711-3"' in app_config, "resource cache version should be bumped with the OCD import release"
+    assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "resource cache version should be bumped with the OCD import release"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
     for token in ["feedback-link", "https://365.kdocs.cn/l/cmBYi18akxdM", "Feedback", "反馈通道"]:
@@ -303,7 +303,8 @@ def verify_ocd_import_support() -> None:
         assert token in ocd_ui, f"missing OCAD import UI entry point: {token}"
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "ocd-convert-worker.js?v=20260711-3"]:
+    official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260711-4", "ocd-convert-worker.js?v=20260711-4"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")
@@ -314,6 +315,10 @@ def verify_ocd_import_support() -> None:
         assert token in map_import + map_view, f"missing guarded OCAD/OMAP import behavior: {token}"
     assert "cacheOmap && !hasOmapSource" in app_shell, "session cache should not retain source XML and a second parsed map"
     assert "omapSourceText ? null" in file_export, "OCP save should not embed source XML and a second parsed map"
+    for token in ["installClipboardPermissionQueryGuard", "clipboard-read", "clipboard-write", "fallbackClipboardPermissionStatus", "Promise.resolve(result).catch"]:
+        assert token in official_adapter, f"missing WebKit clipboard-permission rejection guard: {token}"
+    index = (ROOT / "index.html").read_text(encoding="utf-8")
+    assert "__oComposerAppInitialized" in index + app_shell, "background failures must not be mislabeled as fatal startup errors"
 
     engine_paths = {
         "mapper-converter.js": 100_000,

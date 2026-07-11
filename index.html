@@ -4,11 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>O-Composer</title>
-    <link rel="stylesheet" href="./styles.css?v=20260711-3">
+    <link rel="stylesheet" href="./styles.css?v=20260711-4">
     <script>
       (() => {
         const showStartupError = (message) => {
-          if (!message || document.querySelector("[data-startup-error]")) {
+          if (!message || globalThis.__oComposerAppInitialized
+              || document.querySelector("[data-startup-error]")) {
             return;
           }
           const panel = document.createElement("pre");
@@ -39,7 +40,7 @@
         });
       })();
     </script>
-    <script type="module" src="./src/main.js?v=20260711-3"></script>
+    <script type="module" src="./src/main.js?v=20260711-4"></script>
   </head>
   <body>
     <o-composer-app></o-composer-app>

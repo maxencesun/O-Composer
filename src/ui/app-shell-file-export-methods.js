@@ -1,4 +1,4 @@
-import { debugLog } from "./debug-log.js?v=20260712-2";
+import { debugLog } from "./debug-log.js?v=20260712-7";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -276,6 +276,7 @@ export function createAppShellFileExportMethods(deps) {
           ui.showPrintArea = this.modelHasSavedPrintArea(model);
           ui.background = embeddedBaseMap.background;
           ui.omap = embeddedBaseMap.omap;
+          ui.measurement = measurementUiFromPersisted(model.metadata?.measurements);
         }, "Loaded");
       }
       catch (error) {
@@ -307,6 +308,7 @@ export function createAppShellFileExportMethods(deps) {
         ui.showPrintArea = this.modelHasSavedPrintArea(model);
         ui.background = embeddedBaseMap.background;
         ui.omap = embeddedBaseMap.omap;
+        ui.measurement = measurementUiFromPersisted(model.metadata?.measurements);
       }, "Sample loaded");
     }
     catch (error) {
@@ -470,6 +472,7 @@ export function createAppShellFileExportMethods(deps) {
       background,
       omap,
       omapSourceText,
+      measurements: state.eventModel.metadata?.measurements || measurementPersistedForSave(state.ui.measurement),
       // Avoid embedding the same map twice. The XML source is canonical and
       // restoreEmbeddedOcpBaseMap reparses it when an OCP file is opened.
       omapMap: omapSourceText ? null : this.mapView?.omapMap || null
@@ -1056,5 +1059,26 @@ export function createAppShellFileExportMethods(deps) {
     this.switchPanel("report");
   }
 
+  };
+}
+
+function measurementUiFromPersisted(value) {
+  if (!value) return null;
+  return {
+    items: Array.isArray(value.items) ? value.items : [],
+    showGroundLabels: !!value.showGroundLabels,
+    color: value.color || "#007f93",
+    adding: false,
+    selectedIndex: null,
+    draft: { points: [], color: value.color || "#007f93" }
+  };
+}
+
+function measurementPersistedForSave(value) {
+  if (!value) return null;
+  return {
+    items: Array.isArray(value.items) ? value.items : [],
+    showGroundLabels: !!value.showGroundLabels,
+    color: value.color || "#007f93"
   };
 }

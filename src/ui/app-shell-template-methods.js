@@ -914,6 +914,12 @@ export function createAppShellTemplateMethods(deps) {
             ["toggle-all-controls", "All Controls"],
             ["quality", "Cycle Render Quality"]
           ])}
+          ${this.menu("Measure", [
+            ["tool-measure", "Measure polyline or area"],
+            ["measure-add", "Add measurement"],
+            ["measure-finish", "Finish open polyline"],
+            ["measure-clear", "Clear measurement"]
+          ])}
           ${this.menu("Add", [
             ["tool-start", "Start"],
             ["tool-control", "Control"],
@@ -986,6 +992,7 @@ export function createAppShellTemplateMethods(deps) {
           ${this.toolButton("tool-finish", "Finish", "finish")}
           ${this.toolButton("tool-map-issue", "Map Issue", "map-issue")}
           ${this.toolButton("tool-line-cut", "Cut Line", "cut")}
+          ${this.toolButton("tool-measure", "Measure polyline or area", "measure", "Measure")}
           ${this.toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")}
           ${this.toolGroup("Restricted Areas", "restricted", [
             ["tool-oob", "Out of Bounds", "out-of-bounds"],
@@ -1052,6 +1059,20 @@ export function createAppShellTemplateMethods(deps) {
               </div>
             </div>
             <canvas id="mapCanvas" class="map-canvas"></canvas>
+            <aside id="measurementPanel" class="measurement-panel" aria-live="polite" hidden>
+              <button type="button" class="measurement-minimize" data-command="tool-measure" title="${escapeAttr(this.t("Minimize measurement panel"))}" aria-label="${escapeAttr(this.t("Minimize measurement panel"))}">−</button>
+              <div class="measurement-options">
+                <label>${escapeHtml(this.t("Color"))} <input id="measurementColor" type="color" value="#007f93"></label>
+                <label><input id="measurementGroundLabels" type="checkbox"> ${escapeHtml(this.t("Show ground distance on map"))}</label>
+              </div>
+              <div id="measurementSummary"></div>
+              <div class="measurement-actions">
+                <button id="measurementAddButton" type="button" data-command="measure-add">${escapeHtml(this.t("Add measurement"))}</button>
+                <button id="measurementFinishButton" type="button" data-command="measure-finish">${escapeHtml(this.t("Finish polyline"))}</button>
+                <button id="measurementDeleteButton" type="button" data-command="measure-delete">${escapeHtml(this.t("Delete selected"))}</button>
+                <button type="button" data-command="measure-clear">${escapeHtml(this.t("Clear"))}</button>
+              </div>
+            </aside>
           </section>
         </main>
         <dialog id="printAreaDialog" class="print-area-dialog" aria-modal="false" hidden>

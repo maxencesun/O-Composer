@@ -56,6 +56,11 @@ export function createAppShellSelectionEditorMethods(deps) {
     createVectorMapPdfBlob,
     isPdfFile,
     renderPdfBasemap,
+    measurementMetrics,
+    formatGroundLength,
+    formatPaperLength,
+    formatGroundArea,
+    formatPaperArea,
     allControlsView,
     controlKindLabel,
     controlsUsedByCourse,
@@ -865,6 +870,51 @@ export function createAppShellSelectionEditorMethods(deps) {
     this.querySelector("#statusText").textContent = this.t(ui.status || "Ready");
     const mapName = ui.omap?.name ? ` | OMAP: ${ui.omap.name}` : "";
     this.querySelector("#dirtyText").textContent = `${eventModel.sourceName || this.t("Untitled.ocp")}${eventModel.dirty ? " *" : ""}${mapName}`;
+    const panel = this.querySelector("#measurementPanel");
+    const summary = this.querySelector("#measurementSummary");
+    if (panel && summary) {
+      const measurement = ui.tool === "measure" ? ui.measurement : null;
+      panel.hidden = !measurement;
+      if (measurement) {
+        const colorInput = this.querySelector("#measurementColor");
+        const labelsInput = this.querySelector("#measurementGroundLabels");
+        const selectedMeasurement = Number.isInteger(measurement.selectedIndex) ? measurement.items?.[measurement.selectedIndex] : null;
+        const activeColor = selectedMeasurement?.color || measurement.draft?.color || measurement.color;
+        if (colorInput && /^#[0-9a-f]{6}$/i.test(activeColor || "")) colorInput.value = activeColor;
+        if (colorInput) colorInput.disabled = !measurement.adding && !selectedMeasurement;
+        if (labelsInput) labelsInput.checked = !!measurement.showGroundLabels;
+        const addButton = this.querySelector("#measurementAddButton");
+        const finishButton = this.querySelector("#measurementFinishButton");
+        const deleteButton = this.querySelector("#measurementDeleteButton");
+        if (addButton) addButton.disabled = !!measurement.adding;
+        if (finishButton) finishButton.disabled = !measurement.adding || (measurement.draft?.points?.length || 0) < 2;
+        if (deleteButton) deleteButton.disabled = measurement.adding || !Number.isInteger(measurement.selectedIndex);
+        const pair = (ground, paper) => `${this.t("Ground")} ${ground} · ${this.t("Paper")} ${paper}`;
+        const result = (item, title, selected = false) => {
+          const metrics = measurementMetrics(item.points, item.closed, eventModel.event?.map?.scale);
+          const color = /^#[0-9a-f]{6}$/i.test(item.color || "") ? item.color : "#007f93";
+          const rows = [
+            `<div class="measurement-row"><span>${escapeHtml(this.t("Polyline length"))}</span><span>${escapeHtml(pair(formatGroundLength(metrics.lineLengthM), formatPaperLength(metrics.lineLengthPaperMm)))}</span></div>`,
+            ...(item.closed ? [
+              `<div class="measurement-row"><span>${escapeHtml(this.t("Perimeter"))}</span><span>${escapeHtml(pair(formatGroundLength(metrics.perimeterM), formatPaperLength(metrics.perimeterPaperMm)))}</span></div>`,
+              `<div class="measurement-row"><span>${escapeHtml(this.t("Measured area"))}</span><span>${escapeHtml(pair(formatGroundArea(metrics.areaM2), formatPaperArea(metrics.areaPaperMm2)))}</span></div>`
+            ] : [])
+          ].join("");
+          return `<div class="measurement-result${selected ? " selected" : ""}"><div class="measurement-result-title" style="color:${color}">${escapeHtml(title)}</div>${rows}</div>`;
+        };
+        const items = measurement.items || [];
+        const draft = measurement.draft || { points: [] };
+        const results = [
+          ...items.map((item, index) => result(item, this.t("Polyline {number}", { number: index + 1 }), index === measurement.selectedIndex)),
+          ...(measurement.adding && draft.points?.length >= 2 ? [result(draft, this.t("Current polyline"))] : [])
+        ].join("");
+        const rows = results || `<div class="measurement-hint">${escapeHtml(this.t(measurement.adding ? "Click the map to start measuring." : "No measurements yet."))}</div>`;
+        const hint = measurement.adding
+          ? this.t("Click to add vertices; click the first point to close. Double-click, right-click, or use Finish polyline to keep it open.")
+          : this.t("Click a measurement on the map to select it, or choose Add measurement to draw a new one.");
+        summary.innerHTML = `<strong>${escapeHtml(this.t("Measurement"))} · 1:${Math.round(Number(eventModel.event?.map?.scale) || 15000).toLocaleString()}</strong>${rows}<div class="measurement-hint">${escapeHtml(hint)}</div>`;
+      }
+    }
   },
 
   updateMouseStatus(point) {

@@ -348,6 +348,12 @@ export function createAppShellMenuMethods(deps) {
     this.querySelector("#intensitySlider").addEventListener("input", event => {
       this.store.updateUi(ui => { ui.mapIntensity = Number(event.target.value) / 100; }, "Map intensity");
     });
+    this.querySelector("#measurementColor")?.addEventListener("change", event => {
+      this.updateMeasurementOptions({ color: event.target.value });
+    });
+    this.querySelector("#measurementGroundLabels")?.addEventListener("change", event => {
+      this.updateMeasurementOptions({ showGroundLabels: event.target.checked });
+    });
     this.querySelector("#courseBanner").addEventListener("change", event => this.handleCourseBannerChange(event));
     this.querySelector("#appLanguage")?.addEventListener("change", event => {
       this.applyApplicationLanguage(event.target.value);

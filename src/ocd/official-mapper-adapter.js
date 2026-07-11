@@ -24,7 +24,7 @@ const statusListeners = new Set();
 let clipboardPermissionGuardInstalled = false;
 let moduleProgressHeartbeat = null;
 let artifactProgress = { js: 0, data: 0, wasm: 0 };
-let artifactTotals = { ...MAPPER_ARTIFACT_BYTES };
+let artifactComplete = { js: false, data: false, wasm: false };
 let currentStatus = Object.freeze({
   phase: 'idle',
   available: null,
@@ -32,27 +32,41 @@ let currentStatus = Object.freeze({
   error: null,
   loadedBytes: 0,
   totalBytes: 0,
+  downloadComplete: false,
   message: null,
 });
 
 function resetArtifactProgress() {
   artifactProgress = { js: 0, data: 0, wasm: 0 };
-  artifactTotals = { ...MAPPER_ARTIFACT_BYTES };
+  artifactComplete = { js: false, data: false, wasm: false };
 }
 
-function updateArtifactProgress(kind, loadedBytes, totalBytes = artifactTotals[kind], message = '') {
+function updateArtifactProgress(kind, loadedBytes, { complete = false, message = '' } = {}) {
   if (!(kind in artifactProgress)) return;
-  const total = Math.max(0, Number(totalBytes) || artifactTotals[kind] || 0);
-  const loaded = Math.max(0, Math.min(total || Infinity, Number(loadedBytes) || 0));
-  if (total > 0) artifactTotals[kind] = total;
+  const total = MAPPER_ARTIFACT_BYTES[kind];
+  const loaded = Math.max(
+    artifactProgress[kind],
+    Math.min(total, Math.max(0, Number(loadedBytes) || 0)),
+  );
   artifactProgress[kind] = loaded;
+  if (complete) artifactComplete[kind] = true;
   moduleProgressHeartbeat?.();
   setStatus({
     phase: 'loading',
     loadedBytes: Object.values(artifactProgress).reduce((sum, value) => sum + value, 0),
-    totalBytes: Object.values(artifactTotals).reduce((sum, value) => sum + value, 0),
+    totalBytes: MAPPER_BUNDLE_TOTAL_BYTES,
+    downloadComplete: Object.values(artifactComplete).every(Boolean),
     ...(message ? { message } : {}),
   });
+}
+
+function assertArtifactSize(kind, receivedBytes) {
+  const expectedBytes = MAPPER_ARTIFACT_BYTES[kind];
+  if (receivedBytes !== expectedBytes) {
+    throw new Error(
+      `Mapper ${kind} size mismatch: received ${receivedBytes} bytes, expected ${expectedBytes}.`,
+    );
+  }
 }
 
 function fallbackClipboardPermissionStatus() {
@@ -123,7 +137,11 @@ function handleRuntimeStatus(message) {
   const text = String(message || '');
   const byteProgress = text.match(/Downloading data\.\.\. \((\d+)\/(\d+)\)/i);
   if (byteProgress) {
-    updateArtifactProgress('data', Number(byteProgress[1]), Number(byteProgress[2]), text);
+    // The bundled package is normally supplied through getPreloadedPackage().
+    // Keep this fallback progress compatible with generated loaders, but never
+    // trust XHR total: Pages reports compressed bytes while XHR exposes decoded
+    // loaded bytes.
+    updateArtifactProgress('data', Number(byteProgress[1]), { message: text });
     return;
   }
   if (text) setStatus({ message: text });
@@ -180,60 +198,105 @@ async function probeModuleResource() {
   }
 }
 
-async function fetchWasmBinaryWithProgress() {
-  const url = mapperResourceUrl('mapper-converter.wasm');
-  const response = await fetch(url, { credentials: 'same-origin' });
+async function fetchArtifactResponse(kind, signal) {
+  const url = mapperResourceUrl(`mapper-converter.${kind}`);
+  const response = await fetch(url, { credentials: 'same-origin', signal });
   if (!response.ok) {
-    throw new Error(`Could not download Mapper WASM: ${response.status}`);
+    throw new Error(`Could not download Mapper ${kind}: ${response.status}`);
   }
+  return response;
+}
 
-  const declaredTotal = Number(response.headers.get('content-length')) || MAPPER_ARTIFACT_BYTES.wasm;
+async function readArtifactResponse(kind, response) {
+  const expectedBytes = MAPPER_ARTIFACT_BYTES[kind];
   if (!response.body?.getReader) {
     const buffer = await response.arrayBuffer();
-    updateArtifactProgress('wasm', buffer.byteLength, buffer.byteLength,
-      'Downloaded Mapper WebAssembly; compiling…');
+    assertArtifactSize(kind, buffer.byteLength);
+    updateArtifactProgress(kind, buffer.byteLength, {
+      complete: true,
+      message: `Downloaded Mapper ${kind}.`,
+    });
     return buffer;
   }
 
   const reader = response.body.getReader();
-  const chunks = [];
+  const bytes = new Uint8Array(expectedBytes);
   let received = 0;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     if (!value?.byteLength) continue;
-    chunks.push(value);
+    if (received + value.byteLength > expectedBytes) {
+      throw new Error(`Mapper ${kind} download exceeded the expected artifact size.`);
+    }
+    bytes.set(value, received);
     received += value.byteLength;
-    updateArtifactProgress('wasm', received, Math.max(declaredTotal, received),
-      `Downloading Mapper WebAssembly… (${received}/${Math.max(declaredTotal, received)})`);
+    updateArtifactProgress(kind, received, {
+      message: `Downloading Mapper ${kind}… (${received}/${expectedBytes})`,
+    });
   }
 
-  const bytes = new Uint8Array(received);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  updateArtifactProgress('wasm', received, received, 'Downloaded Mapper WebAssembly; compiling…');
+  assertArtifactSize(kind, received);
+  updateArtifactProgress(kind, received, {
+    complete: true,
+    message: `Downloaded Mapper ${kind}.`,
+  });
   return bytes.buffer;
 }
 
-async function createModule() {
-  installClipboardPermissionQueryGuard();
-  const imported = await import(MODULE_URL.href);
-  updateArtifactProgress('js', MAPPER_ARTIFACT_BYTES.js, MAPPER_ARTIFACT_BYTES.js,
-    'Loaded Mapper JavaScript; downloading runtime data…');
-  const factory = imported.default;
-  if (typeof factory !== 'function') {
-    throw new Error('Invalid OpenOrienteering Mapper WASM module factory.');
+async function fetchDataBinaryWithProgress(signal) {
+  const response = await fetchArtifactResponse('data', signal);
+  return readArtifactResponse('data', response);
+}
+
+async function compileWasmWithProgress(signal) {
+  const response = await fetchArtifactResponse('wasm', signal);
+  const expectedBytes = MAPPER_ARTIFACT_BYTES.wasm;
+
+  if (response.body && typeof TransformStream === 'function') {
+    let received = 0;
+    const progressStream = response.body.pipeThrough(new TransformStream({
+      transform(chunk, controller) {
+        if (received + chunk.byteLength > expectedBytes) {
+          throw new Error('Mapper wasm download exceeded the expected artifact size.');
+        }
+        received += chunk.byteLength;
+        updateArtifactProgress('wasm', received, {
+          message: `Downloading Mapper WebAssembly… (${received}/${expectedBytes})`,
+        });
+        controller.enqueue(chunk);
+      },
+      flush() {
+        assertArtifactSize('wasm', received);
+        updateArtifactProgress('wasm', received, {
+          complete: true,
+          message: 'Downloaded Mapper WebAssembly; compiling…',
+        });
+      },
+    }));
+    const trackedResponse = new Response(progressStream, {
+      headers: { 'Content-Type': 'application/wasm' },
+    });
+    if (typeof WebAssembly.compileStreaming === 'function') {
+      return WebAssembly.compileStreaming(trackedResponse);
+    }
+    const binary = await trackedResponse.arrayBuffer();
+    return WebAssembly.compile(binary);
   }
 
+  const binary = await readArtifactResponse('wasm', response);
+  return WebAssembly.compile(binary);
+}
+
+function createModule() {
+  installClipboardPermissionQueryGuard();
   const canvas = ensureQtCanvas();
   const previousGlobalModule = globalThis.Module;
-
+  const abortController = new AbortController();
   return new Promise((resolve, reject) => {
     let settled = false;
     let timeout = 0;
+    let config = null;
     const armStallTimeout = () => {
       clearTimeout(timeout);
       timeout = setTimeout(() => {
@@ -246,6 +309,7 @@ async function createModule() {
       clearTimeout(timeout);
       moduleProgressHeartbeat = null;
       if (error) {
+        abortController.abort();
         if (globalThis.Module === config) {
           if (previousGlobalModule === undefined) delete globalThis.Module;
           else globalThis.Module = previousGlobalModule;
@@ -256,52 +320,83 @@ async function createModule() {
       resolve(module);
     };
 
-    const config = {
-      canvas,
-      qtCanvasElements: [canvas],
-      setStatus: handleRuntimeStatus,
-      locateFile(path) {
-        return mapperResourceUrl(path).href;
-      },
-      instantiateWasm(imports, receiveInstance) {
-        void fetchWasmBinaryWithProgress()
-          .then(binary => WebAssembly.instantiate(binary, imports))
-          .then(result => receiveInstance(result.instance, result.module))
-          .catch(error => finish(error instanceof Error ? error : new Error(String(error))));
-        return {};
-      },
-      onAbort(reason) {
-        finish(new Error(`Mapper WASM aborted: ${reason || 'unknown reason'}`));
-      },
-      quit(exitCode, exception) {
-        finish(exception instanceof Error
-          ? exception
-          : new Error(`Mapper WASM exited with status ${exitCode}.`));
-      },
-      onRuntimeInitialized() {
-        // Emscripten 1.39.8 exposes Module as a thenable. Resolving a Promise
-        // with it recursively assimilates the same object, so remove it first.
-        delete config.then;
-        // Qt 5.15's wasm platform code resolves helpers through global Module.
-        globalThis.Module = config;
-        // main() runs immediately after this hook. Resolve one microtask later
-        // so a Qt startup failure is reported before the bridge is exposed.
-        queueMicrotask(() => finish(null, config));
-      },
-    };
-
-    globalThis.Module = config;
     moduleProgressHeartbeat = armStallTimeout;
     armStallTimeout();
 
-    try {
+    void (async () => {
+      // Start the three deploy artifacts together. Data is streamed directly
+      // into its final ArrayBuffer, while WASM download and compilation overlap.
+      let [imported, dataBinary, compiledWasm] = await Promise.all([
+        import(MODULE_URL.href).then((module) => {
+          updateArtifactProgress('js', MAPPER_ARTIFACT_BYTES.js, {
+            complete: true,
+            message: 'Loaded Mapper JavaScript.',
+          });
+          return module;
+        }),
+        fetchDataBinaryWithProgress(abortController.signal),
+        compileWasmWithProgress(abortController.signal),
+      ]);
+      if (settled) return;
+
+      const factory = imported.default;
+      imported = null;
+      if (typeof factory !== 'function') {
+        throw new Error('Invalid OpenOrienteering Mapper WASM module factory.');
+      }
+
+      config = {
+        canvas,
+        qtCanvasElements: [canvas],
+        setStatus: handleRuntimeStatus,
+        locateFile(path) {
+          return mapperResourceUrl(path).href;
+        },
+        getPreloadedPackage(_packageName, packageSize) {
+          if (!dataBinary) return null;
+          if (Number(packageSize) && Number(packageSize) !== dataBinary.byteLength) {
+            throw new Error('Mapper data package metadata does not match the downloaded artifact.');
+          }
+          const result = dataBinary;
+          dataBinary = null;
+          return result;
+        },
+        instantiateWasm(imports, receiveInstance) {
+          const wasmModule = compiledWasm;
+          compiledWasm = null;
+          queueMicrotask(() => {
+            void WebAssembly.instantiate(wasmModule, imports)
+              .then(instance => receiveInstance(instance, wasmModule))
+              .catch(error => finish(error instanceof Error ? error : new Error(String(error))));
+          });
+          return {};
+        },
+        onAbort(reason) {
+          finish(new Error(`Mapper WASM aborted: ${reason || 'unknown reason'}`));
+        },
+        quit(exitCode, exception) {
+          finish(exception instanceof Error
+            ? exception
+            : new Error(`Mapper WASM exited with status ${exitCode}.`));
+        },
+        onRuntimeInitialized() {
+          // Emscripten 1.39.8 exposes Module as a thenable. Resolving a Promise
+          // with it recursively assimilates the same object, so remove it first.
+          delete config.then;
+          // Qt 5.15's wasm platform code resolves helpers through global Module.
+          globalThis.Module = config;
+          // main() runs immediately after this hook. Resolve one microtask later
+          // so a Qt startup failure is reported before the bridge is exposed.
+          queueMicrotask(() => finish(null, config));
+        },
+      };
+
+      globalThis.Module = config;
       const createdModule = factory(config);
       if (createdModule !== config) {
-        finish(new Error('Mapper WASM factory returned an unexpected module object.'));
+        throw new Error('Mapper WASM factory returned an unexpected module object.');
       }
-    } catch (error) {
-      finish(error instanceof Error ? error : new Error(String(error)));
-    }
+    })().catch(error => finish(error instanceof Error ? error : new Error(String(error))));
   });
 }
 
@@ -315,6 +410,7 @@ async function loadModule() {
       error: null,
       loadedBytes: 0,
       totalBytes: MAPPER_BUNDLE_TOTAL_BYTES,
+      downloadComplete: false,
       message: 'Loading OpenOrienteering Mapper WebAssembly…',
     });
     modulePromise = createModule()
@@ -329,8 +425,9 @@ async function loadModule() {
           available: true,
           revision,
           error: null,
-          loadedBytes: Object.values(artifactTotals).reduce((sum, value) => sum + value, 0),
-          totalBytes: Object.values(artifactTotals).reduce((sum, value) => sum + value, 0),
+          loadedBytes: MAPPER_BUNDLE_TOTAL_BYTES,
+          totalBytes: MAPPER_BUNDLE_TOTAL_BYTES,
+          downloadComplete: true,
           message: 'OpenOrienteering Mapper WebAssembly is ready.',
         });
         return module;

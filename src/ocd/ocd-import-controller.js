@@ -4,12 +4,12 @@ import {
   status as officialMapperStatus,
   subscribe as subscribeOfficialMapperStatus,
   MAPPER_BUNDLE_TOTAL_BYTES,
-} from './official-mapper-adapter.js?v=20260711-4';
+} from './official-mapper-adapter.js?v=20260712-1';
 
 export const LARGE_OCD_FILE_BYTES = 64 * 1024 * 1024;
 export const MAX_OCD_FILE_BYTES = 512 * 1024 * 1024;
 
-const FALLBACK_WORKER_URL = new URL('../workers/ocd-convert-worker.js?v=20260711-4', import.meta.url);
+const FALLBACK_WORKER_URL = new URL('../workers/ocd-convert-worker.js?v=20260712-1', import.meta.url);
 const WORKER_PRELOAD_TIMEOUT_MS = 30_000;
 const INITIAL_STATE = Object.freeze({
   phase: 'idle',
@@ -19,6 +19,7 @@ const INITIAL_STATE = Object.freeze({
   totalBytes: 0,
   engineLoadedBytes: 0,
   engineTotalBytes: MAPPER_BUNDLE_TOTAL_BYTES,
+  engineDownloadComplete: false,
   currentFileName: null,
   large: false,
   operation: null,
@@ -234,6 +235,7 @@ class OcadImportController {
       message: '正在加载 OCAD 转换组件…',
       engineLoadedBytes: 0,
       engineTotalBytes: MAPPER_BUNDLE_TOTAL_BYTES,
+      engineDownloadComplete: false,
       ...(preserveFileContext ? {} : {
         loadedBytes: 0,
         totalBytes: 0,
@@ -251,6 +253,7 @@ class OcadImportController {
         totalBytes,
         engineLoadedBytes: loadedBytes,
         engineTotalBytes: totalBytes || MAPPER_BUNDLE_TOTAL_BYTES,
+        engineDownloadComplete: mapperState.downloadComplete === true,
         message: totalBytes > 0
           ? `正在下载 OCAD 转换数据… ${formatMiB(loadedBytes)} / ${formatMiB(totalBytes)}`
           : '正在加载 OCAD 转换组件…',
@@ -271,6 +274,7 @@ class OcadImportController {
           operation: null,
           engineLoadedBytes: this._officialAvailable ? Number(mapperState.loadedBytes) || 0 : 0,
           engineTotalBytes: this._officialAvailable ? Number(mapperState.totalBytes) || MAPPER_BUNDLE_TOTAL_BYTES : 0,
+          engineDownloadComplete: this._officialAvailable ? mapperState.downloadComplete === true : true,
           message: this._officialAvailable
             ? 'OCAD 转换组件已就绪。'
             : '官方转换组件不可用，将使用 JavaScript 兼容模式。',
@@ -287,6 +291,7 @@ class OcadImportController {
           message: 'OCAD 转换组件加载失败，请刷新后重试。',
           engineLoadedBytes: Number(officialMapperStatus().loadedBytes) || 0,
           engineTotalBytes: Number(officialMapperStatus().totalBytes) || MAPPER_BUNDLE_TOTAL_BYTES,
+          engineDownloadComplete: officialMapperStatus().downloadComplete === true,
         });
         throw error;
       } finally {

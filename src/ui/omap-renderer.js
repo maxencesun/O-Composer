@@ -1140,9 +1140,11 @@ function lineSymbolPositions(line, part, closed) {
     // objects whose symbol has no actual dash pattern.  That means cliff tags,
     // fence ticks, hatch marks, and other non-dashed mid symbols should be
     // split at those nodes, but their first/last spacing must NOT be halved.
-    // Dash points keep the half-endpoint behavior only when the line symbol
-    // has real dashes (main line or dashed borders/double lines).
-    dashPointsAffectEndpoints: lineHasAnyDashes(line)
+    // Dash points keep the half-endpoint behavior when the line symbol has
+    // real dashes (main line or dashed borders/double lines). With zero end
+    // length Mapper also lays out the two sides of an explicit dash point as
+    // half endpoint segments; an ordinary split puts both glyphs on the point.
+    dashPointsAffectEndpoints: lineHasAnyDashes(line) || Math.max(0, line.endLength || 0) === 0
   });
   for (const group of groups) {
     const deltas = openMapperMidSymbolGapCenterDeltas(line, group.length, group.firstAtDash, group.lastAtDash);

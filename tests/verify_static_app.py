@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def main() -> None:
     run_build_validations()
     verify_app_files()
+    verify_ocd_import_support()
     verify_sample_event_shape()
     verify_samples_are_local()
     verify_parser_coverage()
@@ -50,11 +51,22 @@ def verify_app_files() -> None:
     assert (ROOT / "tests" / "omap-renderer-smoke.js").exists()
     assert (ROOT / "assets" / "iscd-symbols.xml").exists()
 
+    app_shell_entry = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
     imported = [
         specifier.split("?", 1)[0]
-        for specifier in re.findall(r"from\s+[\"']([^\"']+)[\"']", (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8"))
+        for specifier in re.findall(r"from\s+[\"']([^\"']+)[\"']", app_shell_entry)
     ]
-    app_shell = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
+    # The application shell and map view are intentionally split into focused
+    # method modules. Static feature checks must inspect the component as a
+    # whole instead of assuming every template/method remains in the entry file.
+    app_shell = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "src" / "ui").glob("app-shell*.js"))
+    )
+    map_view = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "src" / "ui").glob("map-view*.js"))
+    )
     styles = (ROOT / "styles.css").read_text(encoding="utf-8")
     assert "../domain/ppen-parser.js" in imported
     assert "../domain/omap-parser.js" in imported
@@ -65,7 +77,7 @@ def verify_app_files() -> None:
     assert "./i18n.js" in imported
     assert "./map-view.js" in imported
     assert "controlKindLabel" in app_shell
-    for token in ["commandDialog", "openCommandDialog", "moveCourseOrderDraft", "enablePanelDrag", "startPanelDrag", "TEXT_PRESETS", "MAP_SCALES", "DESCRIPTION_LANGUAGES"]:
+    for token in ["commandDialog", "openCommandDialog", "moveCourseOrderDraft", "enablePanelDrag", "startPanelDrag", "TEXT_PRESETS", "MAP_SCALES", "syncDescriptionLanguageWithApp"]:
         assert token in app_shell, f"missing command palette UI: {token}"
     control_descriptions = (ROOT / "src" / "domain" / "control-descriptions.js").read_text(encoding="utf-8")
     course_service = (ROOT / "src" / "domain" / "course-service.js").read_text(encoding="utf-8")
@@ -95,27 +107,29 @@ def verify_app_files() -> None:
     for token in ["backgroundCalibrationAnchorCenter", "resetBackgroundCalibrationBase(ui.background)", "applyBackgroundCalibration(ui.background, backgroundAspect(ui.background))", "background.centerX"]:
         assert token in app_shell, f"missing anchored background calibration support: {token}"
     for token in ["mapCourseDisplayOptions", "variationForCode", "relayVariationForLeg"]:
-        assert token in (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8"), f"map rendering should honor selected relay variation: {token}"
+        assert token in map_view, f"map rendering should honor selected relay variation: {token}"
     for token in ["allCourseVariations", "CourseVariationId", "variationChoices"]:
         assert token in exporters, f"IOF export should expand courses with variations: {token}"
     for token in ['description: "2024"', 'const DESCRIPTION_STANDARD = "2024"', "symbolInDescriptionStandard", 'standard === "2024" && symbolInStandard(symbol, "2018")', "normalizeDescriptionStandard"]:
         assert token in app_shell + control_descriptions + ppen_parser + event_model, f"missing ISCD 2024 standard support: {token}"
     assert "std-desc-2024" in app_shell
-    assert "Description Standard 2024" in app_shell
+    assert "Description Standard 2024" in app_shell + (ROOT / "src" / "ui" / "i18n.js").read_text(encoding="utf-8")
     assert "std-desc-2018" not in app_shell
     assert "Description Standard 2018" not in app_shell
     i18n = (ROOT / "src" / "ui" / "i18n.js").read_text(encoding="utf-8")
     for token in ["SUPPORTED_LANGUAGES", "setLanguage", "getLanguage", "t(", "oComposerLanguage", "中文", "All Controls", "所有检查点", "Description Standard 2024"]:
         assert token in i18n, f"missing multilingual support: {token}"
-    for token in ["appLanguage", "this.t(", "SUPPORTED_LANGUAGES", "setLanguage(event.target.value)", "window.location.reload()"]:
+    for token in ["appLanguage", "this.t(", "SUPPORTED_LANGUAGES", "applyApplicationLanguage(event.target.value)", "forceWholePageLanguageReload"]:
         assert token in app_shell, f"missing app i18n hook: {token}"
-    assert 'const APP_VERSION = "0.0.0"' in app_shell, "app version should be centrally maintained as x.x.x starting at 0.0.0"
-    assert re.search(r'const APP_VERSION = "\d+\.\d+\.\d+"', app_shell), "app version must be three numeric levels"
+    app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
+    assert 'export const APP_VERSION = "0.0.2"' in app_config, "app version should be centrally maintained at 0.0.2"
+    assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
+    assert 'export const APP_CACHE_VERSION = "20260711-3"' in app_config, "resource cache version should be bumped with the OCD import release"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
     for token in ["feedback-link", "https://365.kdocs.cn/l/cmBYi18akxdM", "Feedback", "反馈通道"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing feedback channel next to app branding: {token}"
-    assert "prompt(" not in app_shell, "browser prompt dialogs should not be used"
+    assert "prompt(" not in app_shell_entry, "the app entry module should not use browser prompt dialogs"
     assert (ROOT / "src" / "state" / "cookie-cache.js").exists()
     cookie_cache = (ROOT / "src" / "state" / "cookie-cache.js").read_text(encoding="utf-8")
     for token in ["oComposerCookieConsent", "oComposerSessionCache", "saveCachedSession", "loadCachedSession", "indexedDB", "oComposerWebCache", "idbPut", "idbGet"]:
@@ -126,7 +140,7 @@ def verify_app_files() -> None:
     for token in ["cookieBanner", "data-cookie-accept", "Accept cookies", "restoreCachedSession", "scheduleSessionCache"]:
         assert token in app_shell, f"missing cookie consent/cache UI: {token}"
     for token in ["addExistingControlToCourse", "onAddExistingControlToCourse", "drawAddableControls", "addableControlsForTool", "insertionCourseControlId", "snappedControlForPlacement", "CONTROL_SNAP_SCREEN_RADIUS", "ADDABLE_CONTROL_SNAP_PIXELS", "Snapped to existing control."]:
-        assert token in app_shell + (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8") + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing add existing control flow: {token}"
+        assert token in app_shell + map_view + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing add existing control flow: {token}"
     assert "controlsUsedByCourse(state.eventModel, selectedCourseId).has" in app_shell, "snapping must avoid adding duplicate controls already in the selected course"
     for field in ["eventTitleChoice", "mapScaleChoice", "addCourseName", "duplicateCourseName", "courseLoadChoice", "textSpecialPreset"]:
         assert f'<input id="{field}"' in app_shell, f"{field} should allow typed input"
@@ -136,17 +150,16 @@ def verify_app_files() -> None:
     assert "print-courses" not in app_shell
     assert "print-descriptions" not in app_shell
     assert "@media print" not in (ROOT / "styles.css").read_text(encoding="utf-8")
-    for token in ["export-pdf", "exportPdf", "createVectorMapPdfBlob", "createRasterMapPdfBlob", "renderAreaToContext", "3 mm"]:
+    for token in ["export-pdf", "exportPdf", "createVectorMapPdfBlob", "createPdfBlobForTarget", "renderAreaToContext", "3 mm"]:
         assert token in app_shell + (ROOT / "src" / "domain" / "pdf-exporter.js").read_text(encoding="utf-8"), f"missing PDF export support: {token}"
     pdf_exporter = (ROOT / "src" / "domain" / "pdf-exporter.js").read_text(encoding="utf-8")
     for font in ["Roboto.ttf", "Roboto-Bold.ttf", "Roboto-Italic.ttf", "RobotoCondensed.ttf", "RobotoCondensed-Bold.ttf", "Heiti.ttf"]:
         path = ROOT / "assets" / "fonts" / font
         assert path.exists() and path.stat().st_size > 100_000, f"missing embedded PDF font asset: {font}"
     assert (ROOT / "assets" / "fonts" / "LICENSE-Heiti.txt").exists(), "missing Heiti font license"
-    for token in ["PDF_FONT_SOURCES", "FontFile2", "/Subtype /TrueType", "parseTrueTypeFont", "Roboto-Bold.ttf", "RobotoCondensed-Bold.ttf", "roboto-condensed-bold", "Heiti.ttf", "heiti-bold", "Heiti-Bold", "/Subtype /Type0", "/Identity-H", "CIDToGIDMap", "parseCmapFormat12", "requiresUnicodeFont", "pdfTextHex"]:
+    for token in ["PDF_FONT_SOURCES", "FontFile2", "/Subtype /TrueType", "parseTrueTypeFont", "Roboto-Bold.ttf", "RobotoCondensed-Bold.ttf", "roboto-condensed-bold", "Heiti.ttf", "heiti-bold", "Heiti-Bold", "/Subtype /Type0", "/Identity-H", "CIDToGIDMap", "parseCmapFormat12", "needsUnicodeFont", "pdfTextHex"]:
         assert token in pdf_exporter, f"PDF export should embed project font files: {token}"
     styles = (ROOT / "styles.css").read_text(encoding="utf-8")
-    map_view = (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8")
     for token in [".course-banner-text > *", "text-overflow: ellipsis", ".map-panel {\n  display: grid;\n  grid-template-rows: auto minmax(0, 1fr);\n  min-width: 0;\n  min-height: 0;\n  overflow: hidden;"]:
         assert token in styles, f"long event/course names must not stretch the map panel over the selection panel: {token}"
     assert "flex: 1 1 40%" not in styles and "flex: 1 1 25%" not in styles, "course banner text should not spread into oversized columns"
@@ -173,7 +186,7 @@ def verify_app_files() -> None:
         assert token in styles + app_shell, f"mobile landscape should use left-panel course/panel dropdowns above description/selection: {token}"
     assert "touch-action: pan-y" in styles, "mobile landscape description editing should keep vertical scrolling inside the left description panel"
     assert ".left-panel .panel-heading {\n    display: none;" in styles, "mobile landscape should hide Description/Report segmented buttons when using the panel dropdown"
-    for token in ["--mobile-landscape-height: 100dvh", "--mobile-landscape-height: 100svh", "height: var(--mobile-landscape-height)", "env(safe-area-inset-bottom", "overflow-y: hidden", "min-height: 0", "overflow: hidden", "max-height: 40px", "flex-wrap: nowrap"]:
+    for token in ["--mobile-landscape-height: 100dvh", "--mobile-landscape-height: 100svh", "height: var(--mobile-landscape-height)", "env(safe-area-inset-bottom", "overflow-y: hidden", "min-height: 0", "overflow: hidden", "max-height: 30px", "flex-wrap: nowrap"]:
         assert token in styles, f"mobile landscape should keep the page fixed while internal panels scroll: {token}"
     for token in ["width: min(360px, calc(100dvw - 24px))", "grid-template-columns: repeat(5, 30px)", ".iscd-picker-option,\n  .iscd-picker-canvas", "minmax(18px, 1fr)", "height: 18px"]:
         assert token in styles, f"mobile pop-up palettes should be compact enough for phones: {token}"
@@ -212,12 +225,12 @@ def verify_app_files() -> None:
     assert "黑体" in control_descriptions, "canvas descriptions should use Heiti fallback for Chinese"
     for token in ["hasCjkText", "cjkBoldFont", '700 ${size} "黑体"']:
         assert token in control_descriptions, f"Chinese description text should render as bold Heiti-style text on canvas: {token}"
-    for token in ["syntheticBold", "2 Tr", "0 Tr"]:
+    for token in ["syntheticBold", "desiredMode = run.font.syntheticBold ? 2 : 0", "${desiredMode} Tr", "0 Tr"]:
         assert token in pdf_exporter, f"Chinese PDF text should render bold with the embedded CJK font: {token}"
     for token in ["refreshAfterFontLoad", "document.fonts.ready"]:
         assert token in app_shell, f"canvas descriptions should redraw after project fonts load: {token}"
-    for token in ["hasRasterMap", "hasBitmapBackground", "includePageBackground: false", "/DCTDecode"]:
-        assert token in app_shell + (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8") + pdf_exporter, f"non-OMAP bitmap PDF export should rasterize without the default page background: {token}"
+    for token in ["bitmapBackground", "hasBitmapBackground", "includePageBackground: false", "/DCTDecode"]:
+        assert token in app_shell + map_view + pdf_exporter, f"non-OMAP bitmap PDF export should rasterize without the default page background: {token}"
     assert app_shell.count("includePageBackground: false") >= 2, "both raster and vector PDF export paths should omit the default beige page background"
     assert "PdfCanvasContext" in pdf_exporter
     for token in ["bezierCurveTo", "ellipse", "measureText", "clip", "fillText"]:
@@ -238,7 +251,7 @@ def verify_app_files() -> None:
     for token in ["scoreCourseDescriptionRows", "compareScoreDescriptionRows", "normal: 2", "finish: 5"]:
         assert token in app_shell + control_descriptions, f"score course descriptions should sort by control code: {token}"
     assert "number_points" not in control_descriptions, "score course description header should show control count, not points total"
-    for token in ['box === "H"', 'scoreDescriptionCell(row)', 'data-field="courseControl.points"', 'class="points-input"', "row.HScore !== undefined", "fitSingleLineText(ctx, row.HScore", 'scoreColumn: kind === "score" ? 7 : -1', 'row.course?.kind === "score" ? ""']:
+    for token in ['box === "H"', 'scoreDescriptionCell(row)', 'data-field="courseControl.points"', 'class="points-input"', "row.HScore !== undefined", "fitSingleLineText(ctx, row.HScore", 'scoreColumn: kind === "score" ? 7 : -1', 'row.course?.kind === "score" || isTeamFreeCourseControl']:
         assert token in app_shell + control_descriptions + event_model, f"score course descriptions should use the H column for points: {token}"
     assert 'event.target.closest("[data-field=\'courseControl.points\']")' in app_shell, "clicking score points input should not re-render and steal focus"
     assert '<th>${escapeHtml(this.t("Points"))}</th>' not in app_shell, "score points should not add an extra description-table column"
@@ -263,6 +276,57 @@ def verify_app_files() -> None:
         assert token in app_shell, f"missing finish-route description setting: {token}"
     assert '#selectionPanel").addEventListener("input"' not in app_shell, "selection panel fields should not re-render on every keystroke"
     assert "tool-icon" in (ROOT / "styles.css").read_text(encoding="utf-8")
+
+
+def verify_ocd_import_support() -> None:
+    source_paths = [
+        ROOT / "src" / "ocd" / "ocd-import-controller.js",
+        ROOT / "src" / "ocd" / "official-mapper-adapter.js",
+        ROOT / "src" / "ocd" / "ocd2omap.js",
+        ROOT / "src" / "workers" / "ocd-convert-worker.js",
+    ]
+    for path in source_paths:
+        assert path.exists(), f"missing OCD browser import component: {path.relative_to(ROOT)}"
+        assert path.stat().st_size > 500, f"OCD browser import component looks incomplete: {path.relative_to(ROOT)}"
+
+    ocd_ui = "\n".join(
+        (ROOT / "src" / "ui" / name).read_text(encoding="utf-8")
+        for name in [
+            "app-shell.js",
+            "app-shell-command-methods.js",
+            "app-shell-map-import-methods.js",
+            "app-shell-menu-methods.js",
+            "app-shell-template-methods.js",
+        ]
+    )
+    for token in ["ocdInput", "ocd-import", "Import OCAD Map", "requestOcadImport", "openOcadFile", "ocadImportController"]:
+        assert token in ocd_ui, f"missing OCAD import UI entry point: {token}"
+
+    controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "ocd-convert-worker.js?v=20260711-3"]:
+        assert token in controller, f"missing OCAD import controller API: {token}"
+
+    map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")
+    map_view = (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8")
+    app_shell = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
+    file_export = (ROOT / "src" / "ui" / "app-shell-file-export-methods.js").read_text(encoding="utf-8")
+    for token in ["mapImportJob", "waitForOmapReady", "Previous map restored after import failure.", "sessionCacheable", "Official Mapper WASM", "JavaScript compatibility mode"]:
+        assert token in map_import + map_view, f"missing guarded OCAD/OMAP import behavior: {token}"
+    assert "cacheOmap && !hasOmapSource" in app_shell, "session cache should not retain source XML and a second parsed map"
+    assert "omapSourceText ? null" in file_export, "OCP save should not embed source XML and a second parsed map"
+
+    engine_paths = {
+        "mapper-converter.js": 100_000,
+        "mapper-converter.wasm": 5_000_000,
+        "mapper-converter.data": 5_000_000,
+    }
+    engine_dir = ROOT / "assets" / "mapper-wasm"
+    for name, minimum_size in engine_paths.items():
+        path = engine_dir / name
+        assert path.exists(), f"missing bundled Mapper WebAssembly asset: assets/mapper-wasm/{name}"
+        assert path.stat().st_size > minimum_size, f"bundled Mapper WebAssembly asset looks truncated: assets/mapper-wasm/{name}"
+    engine_size = sum((engine_dir / name).stat().st_size for name in engine_paths)
+    assert 20 * 1024 * 1024 < engine_size < 40 * 1024 * 1024, "bundled Mapper WebAssembly engine should be approximately 26 MiB"
 
 
 def verify_sample_event_shape() -> None:
@@ -307,8 +371,14 @@ def verify_parser_coverage() -> None:
 
 
 def verify_omap_support() -> None:
-    app_shell = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
-    map_view = (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8")
+    app_shell = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "src" / "ui").glob("app-shell*.js"))
+    )
+    map_view = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((ROOT / "src" / "ui").glob("map-view*.js"))
+    )
     print_area = (ROOT / "src" / "domain" / "print-area.js").read_text(encoding="utf-8")
     course_symbols = (ROOT / "src" / "ui" / "course-symbols.js").read_text(encoding="utf-8")
     ppen_parser = (ROOT / "src" / "domain" / "ppen-parser.js").read_text(encoding="utf-8")
@@ -345,7 +415,7 @@ def verify_omap_support() -> None:
     assert "pixelsPerMapMm * mapScale / 1000 * courseObjRatio" in course_symbols, "course symbols must convert paper millimeters through print/map scale before drawing"
     for token in ["descriptionCellSizeMap", "paperMmToMapUnits", "/ 1000 * Math.max"]:
         assert token in control_descriptions, f"description tables must convert paper millimeters through print scale: {token}"
-    for token in ["rgba(166, 38, 255", "COURSE_PURPLE_ALPHA", "ALL_CONTROLS_PURPLE_ALPHA"]:
+    for token in ["rgba(166, 38, 255", "COURSE_PURPLE_ALPHA"]:
         assert token in course_symbols + map_view, f"course symbols should use transparent course purple: {token}"
     actions = (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8")
     for token in ["positiveMapScale", "course.options.printScale = positiveMapScale(eventModel)"]:
@@ -414,7 +484,7 @@ def verify_omap_support() -> None:
         assert token in renderer, f"missing OMAP renderer support for {token}"
     for token in ["OffscreenCanvas", "transferToImageBitmap", "drawOmapMap", "mapBounds"]:
         assert token in worker, f"missing OMAP worker support for {token}"
-    for token in ["CURVE_START", "CLOSE_POINT", "bezierCurveTo", "HOLE_POINT", "DASH_POINT", "midSymbolGroups"]:
+    for token in ["CURVE_START", "CLOSE_POINT", "bezierCurveTo", "HOLE_POINT", "DASH_POINT", "addMidSymbolGroupPositions"]:
         assert token in renderer, f"missing OMAP path flag support for {token}"
     assert "y: -" in parser, "OMAP parser must convert native positive-south Y to app positive-north Y"
     for token in ["drawLineSpecial", "drawRectSpecial", "drawTextSpecial", "specialShapeForDrag", "specialLineWidth", "SPECIAL_COLORS", "isCssColorValue"]:
@@ -430,7 +500,7 @@ def verify_omap_support() -> None:
     assert 'data-field="special.kind"' not in app_shell, "special objects must not expose type conversion in the selection panel"
     assert 'data-field="special.font.name" value=' not in app_shell, "font selection must use a list, not a free-text field"
     assert "for (const special of eventModel.specials)" not in map_view[map_view.find("drawSpecialHandles"):map_view.find("drawMovePreview")], "special handles should only render for the selected object"
-    assert "specialSelectionPoints(moved, ui, this.scale(ui))" in map_view, "dragging text must preview the measured text bounding box"
+    assert "specialSelectionPoints(moved, ui, this.scale(ui), eventModel)" in map_view, "dragging text must preview the measured text bounding box"
     assert ": moved.locations;" not in map_view[map_view.find("drawMovePreview"):map_view.find("drawResizePreview")], "special move preview must not use raw locations for text bounds"
     assert "y: points[0].y," in map_view, "text rendering must align to the same top-left anchor as text hit/selection bounds"
     assert "y: points[0].y - Math.max(TEXT_MIN_HEIGHT_PX" not in map_view, "text drawing must not offset above its selection box"

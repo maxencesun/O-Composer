@@ -87,7 +87,9 @@ export function createAppShellSelectionEditorMethods(deps) {
     relayAssignments,
     relayBranchAllowedLegs,
     relayBranchDisplayLegs,
+    relayBranchEffectiveLegs,
     relayBranchRestrictionIssues,
+    relayBranchParentAllowedLegs,
     relayEntryLabel,
     relayLegName,
     relayTeamSizeOptions,
@@ -617,9 +619,9 @@ export function createAppShellSelectionEditorMethods(deps) {
     const issues = relayBranchRestrictionIssues(groups, course.relay?.branches || []);
     const rows = groups.map(group => {
       const branchRows = (group.codes || []).map(code => {
-        const allowedLegs = new Set(relayBranchDisplayLegs(course.relay?.branches || [], code, legs));
-        const checks = Array.from({ length: legs }, (_, index) => {
-          const leg = index + 1;
+        const availableLegs = relayBranchParentAllowedLegs(groups, course.relay?.branches || [], code, legs);
+        const allowedLegs = new Set(relayBranchEffectiveLegs(groups, course.relay?.branches || [], code, legs));
+        const checks = availableLegs.map(leg => {
           return `
             <label class="check">
               <input data-relay-branch="${escapeAttr(code)}" type="checkbox" value="${leg}" ${allowedLegs.has(leg) ? "checked" : ""}>

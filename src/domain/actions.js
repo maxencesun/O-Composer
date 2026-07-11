@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260711-1";
-import { cloneDeep } from "./clone.js?v=20260711-1";
+} from "./event-model.js?v=20260711-3";
+import { cloneDeep } from "./clone.js?v=20260711-3";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260711-1";
+} from "./course-service.js?v=20260711-3";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -38,6 +38,7 @@ export function addControlAt(eventModel, kind, location, selectedCourseId = null
       mapFlip: !!options.mapFlip,
       afterCourseControl: coursePlacement ? null : options.afterCourseControl,
       beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
+      variationEndOwnerCourseControl: coursePlacement ? null : options.variationEndOwnerCourseControl,
       fromCourseControl: coursePlacement ? null : options.fromCourseControl,
       toCourseControl: coursePlacement ? null : options.toCourseControl,
       placement: coursePlacement,
@@ -58,6 +59,7 @@ export function addExistingControlToCourse(eventModel, courseId, controlId, opti
   const courseControl = appendControlToCourse(eventModel, Number(courseId), Number(controlId), {
     afterCourseControl: coursePlacement ? null : options.afterCourseControl,
     beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
+    variationEndOwnerCourseControl: coursePlacement ? null : options.variationEndOwnerCourseControl,
     fromCourseControl: coursePlacement ? null : options.fromCourseControl,
     toCourseControl: coursePlacement ? null : options.toCourseControl,
     placement: coursePlacement,
@@ -185,6 +187,28 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
   const insertBefore = options.beforeCourseControl ? getCourseControl(eventModel, options.beforeCourseControl) : null;
   if (insertBefore && courseContainsCourseControl(eventModel, courseId, insertBefore.id)) {
     newCourseControl.nextCourseControl = insertBefore.id;
+    const scopedVariationOwner = options.variationEndOwnerCourseControl
+      ? getCourseControl(eventModel, options.variationEndOwnerCourseControl)
+      : null;
+    if (scopedVariationOwner?.variation
+      && Number(scopedVariationOwner.variationEnd) === Number(insertBefore.id)
+      && courseContainsCourseControl(eventModel, courseId, scopedVariationOwner.id)) {
+      const scopedIds = new Set();
+      for (const branchId of scopedVariationOwner.variationCourseControls || []) {
+        for (const id of collectBranchCourseControlIds(eventModel, branchId, insertBefore.id)) scopedIds.add(id);
+      }
+      for (const courseControl of eventModel.courseControls) {
+        if (!scopedIds.has(Number(courseControl.id))) continue;
+        if (Number(courseControl.nextCourseControl) === Number(insertBefore.id)) {
+          courseControl.nextCourseControl = newCourseControl.id;
+        }
+        if (courseControl.variation && Number(courseControl.variationEnd) === Number(insertBefore.id)) {
+          courseControl.variationEnd = newCourseControl.id;
+        }
+      }
+      scopedVariationOwner.variationEnd = newCourseControl.id;
+      return newCourseControl;
+    }
     const variationEndOwners = variationOwnersEndingAtCourseControl(eventModel, courseId, insertBefore.id);
     let rewired = false;
     for (const courseControl of eventModel.courseControls) {

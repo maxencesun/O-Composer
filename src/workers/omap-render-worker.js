@@ -1,4 +1,4 @@
-import { drawOmapMap } from "../ui/omap-renderer.js?v=20260711-1";
+import { drawOmapMap } from "../ui/omap-renderer.js?v=20260711-3";
 
 let currentMap = null;
 let currentMapVersion = 0;

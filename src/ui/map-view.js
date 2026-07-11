@@ -7,16 +7,16 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260711-1";
+} from "../domain/course-service.js?v=20260711-3";
 import {
   createDescriptionSpecialOptions,
   descriptionBounds,
   drawControlDescriptionBlock,
   resizedDescriptionSpecial,
   specialVisibleForCourse
-} from "../domain/control-descriptions.js?v=20260711-1";
-import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js?v=20260711-1";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260711-1";
+} from "../domain/control-descriptions.js?v=20260711-3";
+import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js?v=20260711-3";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260711-3";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
@@ -28,15 +28,15 @@ import {
   drawCourseLeg,
   drawPointSpecialSymbol,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260711-1";
-import { drawOmapMap } from "./omap-renderer.js?v=20260711-1";
+} from "./course-symbols.js?v=20260711-3";
+import { drawOmapMap } from "./omap-renderer.js?v=20260711-3";
 import {
   effectiveCanvasPixelRatio,
   effectiveOmapPixelRatio,
   omapPaddingMultiplier,
   renderQualityHighQuality,
   renderQualityImageSmoothingQuality
-} from "./render-quality.js?v=20260711-1";
+} from "./render-quality.js?v=20260711-3";
 
 import {
   ADDABLE_CONTROL_SNAP_PIXELS,
@@ -120,13 +120,13 @@ import {
   specialCategoryForHitTest,
   symbolApparentRadiusControl,
   clamp
-} from "./map-view-helpers.js?v=20260711-1";
-import { createMapViewRenderMethods } from "./map-view-render-methods.js?v=20260711-1";
-import { createMapViewOmapMethods } from "./map-view-omap-methods.js?v=20260711-1";
-import { createMapViewPointerMethods } from "./map-view-pointer-methods.js?v=20260711-1";
-import { createMapViewHitTestMethods } from "./map-view-hit-test-methods.js?v=20260711-1";
-import { createMapViewCoordinateMethods } from "./map-view-coordinate-methods.js?v=20260711-1";
-import { debugLog, installDebugLogDownloadButton } from "./debug-log.js?v=20260711-1";
+} from "./map-view-helpers.js?v=20260711-3";
+import { createMapViewRenderMethods } from "./map-view-render-methods.js?v=20260711-3";
+import { createMapViewOmapMethods } from "./map-view-omap-methods.js?v=20260711-3";
+import { createMapViewPointerMethods } from "./map-view-pointer-methods.js?v=20260711-3";
+import { createMapViewHitTestMethods } from "./map-view-hit-test-methods.js?v=20260711-3";
+import { createMapViewCoordinateMethods } from "./map-view-coordinate-methods.js?v=20260711-3";
+import { debugLog, installDebugLogDownloadButton } from "./debug-log.js?v=20260711-3";
 export class MapView {
   constructor(canvas, store, callbacks = {}) {
     this.canvas = canvas;
@@ -193,12 +193,57 @@ export class MapView {
   }
 
   setOmap(omapMap) {
+    // A render worker owns a structured clone of the complete map. Terminate
+    // it when replacing or clearing a map so a large, stale clone is released
+    // immediately and cannot delay the first render of the next import.
+    if (this.omapWorker) {
+      this.omapWorker.terminate();
+      this.omapWorker = null;
+    }
+    this.omapWorkerBusy = false;
+    this.omapWorkerPendingKey = "";
     this.omapMap = omapMap || null;
     this.omapMapVersion += 1;
     this.omapWorkerMapVersion = 0;
     this.omapWorkerDesired = null;
     this.invalidateOmapLayer();
     this.requestDraw(this.store.snapshot());
+    return this.omapMapVersion;
+  }
+
+  waitForOmapReady(mapVersion = this.omapMapVersion, { timeout = 180000 } = {}) {
+    if (!this.omapMap || mapVersion !== this.omapMapVersion) {
+      return Promise.reject(new Error("The imported map is no longer current."));
+    }
+
+    const startedAt = performance.now();
+    return new Promise((resolve, reject) => {
+      let fallbackFrames = 0;
+      const check = () => {
+        if (!this.omapMap || mapVersion !== this.omapMapVersion) {
+          reject(new Error("The imported map was replaced before rendering finished."));
+          return;
+        }
+        if (this.omapLayerCache.some(layer => layer?.mapVersion === mapVersion)) {
+          resolve({ mapVersion, worker: true });
+          return;
+        }
+
+        const mainThreadRendering = this.omapWorkerDisabled
+          || typeof Worker === "undefined"
+          || typeof OffscreenCanvas === "undefined";
+        if (mainThreadRendering && ++fallbackFrames >= 2) {
+          resolve({ mapVersion, worker: false });
+          return;
+        }
+        if (performance.now() - startedAt >= timeout) {
+          reject(new Error("Timed out while preparing the first map image."));
+          return;
+        }
+        requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    });
   }
 
   fit() {

@@ -23,36 +23,43 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260711-1";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260711-1";
-import { findById } from "../domain/event-model.js?v=20260711-1";
+} from "./app-shell-config.js?v=20260711-3";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260711-3";
+import { findById } from "../domain/event-model.js?v=20260711-3";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260711-1";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260711-1";
+} from "../domain/control-descriptions.js?v=20260711-3";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260711-3";
 import {
   controlKindLabel,
   controlsUsedByCourse,
   courseLegs,
+  courseTopology,
   courseView,
   findLeg,
   getControl,
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260711-1";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260711-1";
-import { t } from "./i18n.js?v=20260711-1";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260711-1";
+} from "../domain/course-service.js?v=20260711-3";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260711-3";
+import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260711-3";
+import { t } from "./i18n.js?v=20260711-3";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260711-3";
+
+export { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap };
 
 export const TOPOLOGY_WIDTH_UNIT = 76;
 
 export const TOPOLOGY_MIN_VERTICAL_SEGMENT = 24;
 
 const TOPOLOGY_NORMAL_CONTROL_RADIUS = 20;
+
+const TOPOLOGY_EMPTY_BRANCH_TAIL_OFFSET = TOPOLOGY_NORMAL_CONTROL_RADIUS * 2
+  + TOPOLOGY_MIN_VERTICAL_SEGMENT / 2;
 
 export const TOPOLOGY_HEIGHT_UNIT = TOPOLOGY_NORMAL_CONTROL_RADIUS * 2 + TOPOLOGY_MIN_VERTICAL_SEGMENT;
 
@@ -123,7 +130,11 @@ export function layoutVariationTopology(topology, branchCodes) {
           const branchStartY = loop ? forkStart[branchIndex].y + 1 : forkStart[branchIndex].y + 0.5;
           assign(legTo[branchIndex], view.joinIndex, forkStart[branchIndex].x, branchStartY);
         }
-        const forkBlockHeight = loop ? maxForkHeight + 2 : maxForkHeight;
+        const sharesEnclosingJoin = !loop
+          && Number.isInteger(endIndex)
+          && endIndex < topology.length
+          && Number(view.joinIndex) === Number(endIndex);
+        const forkBlockHeight = loop ? maxForkHeight + 2 : maxForkHeight + (sharesEnclosingJoin ? 0.5 : 0);
         totalHeight += forkBlockHeight;
         y += forkBlockHeight;
         totalWidth = Math.max(totalWidth, totalForkWidth);
@@ -399,7 +410,7 @@ export function topologyCommonJoinPoint(view, topology, positions, nodeRadius, o
     const startsAtJoin = Number(startIndex) === Number(view.joinIndex);
 
     if (startsAtJoin && forkStart && topologyBranchIsEmpty(view, legIndex)) {
-      tailStartYs.push(forkStart.y);
+      tailStartYs.push(forkStart.y + TOPOLOGY_EMPTY_BRANCH_TAIL_OFFSET);
       continue;
     }
 
@@ -533,6 +544,16 @@ export function insertionBeforeCourseControlId(state) {
     : null;
 }
 
+export function insertionVariationEndOwnerId(state) {
+  const courseId = state.ui.selectedCourseId;
+  const match = String(state.ui.variationSelectedSegment || "").match(/^prejoin:(\d+):/);
+  if (!match || !courseId || courseId === "all") return null;
+  const topology = courseTopology(state.eventModel, courseId);
+  const forkIndex = Number(match[1]);
+  if (!Number.isInteger(forkIndex) || !topologySharedJoinParentMap(topology).has(forkIndex)) return null;
+  return topologyNodeCourseControlId(topology[forkIndex]);
+}
+
 export function selectedLegCourseControlPair(state) {
   const selection = state.ui.selection;
   const courseId = state.ui.selectedCourseId;
@@ -576,6 +597,8 @@ export function variationAnchorCourseControl(eventModel, courseId, ui = {}) {
   const rowCourseControls = new Map(rows.map(row => [Number(row.courseControl?.id), row.courseControl]));
   const anchored = rowCourseControls.get(Number(ui.variationAnchorCourseControl));
   if (anchored && variationAnchorIsUsable(eventModel, anchored)) return anchored;
+  const segmentStart = rowCourseControls.get(Number(ui.variationInsertAfterCourseControl));
+  if (segmentStart && variationAnchorIsUsable(eventModel, segmentStart)) return segmentStart;
   const selection = ui.selection;
   if (selection?.type === "control-number" && selection.courseControl) {
     const candidate = rowCourseControls.get(Number(selection.courseControl)) || null;

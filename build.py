@@ -47,16 +47,27 @@ def validate_imports() -> None:
 
 def validate_cache_versions() -> None:
     config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
-    version_match = re.search(r'APP_CACHE_VERSION\s*=\s*"([^"]+)"', config)
-    if not version_match:
-        raise SystemExit("APP_CACHE_VERSION not found")
-    version = version_match.group(1)
+    code_version_match = re.search(r'APP_CODE_VERSION\s*=\s*"([^"]+)"', config)
+    adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
+    mapper_version_match = re.search(r"MAPPER_ARTIFACT_VERSION\s*=\s*'([^']+)'", adapter)
+    if not code_version_match:
+        raise SystemExit("APP_CODE_VERSION not found")
+    if not mapper_version_match:
+        raise SystemExit("MAPPER_ARTIFACT_VERSION not found")
+    code_version = code_version_match.group(1)
+    mapper_version = mapper_version_match.group(1)
     offenders = []
     for path in [ROOT / "index.html", *list((ROOT / "src").rglob("*.js"))]:
         text = path.read_text(encoding="utf-8")
         for match in re.finditer(r"\?v=([^\"')\s]+)", text):
-            if match.group(1) != version:
-                offenders.append(f"{path.relative_to(ROOT)}: {match.group(0)}")
+            line_start = text.rfind("\n", 0, match.start()) + 1
+            line_end = text.find("\n", match.end())
+            line = text[line_start:line_end if line_end >= 0 else len(text)]
+            expected = mapper_version if "mapper-converter." in line else code_version
+            if match.group(1) != expected:
+                offenders.append(
+                    f"{path.relative_to(ROOT)}: {match.group(0)} (expected {expected})"
+                )
     if offenders:
         raise SystemExit("Cache version mismatch:\n" + "\n".join(offenders))
 

@@ -81,6 +81,7 @@ export function createAppShellCommandMethods(deps) {
     courseSymbolMmToMapDistance,
     allCourseVariations,
     courseHasVariations,
+    normalizeRelayBranchSettings,
     relayAssignments,
     relayBranchAllowedLegs,
     relayBranchDisplayLegs,
@@ -149,6 +150,7 @@ export function createAppShellCommandMethods(deps) {
     formatSvgNumber,
     insertionCourseControlId,
     insertionBeforeCourseControlId,
+    insertionVariationEndOwnerId,
     selectedLegCourseControlPair,
     variationAnchorCourseControl,
     canAddVariationAtCourseControl,
@@ -298,9 +300,16 @@ export function createAppShellCommandMethods(deps) {
         this.querySelector("#mapInput").click();
         break;
       case "omap-import":
-        this.querySelector("#omapInput").click();
+        this.requestOmapImport();
+        break;
+      case "ocd-import":
+        this.requestOcadImport();
         break;
       case "omap-clear":
+        if (this.mapImportJob) {
+          this.showMapImportBusyMessage();
+          break;
+        }
         this.mapView.setOmap(null);
         this.store.updateUi(ui => { ui.omap = null; }, "OMAP map cleared");
         break;
@@ -455,7 +464,7 @@ export function createAppShellCommandMethods(deps) {
         alert(this.t("O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.\n\nLicensed under the GNU AGPLv3.", { version: APP_VERSION }));
         break;
       case "help":
-        alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ocp files, import and export compatible .ppen files, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Native OCAD map rendering, installed-font checks, and Livelox API publishing require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));
+        alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ocp files, import and export compatible .ppen files, convert OCAD maps locally with bundled Mapper WebAssembly, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Installed-font checks and Livelox API publishing still require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));
         break;
       default:
         if (command.startsWith("tool-")) {
@@ -504,6 +513,7 @@ export function createAppShellCommandMethods(deps) {
     const selectedLegCourseControls = selectedLegCourseControlPair(state);
     const afterCourseControl = insertionCourseControlId(state);
     const beforeCourseControl = insertionBeforeCourseControlId(state);
+    const variationEndOwnerCourseControl = insertionVariationEndOwnerId(state);
     if (tool === "background-calibration") {
       this.store.updateUi(ui => {
         if (!ui.background) return;
@@ -557,6 +567,7 @@ export function createAppShellCommandMethods(deps) {
           const selection = addControlAt(model, kind, point, selectedCourseId, {
             afterCourseControl,
             beforeCourseControl,
+            variationEndOwnerCourseControl,
             fromCourseControl: selectedLegCourseControls?.from?.id || null,
             toCourseControl: selectedLegCourseControls?.to?.id || null,
             teamRole: teamAddRole
@@ -622,6 +633,7 @@ export function createAppShellCommandMethods(deps) {
     const selectedLegCourseControls = selectedLegCourseControlPair(state);
     const afterCourseControl = insertionCourseControlId(state);
     const beforeCourseControl = insertionBeforeCourseControlId(state);
+    const variationEndOwnerCourseControl = insertionVariationEndOwnerId(state);
     const course = getCourse(state.eventModel, state.ui.selectedCourseId);
     const control = getControl(state.eventModel, selection.id);
     const teamRole = options.teamRole || (course?.kind === "team" && state.ui.teamAddControlRole === "free" ? "free" : "mandatory");
@@ -639,6 +651,7 @@ export function createAppShellCommandMethods(deps) {
         const nextSelection = addExistingControlToCourse(model, state.ui.selectedCourseId, selection.id, {
           afterCourseControl,
           beforeCourseControl,
+          variationEndOwnerCourseControl,
           fromCourseControl: selectedLegCourseControls?.from?.id || null,
           toCourseControl: selectedLegCourseControls?.to?.id || null,
           teamRole
@@ -920,6 +933,11 @@ export function createAppShellCommandMethods(deps) {
           course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);
           const legs = [...allowed].sort((a, b) => a - b);
           if (legs.length && legs.length < inputs.length) course.relay.branches.push({ branch, legs });
+          course.relay.branches = normalizeRelayBranchSettings(
+            relayAssignments(model, course.id).branchGroups || [],
+            course.relay.branches,
+            course.relay.legs || 1
+          );
         }
         else {
           course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);

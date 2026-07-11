@@ -1488,7 +1488,7 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
 
 .statusbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 180px minmax(180px, auto);
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, auto) 160px minmax(150px, auto);
   gap: 12px;
   align-items: center;
   min-height: 26px;
@@ -1497,6 +1497,30 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 12px;
+}
+
+.map-import-progress {
+  display: inline-grid;
+  grid-template-columns: minmax(72px, 110px) minmax(110px, auto);
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+}
+
+.map-import-progress[hidden] {
+  display: none;
+}
+
+.map-import-progress progress {
+  width: 100%;
+  height: 8px;
+  accent-color: #a626ff;
+}
+
+.map-import-progress span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #dirtyText {

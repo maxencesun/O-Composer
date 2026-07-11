@@ -823,7 +823,10 @@ export function createAppShellTemplateMethods(deps) {
       <div class="app-frame">
         <input id="ppenInput" type="file" accept=".ocp,.ppen,.xml,application/xml,text/xml" hidden>
         <input id="mapInput" type="file" accept="image/*,application/pdf,.pdf" hidden>
+        <!-- Do not add accept filters here: iOS file pickers can hide unknown
+             .omap/.ocd extensions when a MIME or extension filter is present. -->
         <input id="omapInput" type="file" hidden>
+        <input id="ocdInput" type="file" hidden>
         <div id="appInitLoading" class="app-init-loading" role="status" aria-live="polite">
           <div class="app-init-loading-card">
             <div class="app-init-spinner" aria-hidden="true"></div>
@@ -883,6 +886,7 @@ export function createAppShellTemplateMethods(deps) {
             ["export-ppen", "Export native .ppen"],
             ["map-image", "Choose Map Image/PDF"],
             ["omap-import", "Import OMAP Map"],
+            ["ocd-import", "Import OCAD Map"],
             ["omap-clear", "Clear OMAP Map"],
             ["export-png", "Create Image File"],
             ["export-pdf", "Create PDF"],
@@ -1191,6 +1195,10 @@ export function createAppShellTemplateMethods(deps) {
         </div>
         <footer class="statusbar">
           <span id="statusText">${escapeHtml(this.t("Ready"))}</span>
+          <span id="mapImportProgress" class="map-import-progress" role="status" aria-live="polite" hidden>
+            <progress id="mapImportProgressBar" max="100"></progress>
+            <span id="mapImportProgressText"></span>
+          </span>
           <span id="mouseText"></span>
           <span id="dirtyText"></span>
         </footer>

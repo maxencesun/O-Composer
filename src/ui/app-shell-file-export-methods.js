@@ -1,4 +1,4 @@
-import { debugLog } from "./debug-log.js?v=20260711-1";
+import { debugLog } from "./debug-log.js?v=20260711-3";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -470,7 +470,9 @@ export function createAppShellFileExportMethods(deps) {
       background,
       omap,
       omapSourceText,
-      omapMap: this.mapView?.omapMap || null
+      // Avoid embedding the same map twice. The XML source is canonical and
+      // restoreEmbeddedOcpBaseMap reparses it when an OCP file is opened.
+      omapMap: omapSourceText ? null : this.mapView?.omapMap || null
     };
   },
 

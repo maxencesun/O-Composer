@@ -1,15 +1,18 @@
-import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260711-1";
-import { relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260711-1";
+import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260711-3";
+import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260711-3";
 import {
+  alignTopologySharedJoinPoints,
   layoutVariationTopology,
   TOPOLOGY_HEIGHT_UNIT,
   TOPOLOGY_NORMAL_CONTROL_RADIUS,
+  placeTopologyBranchLabel,
   topologyBranchCourseControlId,
   topologyBranchEdgeMap,
   topologyBranchIsEmpty,
   topologyCommonJoinPointMap,
-  topologyEdgeKey
-} from "./variation-topology-layout.js?v=20260711-1";
+  topologyEdgeKey,
+  topologySharedJoinParentMap
+} from "./variation-topology-layout.js?v=20260711-3";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -681,6 +684,7 @@ function variationTopologyDescriptionMetrics(eventModel, courseId, cellSize) {
 function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outputScaleX = 1, outputScaleY = 1) {
   const { topology, branchCodes, layout, topologyScale: scale, topologyMargin: margin } = metrics;
   const course = getCourse(eventModel, metrics.targetCourseId);
+  const branchGroups = relayBranchGroups(eventModel, metrics.targetCourseId);
   const point = raw => ({
     x: (raw.x + margin) * scale * outputScaleX,
     y: (raw.y + margin) * scale * outputScaleY
@@ -689,6 +693,9 @@ function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outpu
   const radius = view => view?.control?.kind === "normal" ? TOPOLOGY_NORMAL_CONTROL_RADIUS : 16;
   const branchEdges = topologyBranchEdgeMap(topology);
   const commonJoinPoints = topologyCommonJoinPointMap(topology, layout.positions, 16);
+  const sharedJoinParents = topologySharedJoinParentMap(topology);
+  alignTopologySharedJoinPoints(topology, layout.positions, commonJoinPoints, sharedJoinParents, 16);
+  const branchLabelPlacements = [];
   const strokePath = points => {
     if (points.length < 2) return;
     ctx.beginPath();
@@ -769,14 +776,24 @@ function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outpu
       const branchId = topologyBranchCourseControlId(view, legIndex);
       const code = fork && branchId ? branchCodes.get(Number(branchId)) || "" : "";
       if (code) {
-        const labelX = fork.x + (fork.x < from.x ? -36 : 36);
-        const label = point({ x: labelX, y: fork.y + 2 });
+        const legLabel = relayBranchLegLabel(course?.relay || {}, code, {
+          short: true,
+          branchGroups
+        });
+        const labelPosition = placeTopologyBranchLabel(branchLabelPlacements, {
+          forkX: fork.x,
+          ownerX: from.x,
+          y: fork.y + 2,
+          code,
+          secondaryText: legLabel
+        });
+        const labelX = labelPosition.x;
+        const label = point(labelPosition);
         ctx.fillStyle = "#8a9198";
         ctx.font = `${Math.max(5, 16 * scale) * outputScale}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(`(${code})`, label.x, label.y);
-        const legLabel = relayBranchLegLabel(course?.relay || {}, code, { short: true });
         if (legLabel) {
           const allowed = point({ x: labelX, y: fork.y + 18 });
           ctx.fillStyle = "#dc2626";
@@ -794,8 +811,15 @@ function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outpu
     const joinView = topology[joinIndex];
     if (!joinPosition || !joinView) continue;
     const joinTopY = joinPosition.y - radius(joinView);
-    if (joinPoint.y < joinTopY - 0.1) {
-      strokePath([point(joinPoint), point({ x: joinPoint.x, y: joinTopY })]);
+    const sharedParentPoint = commonJoinPoints.get(sharedJoinParents.get(forkIndex));
+    const targetY = sharedParentPoint?.y ?? joinTopY;
+    const connectsSharedPoint = sharedParentPoint
+      && (Math.abs(joinPoint.x - sharedParentPoint.x) > 0.1 || Math.abs(joinPoint.y - sharedParentPoint.y) > 0.1);
+    if (connectsSharedPoint || (!sharedParentPoint && joinPoint.y < targetY - 0.1)) {
+      const rawPath = sharedParentPoint
+        ? [joinPoint, { x: joinPoint.x, y: sharedParentPoint.y }, sharedParentPoint]
+        : [joinPoint, { x: joinPoint.x, y: joinTopY }];
+      strokePath(rawPath.map(point));
     }
   }
 

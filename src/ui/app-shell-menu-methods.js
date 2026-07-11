@@ -330,7 +330,16 @@ export function createAppShellMenuMethods(deps) {
 
     this.querySelector("#ppenInput").addEventListener("change", event => this.openPpenFile(event.target.files?.[0]));
     this.querySelector("#mapInput").addEventListener("change", event => this.openMapFile(event.target.files?.[0]));
-    this.querySelector("#omapInput").addEventListener("change", event => this.openOmapFile(event.target.files?.[0]));
+    this.querySelector("#omapInput").addEventListener("change", event => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      this.openOmapFile(file);
+    });
+    this.querySelector("#ocdInput").addEventListener("change", event => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      this.openOcadFile(file);
+    });
     this.querySelector("#mobileCourseSelect").addEventListener("change", event => this.selectCourse(event.target.value));
     this.querySelector("#mobilePanelSelect").addEventListener("change", event => this.switchPanel(event.target.value));
     this.querySelector("#zoomSlider").addEventListener("input", event => {

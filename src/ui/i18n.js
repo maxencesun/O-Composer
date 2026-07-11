@@ -69,6 +69,8 @@ const ZH = Object.freeze({
   "OCAD converter previously failed and is being retried: {message}": "OCAD 转换组件上次加载失败，现已重新尝试：{message}",
   "Initializing OCAD converter…": "正在初始化 OCAD 转换组件…",
   "Finalizing resource downloads…": "正在完成资源下载…",
+  "OCAD converter initialization failed. Click Import OCAD Map to retry.": "OCAD 转换组件初始化失败。请点击“导入 OCAD 地图”重试。",
+  "OCAD converter download stopped at {downloaded} / {total}. Click Import OCAD Map to retry.": "OCAD 转换组件下载在 {downloaded} / {total} 处中断。请点击“导入 OCAD 地图”重试。",
   "A map is still being imported: {name} ({stage}). Please wait for it to finish.": "地图 {name} 仍在导入（{stage}）。请等待当前任务完成。",
   "Map file {name} is too large ({size}). The browser limit is {limit}.": "地图文件 {name} 过大（{size}），浏览器导入上限为 {limit}。",
   "{name} is a large map file ({size}). Importing may temporarily use several times that amount of memory and pause the editor. Continue?": "{name} 是一个大地图文件（{size}）。导入过程可能临时占用数倍内存并使编辑器短暂停顿。是否继续？",

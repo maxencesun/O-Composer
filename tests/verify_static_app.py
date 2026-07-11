@@ -124,7 +124,7 @@ def verify_app_files() -> None:
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.2"' in app_config, "app version should be centrally maintained at 0.0.2"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CODE_VERSION = "20260712-1"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CODE_VERSION = "20260712-2"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
@@ -305,7 +305,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-1", "ocd-convert-worker.js?v=20260712-1", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-2", "ocd-convert-worker.js?v=20260712-2", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")
@@ -319,11 +319,13 @@ def verify_ocd_import_support() -> None:
     assert "omapSourceText ? null" in file_export, "OCP save should not embed source XML and a second parsed map"
     for token in ["installClipboardPermissionQueryGuard", "clipboard-read", "clipboard-write", "fallbackClipboardPermissionStatus", "Promise.resolve(result).catch"]:
         assert token in official_adapter, f"missing WebKit clipboard-permission rejection guard: {token}"
-    for token in ["MODULE_STALL_TIMEOUT_MS", "MAPPER_ARTIFACT_BYTES", "MAPPER_BUNDLE_TOTAL_BYTES", "artifactComplete", "downloadComplete", "fetchDataBinaryWithProgress", "compileWasmWithProgress", "TransformStream", "WebAssembly.compileStreaming", "getPreloadedPackage", "instantiateWasm", "moduleProgressHeartbeat"]:
+    for token in ["DOWNLOAD_STALL_TIMEOUT_MS", "INITIALIZATION_STALL_TIMEOUT_MS", "WATCHDOG_TIMER_DRIFT_GRACE_MS", "RESOURCE_PROBE_TIMEOUT_MS", "activeLoadAttempt", "artifactLastProgressAt", "MAPPER_ARTIFACT_BYTES", "MAPPER_BUNDLE_TOTAL_BYTES", "artifactComplete", "downloadComplete", "fetchDataBinaryWithProgress", "compileWasmWithProgress", "TransformStream", "WebAssembly.compileStreaming", "getPreloadedPackage", "instantiateWasm", "moduleProgressHeartbeat"]:
         assert token in official_adapter, f"missing accurate/stall-safe Mapper loading support: {token}"
     assert "INITIALIZATION_TIMEOUT_MS" not in official_adapter, "Mapper loading must not use the old absolute initialization timeout"
+    assert "MODULE_STALL_TIMEOUT_MS" not in official_adapter, "downloads and initialization should use separate stall thresholds"
+    assert "20 * 60_000" in official_adapter, "weak-network downloads should allow twenty minutes without bytes"
     resource_helpers = (ROOT / "src" / "ui" / "app-shell-resource-helpers.js").read_text(encoding="utf-8")
-    for token in ["appResourcePrecacheProgress", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "Initializing OCAD converter…", "Finalizing resource downloads…"]:
+    for token in ["appResourcePrecacheProgress", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "engineFailed", "Initializing OCAD converter…", "Finalizing resource downloads…", "OCAD converter download stopped at {downloaded} / {total}. Click Import OCAD Map to retry."]:
         assert token in app_shell + map_import, f"resource progress must combine app and Mapper loading state: {token}"
     for token in ["APP_RESOURCE_BYTES", "sizes: APP_RESOURCE_BYTES", "concurrency: navigator.connection?.saveData ? 1 : 2", "forEachWithConcurrency", "response.clone()"]:
         assert token in app_config + app_shell + resource_helpers, f"app resources should use fixed sizes and bounded parallel streaming: {token}"

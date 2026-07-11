@@ -4,12 +4,12 @@ import {
   status as officialMapperStatus,
   subscribe as subscribeOfficialMapperStatus,
   MAPPER_BUNDLE_TOTAL_BYTES,
-} from './official-mapper-adapter.js?v=20260712-1';
+} from './official-mapper-adapter.js?v=20260712-2';
 
 export const LARGE_OCD_FILE_BYTES = 64 * 1024 * 1024;
 export const MAX_OCD_FILE_BYTES = 512 * 1024 * 1024;
 
-const FALLBACK_WORKER_URL = new URL('../workers/ocd-convert-worker.js?v=20260712-1', import.meta.url);
+const FALLBACK_WORKER_URL = new URL('../workers/ocd-convert-worker.js?v=20260712-2', import.meta.url);
 const WORKER_PRELOAD_TIMEOUT_MS = 30_000;
 const INITIAL_STATE = Object.freeze({
   phase: 'idle',
@@ -288,7 +288,7 @@ class OcadImportController {
           mode: null,
           error: asMessage(error),
           operation: 'preloading',
-          message: 'OCAD 转换组件加载失败，请刷新后重试。',
+          message: 'OCAD 转换组件加载失败，请点击“导入 OCAD 地图”重试。',
           engineLoadedBytes: Number(officialMapperStatus().loadedBytes) || 0,
           engineTotalBytes: Number(officialMapperStatus().totalBytes) || MAPPER_BUNDLE_TOTAL_BYTES,
           engineDownloadComplete: officialMapperStatus().downloadComplete === true,

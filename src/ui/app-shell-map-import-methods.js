@@ -1,5 +1,5 @@
-import { ocadImportController } from "../ocd/ocd-import-controller.js?v=20260711-4";
-import { debugLog, debugWarn } from "./debug-log.js?v=20260711-4";
+import { ocadImportController } from "../ocd/ocd-import-controller.js?v=20260712-1";
+import { debugLog, debugWarn } from "./debug-log.js?v=20260712-1";
 
 const LARGE_MAP_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_MAP_FILE_BYTES = 512 * 1024 * 1024;
@@ -39,8 +39,11 @@ function converterModeLabel(app, mode) {
 function converterLoadingText(app, state) {
   const total = Number(state?.engineTotalBytes ?? state?.totalBytes) || 0;
   const loaded = Number(state?.engineLoadedBytes ?? state?.loadedBytes) || 0;
-  if (total > 0 && loaded >= total) {
+  if (state?.engineDownloadComplete === true) {
     return app.t("OCAD converter has downloaded and is initializing. Please wait, then click Import OCAD Map again.");
+  }
+  if (total > 0 && loaded >= total) {
+    return app.t("OCAD converter is finishing its downloads. Please wait, then click Import OCAD Map again.");
   }
   if (loaded > 0 && total > 0) {
     return app.t("OCAD converter is still loading ({loaded} / {total}). Please wait, then click Import OCAD Map again.", {
@@ -78,12 +81,10 @@ export function createAppShellMapImportMethods(deps) {
           });
         });
       };
-      if (typeof requestIdleCallback === "function") {
-        this.ocadPreloadHandle = requestIdleCallback(preload, { timeout: 1500 });
-      }
-      else {
-        this.ocadPreloadHandle = window.setTimeout(preload, 400);
-      }
+      // Start the network immediately so Mapper JS/data/WASM can overlap with
+      // app-resource caching instead of waiting up to 1.5 seconds for idle time.
+      preload();
+      this.ocadPreloadHandle = 0;
     },
 
     disposeMapImporter() {

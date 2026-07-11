@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260711-4";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260711-4";
-import { findById } from "../domain/event-model.js?v=20260711-4";
+} from "./app-shell-config.js?v=20260712-1";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260712-1";
+import { findById } from "../domain/event-model.js?v=20260712-1";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260711-4";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260711-4";
+} from "../domain/control-descriptions.js?v=20260712-1";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260712-1";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -42,9 +42,9 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260711-4";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260711-4";
-import { t } from "./i18n.js?v=20260711-4";
+} from "../domain/course-service.js?v=20260712-1";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-1";
+import { t } from "./i18n.js?v=20260712-1";
 
 export function readUiModePreference() {
   try {
@@ -180,26 +180,34 @@ export function installAppResourceFetchCache(cacheName, urls) {
   };
 }
 
-export async function precacheAppResources({ cacheName, cachePrefix, urls, onProgress }) {
+export async function precacheAppResources({
+  cacheName,
+  cachePrefix,
+  urls,
+  sizes = {},
+  concurrency = 2,
+  onProgress
+}) {
   if (!("caches" in window)) return;
   await deleteOldResourceCaches(cachePrefix, cacheName);
   const cache = await caches.open(cacheName);
   const entries = await Promise.all(urls.map(async url => {
-    const request = new Request(url, { cache: "reload" });
+    const request = new Request(url);
     const cached = await cache.match(request);
+    const configuredSize = Math.max(0, Number(sizes[url]) || 0);
     if (cached) {
       return {
         url,
         request,
         cached: true,
-        size: await responseByteSize(cached)
+        size: configuredSize || await responseByteSize(cached)
       };
     }
     return {
       url,
       request,
       cached: false,
-      size: await resourceContentLength(url)
+      size: configuredSize
     };
   }));
   let totalBytes = entries.reduce((sum, entry) => sum + (entry.size || 0), 0);
@@ -214,7 +222,7 @@ export async function precacheAppResources({ cacheName, cachePrefix, urls, onPro
     return;
   }
   emitProgress(false);
-  for (const entry of uncached) {
+  await forEachWithConcurrency(uncached, concurrency, async entry => {
     let entryDownloaded = 0;
     let accountedEntrySize = Math.max(0, Number(entry.size) || 0);
     const result = await cacheResourceWithProgress(cache, entry.request, bytes => {
@@ -232,6 +240,11 @@ export async function precacheAppResources({ cacheName, cachePrefix, urls, onPro
       }
       emitProgress(false);
     });
+    if (entry.size > 0 && result.size !== entry.size) {
+      throw new Error(
+        `Resource size mismatch for ${entry.url}: received ${result.size} bytes, expected ${entry.size}.`
+      );
+    }
     if (result.size > accountedEntrySize) {
       totalBytes += result.size - accountedEntrySize;
       accountedEntrySize = result.size;
@@ -249,8 +262,22 @@ export async function precacheAppResources({ cacheName, cachePrefix, urls, onPro
       }
     }
     emitProgress(false);
-  }
+  });
   emitProgress(true);
+}
+
+export async function forEachWithConcurrency(items, concurrency, task) {
+  const list = Array.from(items || []);
+  const workerCount = Math.max(1, Math.min(list.length || 1, Math.floor(Number(concurrency) || 1)));
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < list.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      await task(list[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
 }
 
 export async function deleteOldResourceCaches(prefix, keepName) {
@@ -258,17 +285,6 @@ export async function deleteOldResourceCaches(prefix, keepName) {
   await Promise.all(names
     .filter(name => name.startsWith(prefix) && name !== keepName)
     .map(name => caches.delete(name)));
-}
-
-export async function resourceContentLength(url) {
-  try {
-    const response = await fetch(url, { method: "HEAD", cache: "reload" });
-    if (!response.ok) return 0;
-    return Number(response.headers.get("content-length")) || 0;
-  }
-  catch {
-    return 0;
-  }
 }
 
 export async function cacheResourceWithProgress(cache, request, onChunk) {
@@ -282,19 +298,20 @@ export async function cacheResourceWithProgress(cache, request, onChunk) {
     await cache.put(request, cachedResourceResponse(blob, response));
     return { size: blob.size || 0 };
   }
+  const cacheWrite = cache.put(request, response.clone());
+  // Attach a handler immediately in case CacheStorage fails before the network
+  // reader reaches EOF; awaiting the original promise below still propagates it.
+  void cacheWrite.catch(() => {});
   const reader = response.body.getReader();
-  const chunks = [];
   let size = 0;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     if (!value) continue;
-    chunks.push(value);
     size += value.byteLength;
     onChunk?.(value.byteLength);
   }
-  const body = new Blob(chunks);
-  await cache.put(request, cachedResourceResponse(body, response));
+  await cacheWrite;
   return { size };
 }
 

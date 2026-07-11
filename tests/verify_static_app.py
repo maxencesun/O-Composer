@@ -124,7 +124,8 @@ def verify_app_files() -> None:
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.2"' in app_config, "app version should be centrally maintained at 0.0.2"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "resource cache version should be bumped with the OCD import release"
+    assert 'export const APP_CODE_VERSION = "20260712-1"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
     for token in ["feedback-link", "https://365.kdocs.cn/l/cmBYi18akxdM", "Feedback", "反馈通道"]:
@@ -304,12 +305,13 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260711-4", "ocd-convert-worker.js?v=20260711-4", "engineLoadedBytes", "engineTotalBytes", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-1", "ocd-convert-worker.js?v=20260712-1", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")
     map_view = (ROOT / "src" / "ui" / "map-view.js").read_text(encoding="utf-8")
     app_shell = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
+    app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     file_export = (ROOT / "src" / "ui" / "app-shell-file-export-methods.js").read_text(encoding="utf-8")
     for token in ["mapImportJob", "waitForOmapReady", "Previous map restored after import failure.", "sessionCacheable", "Official Mapper WASM", "JavaScript compatibility mode"]:
         assert token in map_import + map_view, f"missing guarded OCAD/OMAP import behavior: {token}"
@@ -317,11 +319,16 @@ def verify_ocd_import_support() -> None:
     assert "omapSourceText ? null" in file_export, "OCP save should not embed source XML and a second parsed map"
     for token in ["installClipboardPermissionQueryGuard", "clipboard-read", "clipboard-write", "fallbackClipboardPermissionStatus", "Promise.resolve(result).catch"]:
         assert token in official_adapter, f"missing WebKit clipboard-permission rejection guard: {token}"
-    for token in ["MODULE_STALL_TIMEOUT_MS", "MAPPER_ARTIFACT_BYTES", "MAPPER_BUNDLE_TOTAL_BYTES", "fetchWasmBinaryWithProgress", "instantiateWasm", "moduleProgressHeartbeat"]:
+    for token in ["MODULE_STALL_TIMEOUT_MS", "MAPPER_ARTIFACT_BYTES", "MAPPER_BUNDLE_TOTAL_BYTES", "artifactComplete", "downloadComplete", "fetchDataBinaryWithProgress", "compileWasmWithProgress", "TransformStream", "WebAssembly.compileStreaming", "getPreloadedPackage", "instantiateWasm", "moduleProgressHeartbeat"]:
         assert token in official_adapter, f"missing accurate/stall-safe Mapper loading support: {token}"
     assert "INITIALIZATION_TIMEOUT_MS" not in official_adapter, "Mapper loading must not use the old absolute initialization timeout"
-    for token in ["appResourcePrecacheProgress", "engineLoadedBytes", "engineTotalBytes", "Initializing OCAD converter…"]:
+    resource_helpers = (ROOT / "src" / "ui" / "app-shell-resource-helpers.js").read_text(encoding="utf-8")
+    for token in ["appResourcePrecacheProgress", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "Initializing OCAD converter…", "Finalizing resource downloads…"]:
         assert token in app_shell + map_import, f"resource progress must combine app and Mapper loading state: {token}"
+    for token in ["APP_RESOURCE_BYTES", "sizes: APP_RESOURCE_BYTES", "concurrency: navigator.connection?.saveData ? 1 : 2", "forEachWithConcurrency", "response.clone()"]:
+        assert token in app_config + app_shell + resource_helpers, f"app resources should use fixed sizes and bounded parallel streaming: {token}"
+    assert 'cache: "reload"' not in resource_helpers, "versioned app resources should not bypass the browser HTTP cache"
+    assert 'requestIdleCallback(preload' not in map_import, "Mapper network loading should start immediately instead of waiting for idle time"
     for token in ['if (state.phase === "loading")', "alert(converterLoadingText(this, state))"]:
         assert token in map_import, f"clicking OCAD import during preload must only show loading status: {token}"
     index = (ROOT / "index.html").read_text(encoding="utf-8")
@@ -343,6 +350,18 @@ def verify_ocd_import_support() -> None:
     for name in engine_paths:
         exact_size = (engine_dir / name).stat().st_size
         assert str(exact_size) in compact_adapter, f"Mapper progress size must match bundled {name} bytes"
+    app_resource_paths = [
+        ROOT / "assets" / "iscd-symbols.xml",
+        ROOT / "assets" / "fonts" / "Roboto.ttf",
+        ROOT / "assets" / "fonts" / "Roboto-Bold.ttf",
+        ROOT / "assets" / "fonts" / "Roboto-Italic.ttf",
+        ROOT / "assets" / "fonts" / "RobotoCondensed.ttf",
+        ROOT / "assets" / "fonts" / "RobotoCondensed-Bold.ttf",
+        ROOT / "assets" / "fonts" / "Heiti.ttf",
+    ]
+    compact_config = app_config.replace("_", "")
+    for path in app_resource_paths:
+        assert str(path.stat().st_size) in compact_config, f"app progress size must match bundled {path.name} bytes"
 
 
 def verify_sample_event_shape() -> None:

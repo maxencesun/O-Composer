@@ -8,7 +8,10 @@ function mapperResourceUrl(path) {
   return url;
 }
 const MODULE_URL = mapperResourceUrl('mapper-converter.js');
-const MODULE_STALL_TIMEOUT_MS = 5 * 60_000;
+const DOWNLOAD_STALL_TIMEOUT_MS = 20 * 60_000;
+const INITIALIZATION_STALL_TIMEOUT_MS = 5 * 60_000;
+const WATCHDOG_TIMER_DRIFT_GRACE_MS = 60_000;
+const RESOURCE_PROBE_TIMEOUT_MS = 10_000;
 const QT_CANVAS_ID = 'ocad-mapper-wasm-canvas';
 const MAPPER_ARTIFACT_BYTES = Object.freeze({
   js: 355_903,
@@ -25,6 +28,9 @@ let clipboardPermissionGuardInstalled = false;
 let moduleProgressHeartbeat = null;
 let artifactProgress = { js: 0, data: 0, wasm: 0 };
 let artifactComplete = { js: false, data: false, wasm: false };
+let artifactLastProgressAt = { js: 0, data: 0, wasm: 0 };
+let initializationLastProgressAt = 0;
+let activeLoadAttempt = 0;
 let currentStatus = Object.freeze({
   phase: 'idle',
   available: null,
@@ -37,25 +43,44 @@ let currentStatus = Object.freeze({
 });
 
 function resetArtifactProgress() {
+  const now = Date.now();
   artifactProgress = { js: 0, data: 0, wasm: 0 };
   artifactComplete = { js: false, data: false, wasm: false };
+  artifactLastProgressAt = { js: now, data: now, wasm: now };
+  initializationLastProgressAt = now;
 }
 
-function updateArtifactProgress(kind, loadedBytes, { complete = false, message = '' } = {}) {
-  if (!(kind in artifactProgress)) return;
+function updateArtifactProgress(
+  kind,
+  loadedBytes,
+  { complete = false, message = '' } = {},
+  attempt = activeLoadAttempt,
+) {
+  if (attempt !== activeLoadAttempt || !(kind in artifactProgress)) return;
   const total = MAPPER_ARTIFACT_BYTES[kind];
+  const previousLoaded = artifactProgress[kind];
+  const previouslyComplete = artifactComplete[kind];
+  const downloadWasComplete = Object.values(artifactComplete).every(Boolean);
   const loaded = Math.max(
-    artifactProgress[kind],
+    previousLoaded,
     Math.min(total, Math.max(0, Number(loadedBytes) || 0)),
   );
   artifactProgress[kind] = loaded;
   if (complete) artifactComplete[kind] = true;
-  moduleProgressHeartbeat?.();
+  const now = Date.now();
+  if (loaded > previousLoaded || (complete && !previouslyComplete)) {
+    artifactLastProgressAt[kind] = now;
+  }
+  const downloadComplete = Object.values(artifactComplete).every(Boolean);
+  if (downloadComplete && !downloadWasComplete) {
+    initializationLastProgressAt = now;
+  }
+  moduleProgressHeartbeat?.(attempt);
   setStatus({
     phase: 'loading',
     loadedBytes: Object.values(artifactProgress).reduce((sum, value) => sum + value, 0),
     totalBytes: MAPPER_BUNDLE_TOTAL_BYTES,
-    downloadComplete: Object.values(artifactComplete).every(Boolean),
+    downloadComplete,
     ...(message ? { message } : {}),
   });
 }
@@ -133,7 +158,8 @@ function setStatus(patch) {
   return currentStatus;
 }
 
-function handleRuntimeStatus(message) {
+function handleRuntimeStatus(message, attempt = activeLoadAttempt) {
+  if (attempt !== activeLoadAttempt) return;
   const text = String(message || '');
   const byteProgress = text.match(/Downloading data\.\.\. \((\d+)\/(\d+)\)/i);
   if (byteProgress) {
@@ -141,10 +167,16 @@ function handleRuntimeStatus(message) {
     // Keep this fallback progress compatible with generated loaders, but never
     // trust XHR total: Pages reports compressed bytes while XHR exposes decoded
     // loaded bytes.
-    updateArtifactProgress('data', Number(byteProgress[1]), { message: text });
+    updateArtifactProgress('data', Number(byteProgress[1]), { message: text }, attempt);
     return;
   }
-  if (text) setStatus({ message: text });
+  if (text) {
+    if (Object.values(artifactComplete).every(Boolean)) {
+      initializationLastProgressAt = Date.now();
+      moduleProgressHeartbeat?.(attempt);
+    }
+    setStatus({ message: text });
+  }
 }
 
 function errorMessage(error) {
@@ -189,12 +221,20 @@ function putCString(module, text) {
 }
 
 async function probeModuleResource() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RESOURCE_PROBE_TIMEOUT_MS);
   try {
-    const response = await fetch(MODULE_URL, { method: 'HEAD', cache: 'no-store' });
+    const response = await fetch(MODULE_URL, {
+      method: 'HEAD',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
     if (response.status === 404 || response.status === 410) return 'missing';
     return response.ok ? 'present' : 'unknown';
   } catch (_error) {
     return 'unknown';
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -207,7 +247,7 @@ async function fetchArtifactResponse(kind, signal) {
   return response;
 }
 
-async function readArtifactResponse(kind, response) {
+async function readArtifactResponse(kind, response, attempt) {
   const expectedBytes = MAPPER_ARTIFACT_BYTES[kind];
   if (!response.body?.getReader) {
     const buffer = await response.arrayBuffer();
@@ -215,7 +255,7 @@ async function readArtifactResponse(kind, response) {
     updateArtifactProgress(kind, buffer.byteLength, {
       complete: true,
       message: `Downloaded Mapper ${kind}.`,
-    });
+    }, attempt);
     return buffer;
   }
 
@@ -233,23 +273,23 @@ async function readArtifactResponse(kind, response) {
     received += value.byteLength;
     updateArtifactProgress(kind, received, {
       message: `Downloading Mapper ${kind}… (${received}/${expectedBytes})`,
-    });
+    }, attempt);
   }
 
   assertArtifactSize(kind, received);
   updateArtifactProgress(kind, received, {
     complete: true,
     message: `Downloaded Mapper ${kind}.`,
-  });
+  }, attempt);
   return bytes.buffer;
 }
 
-async function fetchDataBinaryWithProgress(signal) {
+async function fetchDataBinaryWithProgress(signal, attempt) {
   const response = await fetchArtifactResponse('data', signal);
-  return readArtifactResponse('data', response);
+  return readArtifactResponse('data', response, attempt);
 }
 
-async function compileWasmWithProgress(signal) {
+async function compileWasmWithProgress(signal, attempt) {
   const response = await fetchArtifactResponse('wasm', signal);
   const expectedBytes = MAPPER_ARTIFACT_BYTES.wasm;
 
@@ -263,7 +303,7 @@ async function compileWasmWithProgress(signal) {
         received += chunk.byteLength;
         updateArtifactProgress('wasm', received, {
           message: `Downloading Mapper WebAssembly… (${received}/${expectedBytes})`,
-        });
+        }, attempt);
         controller.enqueue(chunk);
       },
       flush() {
@@ -271,7 +311,7 @@ async function compileWasmWithProgress(signal) {
         updateArtifactProgress('wasm', received, {
           complete: true,
           message: 'Downloaded Mapper WebAssembly; compiling…',
-        });
+        }, attempt);
       },
     }));
     const trackedResponse = new Response(progressStream, {
@@ -284,11 +324,11 @@ async function compileWasmWithProgress(signal) {
     return WebAssembly.compile(binary);
   }
 
-  const binary = await readArtifactResponse('wasm', response);
+  const binary = await readArtifactResponse('wasm', response, attempt);
   return WebAssembly.compile(binary);
 }
 
-function createModule() {
+function createModule(attempt) {
   installClipboardPermissionQueryGuard();
   const canvas = ensureQtCanvas();
   const previousGlobalModule = globalThis.Module;
@@ -297,17 +337,92 @@ function createModule() {
     let settled = false;
     let timeout = 0;
     let config = null;
+    let watchdogScheduledAt = 0;
+    let watchdogDelay = 0;
+    const resetWatchdogGrace = () => {
+      const now = Date.now();
+      for (const kind of Object.keys(artifactComplete)) {
+        if (!artifactComplete[kind]) artifactLastProgressAt[kind] = now;
+      }
+      initializationLastProgressAt = now;
+    };
+    const watchdogState = () => {
+      const now = Date.now();
+      const incomplete = Object.keys(artifactComplete).filter(kind => !artifactComplete[kind]);
+      if (incomplete.length) {
+        const kind = incomplete.reduce((oldest, candidate) => (
+          artifactLastProgressAt[candidate] < artifactLastProgressAt[oldest] ? candidate : oldest
+        ));
+        return {
+          phase: 'download',
+          kind,
+          remaining: artifactLastProgressAt[kind] + DOWNLOAD_STALL_TIMEOUT_MS - now,
+        };
+      }
+      return {
+        phase: 'initialization',
+        kind: null,
+        remaining: initializationLastProgressAt + INITIALIZATION_STALL_TIMEOUT_MS - now,
+      };
+    };
     const armStallTimeout = () => {
       clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        finish(new Error('Mapper WASM initialization stalled while loading or compiling.'));
-      }, MODULE_STALL_TIMEOUT_MS);
+      if (settled || attempt !== activeLoadAttempt) return;
+      const state = watchdogState();
+      watchdogDelay = Math.max(1_000, state.remaining);
+      watchdogScheduledAt = Date.now();
+      timeout = setTimeout(checkStallTimeout, watchdogDelay);
+    };
+    const checkStallTimeout = () => {
+      if (settled || attempt !== activeLoadAttempt) return;
+      const now = Date.now();
+      const timerDrift = now - (watchdogScheduledAt + watchdogDelay);
+      const pagePaused = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+      const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      if (pagePaused || offline || timerDrift > WATCHDOG_TIMER_DRIFT_GRACE_MS) {
+        resetWatchdogGrace();
+        armStallTimeout();
+        return;
+      }
+      const state = watchdogState();
+      if (state.remaining > 0) {
+        armStallTimeout();
+        return;
+      }
+      if (state.phase === 'download') {
+        finish(new Error(
+          `Mapper ${state.kind} download received no data for ${DOWNLOAD_STALL_TIMEOUT_MS / 60_000} minutes.`,
+        ));
+        return;
+      }
+      finish(new Error(
+        `Mapper WASM initialization made no progress for ${INITIALIZATION_STALL_TIMEOUT_MS / 60_000} minutes after download.`,
+      ));
+    };
+    const noteInitializationProgress = () => {
+      if (attempt !== activeLoadAttempt) return;
+      initializationLastProgressAt = Date.now();
+      armStallTimeout();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      resetWatchdogGrace();
+      armStallTimeout();
+    };
+    const handleOnline = () => {
+      resetWatchdogGrace();
+      armStallTimeout();
+    };
+    const heartbeat = (heartbeatAttempt = attempt) => {
+      if (heartbeatAttempt === attempt) armStallTimeout();
     };
     const finish = (error, module) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      moduleProgressHeartbeat = null;
+      if (moduleProgressHeartbeat === heartbeat) moduleProgressHeartbeat = null;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
       if (error) {
         abortController.abort();
         if (globalThis.Module === config) {
@@ -320,7 +435,9 @@ function createModule() {
       resolve(module);
     };
 
-    moduleProgressHeartbeat = armStallTimeout;
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+    moduleProgressHeartbeat = heartbeat;
     armStallTimeout();
 
     void (async () => {
@@ -331,13 +448,14 @@ function createModule() {
           updateArtifactProgress('js', MAPPER_ARTIFACT_BYTES.js, {
             complete: true,
             message: 'Loaded Mapper JavaScript.',
-          });
+          }, attempt);
           return module;
         }),
-        fetchDataBinaryWithProgress(abortController.signal),
-        compileWasmWithProgress(abortController.signal),
+        fetchDataBinaryWithProgress(abortController.signal, attempt),
+        compileWasmWithProgress(abortController.signal, attempt),
       ]);
       if (settled) return;
+      noteInitializationProgress();
 
       const factory = imported.default;
       imported = null;
@@ -348,7 +466,9 @@ function createModule() {
       config = {
         canvas,
         qtCanvasElements: [canvas],
-        setStatus: handleRuntimeStatus,
+        setStatus(message) {
+          handleRuntimeStatus(message, attempt);
+        },
         locateFile(path) {
           return mapperResourceUrl(path).href;
         },
@@ -366,7 +486,10 @@ function createModule() {
           compiledWasm = null;
           queueMicrotask(() => {
             void WebAssembly.instantiate(wasmModule, imports)
-              .then(instance => receiveInstance(instance, wasmModule))
+              .then((instance) => {
+                noteInitializationProgress();
+                receiveInstance(instance, wasmModule);
+              })
               .catch(error => finish(error instanceof Error ? error : new Error(String(error))));
           });
           return {};
@@ -403,6 +526,7 @@ function createModule() {
 async function loadModule() {
   if (mapperModule) return mapperModule;
   if (!modulePromise) {
+    const attempt = ++activeLoadAttempt;
     resetArtifactProgress();
     setStatus({
       phase: 'loading',
@@ -413,8 +537,11 @@ async function loadModule() {
       downloadComplete: false,
       message: 'Loading OpenOrienteering Mapper WebAssembly…',
     });
-    modulePromise = createModule()
+    modulePromise = createModule(attempt)
       .then((module) => {
+        if (attempt !== activeLoadAttempt) {
+          throw new Error('Mapper WASM load was superseded by a newer attempt.');
+        }
         mapperModule = module;
         const revisionPointer = module._mapper_core_revision?.();
         const revision = revisionPointer
@@ -465,7 +592,10 @@ export async function preload() {
     await loadModule();
     return true;
   } catch (error) {
-    if (await probeModuleResource() === 'missing') {
+    // Once any artifact bytes arrived, deployment is proven and a second HEAD
+    // request only makes a weak-network failure slower. Probe only zero-byte
+    // startup failures, with its own short timeout.
+    if (currentStatus.loadedBytes === 0 && await probeModuleResource() === 'missing') {
       setStatus({ phase: 'unavailable', available: false, revision: null, error: null });
       return false;
     }

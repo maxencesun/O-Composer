@@ -1,9 +1,10 @@
 const RESOURCE_BASE_URL = new URL('../../assets/mapper-wasm/', import.meta.url);
-// Keep this token synchronized with APP_CACHE_VERSION in app-shell config.
-const MAPPER_ASSET_VERSION = '20260711-3';
+// Generated artifacts are unchanged by app-shell hotfixes. Keep their own
+// content version stable so a reload does not redownload the full 26 MiB.
+const MAPPER_ARTIFACT_VERSION = '20260711-3';
 function mapperResourceUrl(path) {
   const url = new URL(path, RESOURCE_BASE_URL);
-  url.searchParams.set('v', MAPPER_ASSET_VERSION);
+  url.searchParams.set('v', MAPPER_ARTIFACT_VERSION);
   return url;
 }
 const MODULE_URL = mapperResourceUrl('mapper-converter.js');
@@ -13,6 +14,7 @@ const QT_CANVAS_ID = 'ocad-mapper-wasm-canvas';
 let modulePromise = null;
 let mapperModule = null;
 const statusListeners = new Set();
+let clipboardPermissionGuardInstalled = false;
 let currentStatus = Object.freeze({
   phase: 'idle',
   available: null,
@@ -22,6 +24,58 @@ let currentStatus = Object.freeze({
   totalBytes: 0,
   message: null,
 });
+
+function fallbackClipboardPermissionStatus() {
+  const status = typeof EventTarget === 'function' ? new EventTarget() : {};
+  Object.defineProperty(status, 'state', { configurable: true, enumerable: true, value: 'prompt' });
+  status.onchange = null;
+  return status;
+}
+
+/**
+ * Qt 5.15.2's QWasmClipboard constructor calls Permissions.query() for
+ * clipboard-read and clipboard-write, then discards both returned promises.
+ * WebKit rejects these unsupported permission descriptors, which otherwise
+ * becomes an unhandled rejection even though Mapper initializes and converts
+ * successfully. Keep every other permission query untouched and turn only
+ * those two WebKit-style rejections into the neutral "prompt" state.
+ */
+function installClipboardPermissionQueryGuard() {
+  if (clipboardPermissionGuardInstalled || typeof navigator === 'undefined') return;
+  const permissions = navigator.permissions;
+  const originalQuery = permissions?.query;
+  if (!permissions || typeof originalQuery !== 'function') return;
+
+  const clipboardPermissions = new Set(['clipboard-read', 'clipboard-write']);
+  const guardedQuery = function guardedPermissionQuery(descriptor) {
+    const isClipboard = clipboardPermissions.has(String(descriptor?.name || ''));
+    try {
+      const result = Reflect.apply(originalQuery, permissions, [descriptor]);
+      if (!isClipboard) return result;
+      return Promise.resolve(result).catch(() => fallbackClipboardPermissionStatus());
+    } catch (error) {
+      if (isClipboard) return Promise.resolve(fallbackClipboardPermissionStatus());
+      throw error;
+    }
+  };
+
+  try {
+    Object.defineProperty(permissions, 'query', {
+      configurable: true,
+      writable: true,
+      value: guardedQuery,
+    });
+    clipboardPermissionGuardInstalled = true;
+  } catch (_error) {
+    try {
+      permissions.query = guardedQuery;
+      clipboardPermissionGuardInstalled = permissions.query === guardedQuery;
+    } catch (_assignmentError) {
+      // If a browser makes Permissions immutable, Mapper's normal loader error
+      // path remains responsible for reporting a real initialization failure.
+    }
+  }
+}
 
 function setStatus(patch) {
   currentStatus = Object.freeze({ ...currentStatus, ...patch });
@@ -102,6 +156,7 @@ async function probeModuleResource() {
 }
 
 async function createModule() {
+  installClipboardPermissionQueryGuard();
   const imported = await import(MODULE_URL.href);
   const factory = imported.default;
   if (typeof factory !== 'function') {

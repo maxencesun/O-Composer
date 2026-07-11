@@ -556,32 +556,61 @@ export class OComposerApp extends HTMLElement {
   }
 
   startResourcePrecache() {
+    this.appResourcePrecacheProgress = { downloadedBytes: 0, totalBytes: 0, done: false };
+    this.updateResourcePrecacheProgress(this.appResourcePrecacheProgress);
     void precacheAppResources({
       cacheName: APP_RESOURCE_CACHE_NAME,
       cachePrefix: APP_RESOURCE_CACHE_PREFIX,
       urls: APP_RESOURCE_URLS,
       onProgress: progress => this.updateResourcePrecacheProgress(progress)
-    }).catch(error => {
-      debugWarn("resources.precache.failed", { message: error?.message || String(error), stack: error?.stack || "" });
-      this.updateResourcePrecacheProgress(null);
-    });
+    })
+      .then(() => {
+        if (!this.appResourcePrecacheProgress?.done) {
+          this.updateResourcePrecacheProgress({
+            ...(this.appResourcePrecacheProgress || {}),
+            done: true
+          });
+        }
+      })
+      .catch(error => {
+        debugWarn("resources.precache.failed", { message: error?.message || String(error), stack: error?.stack || "" });
+        this.updateResourcePrecacheProgress({
+          ...(this.appResourcePrecacheProgress || {}),
+          done: true,
+          error: error?.message || String(error)
+        });
+      });
   }
 
-  updateResourcePrecacheProgress(progress) {
+  updateResourcePrecacheProgress(progress = undefined) {
+    if (progress !== undefined) this.appResourcePrecacheProgress = progress;
     const box = this.querySelector("#resourceProgress");
     const bar = this.querySelector("#resourceProgressBar");
     const text = this.querySelector("#resourceProgressText");
     if (!box || !bar || !text) return;
-    if (!progress || progress.done) {
+    const appProgress = this.appResourcePrecacheProgress || { downloadedBytes: 0, totalBytes: 0, done: true };
+    const converter = this.ocadImportState || {};
+    const appDownloaded = Math.max(0, Number(appProgress.downloadedBytes) || 0);
+    const appTotal = Math.max(appDownloaded, Number(appProgress.totalBytes) || 0);
+    const engineDownloaded = Math.max(0, Number(converter.engineLoadedBytes) || 0);
+    const engineTotal = Math.max(engineDownloaded, Number(converter.engineTotalBytes) || 0);
+    const appDone = appProgress.done === true;
+    const engineDone = converter.phase === "ready" || converter.phase === "error";
+    if (appDone && engineDone) {
       box.hidden = true;
       bar.value = 0;
       text.textContent = "";
       return;
     }
-    const downloaded = Math.max(0, Number(progress.downloadedBytes) || 0);
-    const total = Math.max(downloaded, Number(progress.totalBytes) || 0);
-    const percent = total > 0 ? clamp(Math.round(downloaded / total * 100), 0, 100) : 0;
+    const downloaded = appDownloaded + engineDownloaded;
+    const total = Math.max(downloaded, appTotal + engineTotal);
     box.hidden = false;
+    if (total > 0 && downloaded >= total && !engineDone) {
+      bar.removeAttribute("value");
+      text.textContent = this.t("Initializing OCAD converter…");
+      return;
+    }
+    const percent = total > 0 ? clamp(Math.round(downloaded / total * 100), 0, 99) : 0;
     bar.value = percent;
     text.textContent = this.t("Resources {downloaded} / {total}", {
       downloaded: formatBytes(downloaded),

@@ -304,7 +304,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260711-4", "ocd-convert-worker.js?v=20260711-4"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260711-4", "ocd-convert-worker.js?v=20260711-4", "engineLoadedBytes", "engineTotalBytes", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")
@@ -317,6 +317,13 @@ def verify_ocd_import_support() -> None:
     assert "omapSourceText ? null" in file_export, "OCP save should not embed source XML and a second parsed map"
     for token in ["installClipboardPermissionQueryGuard", "clipboard-read", "clipboard-write", "fallbackClipboardPermissionStatus", "Promise.resolve(result).catch"]:
         assert token in official_adapter, f"missing WebKit clipboard-permission rejection guard: {token}"
+    for token in ["MODULE_STALL_TIMEOUT_MS", "MAPPER_ARTIFACT_BYTES", "MAPPER_BUNDLE_TOTAL_BYTES", "fetchWasmBinaryWithProgress", "instantiateWasm", "moduleProgressHeartbeat"]:
+        assert token in official_adapter, f"missing accurate/stall-safe Mapper loading support: {token}"
+    assert "INITIALIZATION_TIMEOUT_MS" not in official_adapter, "Mapper loading must not use the old absolute initialization timeout"
+    for token in ["appResourcePrecacheProgress", "engineLoadedBytes", "engineTotalBytes", "Initializing OCAD converter…"]:
+        assert token in app_shell + map_import, f"resource progress must combine app and Mapper loading state: {token}"
+    for token in ['if (state.phase === "loading")', "alert(converterLoadingText(this, state))"]:
+        assert token in map_import, f"clicking OCAD import during preload must only show loading status: {token}"
     index = (ROOT / "index.html").read_text(encoding="utf-8")
     assert "__oComposerAppInitialized" in index + app_shell, "background failures must not be mislabeled as fatal startup errors"
 
@@ -332,6 +339,10 @@ def verify_ocd_import_support() -> None:
         assert path.stat().st_size > minimum_size, f"bundled Mapper WebAssembly asset looks truncated: assets/mapper-wasm/{name}"
     engine_size = sum((engine_dir / name).stat().st_size for name in engine_paths)
     assert 20 * 1024 * 1024 < engine_size < 40 * 1024 * 1024, "bundled Mapper WebAssembly engine should be approximately 26 MiB"
+    compact_adapter = official_adapter.replace("_", "")
+    for name in engine_paths:
+        exact_size = (engine_dir / name).stat().st_size
+        assert str(exact_size) in compact_adapter, f"Mapper progress size must match bundled {name} bytes"
 
 
 def verify_sample_event_shape() -> None:

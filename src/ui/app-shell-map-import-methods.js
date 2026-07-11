@@ -37,8 +37,11 @@ function converterModeLabel(app, mode) {
 }
 
 function converterLoadingText(app, state) {
-  const total = Number(state?.totalBytes) || 0;
-  const loaded = Number(state?.loadedBytes) || 0;
+  const total = Number(state?.engineTotalBytes ?? state?.totalBytes) || 0;
+  const loaded = Number(state?.engineLoadedBytes ?? state?.loadedBytes) || 0;
+  if (total > 0 && loaded >= total) {
+    return app.t("OCAD converter has downloaded and is initializing. Please wait, then click Import OCAD Map again.");
+  }
   if (loaded > 0 && total > 0) {
     return app.t("OCAD converter is still loading ({loaded} / {total}). Please wait, then click Import OCAD Map again.", {
       loaded: app.formatBytesForMapImport(loaded),
@@ -100,16 +103,10 @@ export function createAppShellMapImportMethods(deps) {
     },
 
     updateOcadPreloadProgress(state) {
+      this.updateResourcePrecacheProgress?.();
       if (this.mapImportJob) return;
       if (state?.phase === "loading") {
-        const total = Number(state.totalBytes) || 0;
-        const loaded = Number(state.loadedBytes) || 0;
-        const percent = total > 0 && loaded > 0 ? loaded / total * 100 : null;
-        this.setMapImportProgress({
-          percent,
-          text: converterLoadingText(this, state),
-          busy: false
-        });
+        this.setMapImportProgress(null);
         return;
       }
       if (state?.phase === "ready") {
@@ -146,9 +143,13 @@ export function createAppShellMapImportMethods(deps) {
         return;
       }
       if (state.phase === "error") {
-        alert(this.t("OCAD converter could not be loaded: {message}", {
-          message: state.error || this.t("Unknown error")
-        }));
+        const message = state.error || this.t("Unknown error");
+        void ocadImportController.preload().catch(() => {});
+        alert(this.t("OCAD converter previously failed and is being retried: {message}", { message }));
+        return;
+      }
+      if (state.phase === "loading") {
+        alert(converterLoadingText(this, state));
         return;
       }
       void ocadImportController.preload().catch(() => {});

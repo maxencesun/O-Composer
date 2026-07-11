@@ -327,7 +327,7 @@ if (!calls.some(call => approxCall(call, "lineTo", 93.3333333333, 20.4)) || !cal
   throw new Error("OMAP end-length-zero dash-point comb spacing does not match reference renderer");
 }
 
-print("OMAP renderer smoke passed.");
+console.log("OMAP renderer smoke passed.");
 
 function approxCall(call, name, x, y) {
   return Array.isArray(call)

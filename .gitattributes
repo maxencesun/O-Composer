@@ -1,0 +1,5 @@
+# Preserve generated Mapper artifacts byte-for-byte. The loader is generated,
+# minified code and intentionally excluded from textual diff/whitespace checks.
+assets/mapper-wasm/mapper-converter.js -text -diff
+assets/mapper-wasm/mapper-converter.wasm binary
+assets/mapper-wasm/mapper-converter.data binary

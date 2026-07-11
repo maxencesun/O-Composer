@@ -33,6 +33,9 @@ export const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 export const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 export const APP_VERSION = "0.0.2";
+export const APP_CODE_VERSION = "20260712-1";
+// Keep the unchanged 9.7 MB font/symbol cache so this loader-only release does
+// not force existing users to download those large assets again.
 export const APP_CACHE_VERSION = "20260711-4";
 export const APP_RESOURCE_CACHE_PREFIX = "o-composer-resources-";
 export const APP_RESOURCE_CACHE_NAME = `${APP_RESOURCE_CACHE_PREFIX}${APP_CACHE_VERSION}`;
@@ -45,6 +48,18 @@ export const APP_RESOURCE_URLS = Object.freeze([
   "./assets/fonts/RobotoCondensed-Bold.ttf",
   "./assets/fonts/Heiti.ttf"
 ]);
+// Decoded byte sizes for the pinned resource files. GitHub Pages serves several
+// of these with gzip, so HTTP Content-Length is not the byte count exposed by a
+// Fetch stream and must not be used as the progress denominator.
+export const APP_RESOURCE_BYTES = Object.freeze({
+  "./assets/iscd-symbols.xml": 685_980,
+  "./assets/fonts/Roboto.ttf": 305_608,
+  "./assets/fonts/Roboto-Bold.ttf": 306_940,
+  "./assets/fonts/Roboto-Italic.ttf": 328_640,
+  "./assets/fonts/RobotoCondensed.ttf": 300_664,
+  "./assets/fonts/RobotoCondensed-Bold.ttf": 303_944,
+  "./assets/fonts/Heiti.ttf": 7_463_714
+});
 export const LANGUAGE_REFRESH_PARAM = "__oc_language_refresh";
 export const UI_MODE_KEY = "oComposerUiMode";
 export const UI_MODES = Object.freeze({ AUTO: "auto", DESKTOP: "desktop", MOBILE: "mobile" });

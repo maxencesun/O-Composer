@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260711-1";
+import { debugError } from "./debug-log.js?v=20260711-3";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -88,10 +88,14 @@ export function createAppShellVariationMethods(deps) {
     courseSymbolMmToMapDistance,
     allCourseVariations,
     courseHasVariations,
+    normalizeRelayBranchSettings,
     relayAssignments,
     relayBranchAllowedLegs,
     relayBranchDisplayLegs,
+    relayBranchEffectiveLegs,
+    relayBranchGroups,
     relayBranchLegLabel,
+    relayBranchParentAllowedLegs,
     relayBranchRestrictionIssues,
     relayEntryLabel,
     relayLegName,
@@ -153,7 +157,10 @@ export function createAppShellVariationMethods(deps) {
     topologyPreviousCourseControlMap,
     topologyEdgeKey,
     topologyCommonJoinPointMap,
+    alignTopologySharedJoinPoints,
+    topologySharedJoinParentMap,
     topologyConnectionRadius,
+    placeTopologyBranchLabel,
     topologyNodeSvg,
     formatSvgNumber,
     insertionCourseControlId,
@@ -406,9 +413,10 @@ export function createAppShellVariationMethods(deps) {
     if (!selectedBranch || !selectedBranchCode) return "";
     const relay = normalizedRelaySettings(course.relay);
     const legs = Math.max(1, assignments.legs || relay.legs || 1);
-    const allowedLegs = new Set(relayBranchDisplayLegs(relay.branches || [], selectedBranchCode, legs));
-    const checks = Array.from({ length: legs }, (_, index) => {
-      const leg = index + 1;
+    const branchGroups = assignments.branchGroups || [];
+    const availableLegs = relayBranchParentAllowedLegs(branchGroups, relay.branches || [], selectedBranchCode, legs);
+    const allowedLegs = new Set(relayBranchEffectiveLegs(branchGroups, relay.branches || [], selectedBranchCode, legs));
+    const checks = availableLegs.map(leg => {
       return `
         <label class="check">
           <input data-variation-branch-leg="${escapeAttr(selectedBranchCode)}" type="checkbox" value="${leg}" ${allowedLegs.has(leg) ? "checked" : ""}>
@@ -481,12 +489,15 @@ export function createAppShellVariationMethods(deps) {
   variationTopologySvg(eventModel, courseId, ui, branchCodes) {
     const topology = courseTopology(eventModel, courseId);
     if (!topology.length) return "";
+    const topologyBranchGroups = relayBranchGroups(eventModel, courseId);
     const layout = layoutVariationTopology(topology, branchCodes);
     const nodeRadius = 16;
     const selectedBranch = normalizedVariationBranch(eventModel, courseId, ui.variationBranch);
     const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui);
     const branchEdges = topologyBranchEdgeMap(topology);
     const commonJoinPoints = topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
+    const sharedJoinParents = topologySharedJoinParentMap(topology);
+    alignTopologySharedJoinPoints(topology, layout.positions, commonJoinPoints, sharedJoinParents, nodeRadius);
     const maxPositionY = Math.max(
       0,
       ...layout.positions
@@ -533,7 +544,11 @@ export function createAppShellVariationMethods(deps) {
         return originalForkY;
       }
       const branchStarts = (view.legTo || [])
-        .map(index => ({ index, position: layout.positions[index], view: topology[index] }))
+        .map((index, legIndex) => ({ index, legIndex, position: layout.positions[index], view: topology[index] }))
+        .filter(branch => !(
+          Number(branch.index) === Number(view.joinIndex)
+          && topologyBranchIsEmpty(view, branch.legIndex)
+        ))
         .filter(branch => branch.position);
       if (!branchStarts.length) return originalForkY;
       const branchTopY = Math.min(...branchStarts.map(branch => (
@@ -549,6 +564,7 @@ export function createAppShellVariationMethods(deps) {
     const visiblePreJoinPaths = new Set();
     const junctions = [];
     const labels = [];
+    const branchLabelPlacements = [];
     const nodes = [];
     const pushTopologyPath = (path, options = {}) => {
       paths.push(topologyPathSvg(path, options));
@@ -671,11 +687,21 @@ export function createAppShellVariationMethods(deps) {
         }
         const code = edgeBranch ? branchCodes.get(Number(edgeBranch.branchCourseControl)) : "";
         if (forkStart && code) {
-          const labelX = forkStart.x + (forkStart.x < position.x ? -36 : 36);
-          const labelY = forkStart.y + 2;
+          const legLabel = relayBranchLegLabel(getCourse(eventModel, courseId)?.relay || {}, code, {
+            short: true,
+            branchGroups: topologyBranchGroups
+          });
+          const labelPosition = placeTopologyBranchLabel(branchLabelPlacements, {
+            forkX: forkStart.x,
+            ownerX: position.x,
+            y: forkStart.y + 2,
+            code,
+            secondaryText: legLabel
+          });
+          const labelX = labelPosition.x;
+          const labelY = labelPosition.y;
           includeCenteredTextBounds(labelX, labelY, `(${code})`, 16, 8.5);
           labels.push(`<text class="variation-topology-code ${branchSelected ? "selected" : ""}" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY)}" text-anchor="middle"${branchAttrs}>(${escapeHtml(code)})</text>`);
-          const legLabel = relayBranchLegLabel(getCourse(eventModel, courseId)?.relay || {}, code, { short: true });
           if (legLabel) {
             includeCenteredTextBounds(labelX, labelY + 16, legLabel, 13, 7.5);
             labels.push(`<text class="variation-topology-branch-legs" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY + 16)}" text-anchor="middle"${branchAttrs}>${escapeHtml(legLabel)}</text>`);
@@ -692,8 +718,14 @@ export function createAppShellVariationMethods(deps) {
         if (joinPosition) {
           const preJoinSegmentKey = `prejoin:${index}:${view.joinIndex}`;
           const joinTopY = joinPosition.y - topologyConnectionRadius(topology[view.joinIndex]?.control, nodeRadius);
-          if (joinHitPoint.y < joinTopY - 0.5) {
-            const preJoinPath = `M ${formatSvgNumber(joinHitPoint.x)} ${formatSvgNumber(joinHitPoint.y)} V ${formatSvgNumber(joinTopY)}`;
+          const sharedParentPoint = commonJoinPoints.get(sharedJoinParents.get(index));
+          const targetY = sharedParentPoint?.y ?? joinTopY;
+          const connectsSharedPoint = sharedParentPoint
+            && (Math.abs(joinHitPoint.x - sharedParentPoint.x) > 0.5 || Math.abs(joinHitPoint.y - sharedParentPoint.y) > 0.5);
+          if (connectsSharedPoint || (!sharedParentPoint && joinHitPoint.y < targetY - 0.5)) {
+            const preJoinPath = sharedParentPoint
+              ? `M ${formatSvgNumber(joinHitPoint.x)} ${formatSvgNumber(joinHitPoint.y)} V ${formatSvgNumber(sharedParentPoint.y)} H ${formatSvgNumber(sharedParentPoint.x)}`
+              : `M ${formatSvgNumber(joinHitPoint.x)} ${formatSvgNumber(joinHitPoint.y)} V ${formatSvgNumber(joinTopY)}`;
             const preJoinBranch = containingBranchForView(index);
             const preJoinBranchAttrs = branchAttrsFor(preJoinBranch);
             // The visible common segment after all branch lanes have merged is
@@ -905,6 +937,11 @@ export function createAppShellVariationMethods(deps) {
       course.relay.branches = (course.relay.branches || []).filter(item => String(item.branch || "").trim() !== branch);
       const legs = [...allowed].sort((a, b) => a - b);
       if (legs.length && legs.length < inputs.length) course.relay.branches.push({ branch, legs });
+      course.relay.branches = normalizeRelayBranchSettings(
+        relayAssignments(model, courseId).branchGroups || [],
+        course.relay.branches,
+        course.relay.legs || 1
+      );
     }, "Change branch allowed legs");
     this.refreshRelayAssignmentPreview(this.store.snapshot().eventModel, courseId);
   },

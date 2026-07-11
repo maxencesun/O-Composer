@@ -1,5 +1,25 @@
-import { relayAssignments, relayBranchDisplayLegs } from "../src/domain/relay-variations.js";
+import {
+  normalizeRelayBranchSettings,
+  relayAssignments,
+  relayBranchDisplayLegs,
+  relayBranchEffectiveLegs,
+  relayBranchGroups,
+  relayBranchParentAllowedLegs
+} from "../src/domain/relay-variations.js";
 import { descriptionMetrics } from "../src/domain/control-descriptions.js";
+import { addVariationAtCourseControl, appendControlToCourse } from "../src/domain/actions.js";
+import { courseTopology } from "../src/domain/course-service.js";
+import {
+  alignTopologySharedJoinPoints,
+  layoutVariationTopology,
+  placeTopologyBranchLabel,
+  TOPOLOGY_HEIGHT_UNIT,
+  TOPOLOGY_MIN_VERTICAL_SEGMENT,
+  TOPOLOGY_NORMAL_CONTROL_RADIUS,
+  topologyCommonJoinPointMap,
+  topologySharedJoinParentMap
+} from "../src/domain/variation-topology-layout.js";
+import { variationBranchCodeMap } from "../src/domain/relay-variations.js";
 
 const eventModel = {
   event: { map: { scale: 15000 }, descriptions: { color: "black" } },
@@ -66,6 +86,144 @@ if (JSON.stringify(unrestrictedLegs) !== JSON.stringify([1, 2, 3, 4])) {
 const restrictedLegs = relayBranchDisplayLegs([{ branch: "A", legs: [2, 4] }], "A", 4);
 if (JSON.stringify(restrictedLegs) !== JSON.stringify([2, 4])) {
   throw new Error(`restricted branch display mismatch: ${JSON.stringify(restrictedLegs)}`);
+}
+
+const branchGroups = relayBranchGroups(eventModel, 1);
+const parentAllowedForC = relayBranchParentAllowedLegs(branchGroups, eventModel.courses[0].relay.branches, "C", 4);
+if (JSON.stringify(parentAllowedForC) !== JSON.stringify([1, 2])) {
+  throw new Error(`nested branch C should inherit parent A legs: ${JSON.stringify(parentAllowedForC)}`);
+}
+const childSettings = [...eventModel.courses[0].relay.branches, { branch: "C", legs: [2, 3] }];
+const effectiveLegsForC = relayBranchEffectiveLegs(branchGroups, childSettings, "C", 4);
+if (JSON.stringify(effectiveLegsForC) !== JSON.stringify([2])) {
+  throw new Error(`nested branch C should intersect its parent restriction: ${JSON.stringify(effectiveLegsForC)}`);
+}
+const normalizedChildSettings = normalizeRelayBranchSettings(branchGroups, childSettings, 4);
+const normalizedC = normalizedChildSettings.find(setting => setting.branch === "C")?.legs || [];
+if (JSON.stringify(normalizedC) !== JSON.stringify([2])) {
+  throw new Error(`nested branch C should discard leg 3 when saved: ${JSON.stringify(normalizedC)}`);
+}
+
+const nestedTopology = courseTopology(eventModel, 1);
+const nestedLayout = layoutVariationTopology(nestedTopology, variationBranchCodeMap(eventModel, 1));
+const sharedJoinParents = topologySharedJoinParentMap(nestedTopology);
+const outerJoinIndex = nestedTopology[0]?.joinIndex;
+if (!Number.isInteger(outerJoinIndex)
+  || nestedLayout.positions[0]?.x !== nestedLayout.positions[outerJoinIndex]?.x) {
+  throw new Error("checkpoints after a fork must remain on the incoming main axis");
+}
+if (sharedJoinParents.size !== 1) {
+  throw new Error(`nested fork sharing its parent join was not detected: ${sharedJoinParents.size}`);
+}
+for (const [childForkIndex, parentForkIndex] of sharedJoinParents) {
+  if (nestedTopology[childForkIndex].joinIndex !== nestedTopology[parentForkIndex].joinIndex) {
+    throw new Error("nested shared join points must target the same course control");
+  }
+  if (!nestedLayout.positions[childForkIndex] || !nestedLayout.positions[parentForkIndex]) {
+    throw new Error("nested shared join layout positions are missing");
+  }
+}
+const labelPlacements = [];
+const labelD = placeTopologyBranchLabel(labelPlacements, { forkX: 120, ownerX: 80, y: 100, code: "D", secondaryText: "1,2" });
+const labelE = placeTopologyBranchLabel(labelPlacements, { forkX: 192, ownerX: 232, y: 100, code: "E", secondaryText: "3,4" });
+if (Math.abs(labelD.x - labelE.x) < 28) {
+  throw new Error(`adjacent nested branch labels still overlap: ${labelD.x}, ${labelE.x}`);
+}
+
+const emptyBranchModel = structuredClone(eventModel);
+emptyBranchModel.courses[0].firstCourseControl = 1;
+emptyBranchModel.courseControls = [
+  { id: 1, control: 31, nextCourseControl: 8, variation: "fork", variationEnd: 8, variationCourseControls: [2, 5] },
+  { id: 2, control: 31, nextCourseControl: 3, variation: "", variationEnd: null, variationCourseControls: [] },
+  { id: 3, control: 32, nextCourseControl: 8, variation: "fork", variationEnd: 8, variationCourseControls: [4, 6] },
+  { id: 4, control: 32, nextCourseControl: 8, variation: "", variationEnd: null, variationCourseControls: [] },
+  { id: 6, control: 32, nextCourseControl: 8, variation: "", variationEnd: null, variationCourseControls: [] },
+  { id: 5, control: 31, nextCourseControl: 8, variation: "", variationEnd: null, variationCourseControls: [] },
+  { id: 8, control: 99, nextCourseControl: null, variation: "", variationEnd: null, variationCourseControls: [] }
+];
+const emptyTopology = courseTopology(emptyBranchModel, 1);
+const emptyLayout = layoutVariationTopology(emptyTopology, variationBranchCodeMap(emptyBranchModel, 1));
+const emptyJoinPoints = topologyCommonJoinPointMap(emptyTopology, emptyLayout.positions, 16);
+const emptySharedJoinParents = topologySharedJoinParentMap(emptyTopology);
+alignTopologySharedJoinPoints(emptyTopology, emptyLayout.positions, emptyJoinPoints, emptySharedJoinParents);
+const nestedEmptyForkIndex = emptyTopology.findIndex(view => Number(view.ownerCourseControlId) === 3);
+const nestedEmptyForkY = emptyLayout.positions[nestedEmptyForkIndex]?.forkStart?.[0]?.y;
+const nestedEmptyJoinY = emptyJoinPoints.get(nestedEmptyForkIndex)?.y;
+if (!Number.isFinite(nestedEmptyForkY)
+  || !Number.isFinite(nestedEmptyJoinY)
+  || nestedEmptyJoinY - nestedEmptyForkY < TOPOLOGY_HEIGHT_UNIT) {
+  throw new Error(`empty branches must reserve one checkpoint row: ${nestedEmptyForkY} -> ${nestedEmptyJoinY}`);
+}
+const nestedEmptyParentIndex = emptySharedJoinParents.get(nestedEmptyForkIndex);
+const nestedEmptyParentJoinY = emptyJoinPoints.get(nestedEmptyParentIndex)?.y;
+if (!Number.isFinite(nestedEmptyParentJoinY) || nestedEmptyParentJoinY <= nestedEmptyJoinY) {
+  throw new Error("nested branches must merge before their parent branch level");
+}
+
+const firstPointBranchModel = structuredClone(emptyBranchModel);
+firstPointBranchModel.courseControls.find(item => item.id === 4).nextCourseControl = 7;
+firstPointBranchModel.courseControls.splice(-1, 0,
+  { id: 7, control: 33, nextCourseControl: 8, variation: "", variationEnd: null, variationCourseControls: [] }
+);
+const firstPointTopology = courseTopology(firstPointBranchModel, 1);
+const firstPointLayout = layoutVariationTopology(firstPointTopology, variationBranchCodeMap(firstPointBranchModel, 1));
+const firstPointForkIndex = firstPointTopology.findIndex(view => Number(view.ownerCourseControlId) === 3);
+const firstPointIndex = firstPointTopology.findIndex(view => Number(view.ownerCourseControlId) === 7);
+const firstPointForkY = firstPointLayout.positions[firstPointForkIndex]?.forkStart?.[0]?.y;
+const firstPointY = firstPointLayout.positions[firstPointIndex]?.y;
+const emptyJoinControlY = emptyLayout.positions[emptyTopology.findIndex(view => Number(view.ownerCourseControlId) === 8)]?.y;
+const firstPointJoinControlY = firstPointLayout.positions[firstPointTopology.findIndex(view => Number(view.ownerCourseControlId) === 8)]?.y;
+if (firstPointJoinControlY !== emptyJoinControlY
+  || firstPointY - firstPointForkY !== TOPOLOGY_HEIGHT_UNIT / 2) {
+  throw new Error("the first real checkpoint must replace, not extend, an empty branch placeholder");
+}
+const firstPointJoinPoints = topologyCommonJoinPointMap(firstPointTopology, firstPointLayout.positions, 16);
+const firstPointSharedParents = topologySharedJoinParentMap(firstPointTopology);
+alignTopologySharedJoinPoints(firstPointTopology, firstPointLayout.positions, firstPointJoinPoints, firstPointSharedParents, 16);
+const firstPointLocalJoinY = firstPointJoinPoints.get(firstPointForkIndex)?.y;
+if (firstPointLocalJoinY - (firstPointY + TOPOLOGY_NORMAL_CONTROL_RADIUS) !== TOPOLOGY_MIN_VERTICAL_SEGMENT / 2) {
+  throw new Error("a checkpoint below a nested fork must use the minimum lower vertical segment");
+}
+
+const scopedInsertionModel = structuredClone(eventModel);
+scopedInsertionModel.controls.push({ id: 36, kind: "normal", code: "36", location: { x: 2.5, y: 0 } });
+const insertedCourseControl = appendControlToCourse(scopedInsertionModel, 1, 36, {
+  beforeCourseControl: 8,
+  variationEndOwnerCourseControl: 3
+});
+if (scopedInsertionModel.courseControls.find(item => item.id === 3)?.variationEnd !== insertedCourseControl.id
+  || scopedInsertionModel.courseControls.find(item => item.id === 7)?.nextCourseControl !== insertedCourseControl.id
+  || scopedInsertionModel.courseControls.find(item => item.id === 9)?.nextCourseControl !== insertedCourseControl.id
+  || insertedCourseControl.nextCourseControl !== 8) {
+  throw new Error("checkpoint inserted on a nested pre-join segment must remain inside that branch");
+}
+if (scopedInsertionModel.courseControls.find(item => item.id === 1)?.variationEnd !== 8
+  || scopedInsertionModel.courseControls.find(item => item.id === 10)?.nextCourseControl !== 8) {
+  throw new Error("nested pre-join insertion must not move the outer join or sibling branch");
+}
+
+const inheritedAssignmentModel = structuredClone(eventModel);
+inheritedAssignmentModel.courses[0].relay.branches.push(
+  { branch: "C", legs: [3, 4] },
+  { branch: "D", legs: [1, 2] }
+);
+const inheritedRows = relayAssignments(inheritedAssignmentModel, 1).rows;
+for (const row of inheritedRows) {
+  const codes = row.assignments.map(variation => variation?.code || "");
+  if (codes.slice(0, 2).some(code => code !== "AD") || codes.slice(2).some(code => code !== "B")) {
+    throw new Error(`automatic assignment ignored inherited branch legs: ${codes.join(",")}`);
+  }
+}
+
+const configuredLegCountModel = structuredClone(eventModel);
+configuredLegCountModel.courses[0].relay.teams = 1;
+configuredLegCountModel.courses[0].relay.legs = 4;
+addVariationAtCourseControl(configuredLegCountModel, 1, 7, { branches: 2 });
+const configuredLegAssignments = relayAssignments(configuredLegCountModel, 1);
+if (configuredLegAssignments.requiredLegs !== 8
+  || configuredLegAssignments.legs !== 4
+  || configuredLegAssignments.rows[0]?.assignments.length !== 4) {
+  throw new Error("relay assignment must not replace the configured participant count with the recommended divisor");
 }
 
 const descriptionSpecial = {

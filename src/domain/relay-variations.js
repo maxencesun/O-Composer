@@ -56,9 +56,7 @@ export function relayAssignments(eventModel, courseId) {
   const configuredLegs = Math.max(1, Number(relay.legs) || 1);
   const requiredLegs = relayRequiredTeamSize(eventModel, courseId);
   const isConfiguredLegCountValid = !variations.length || configuredLegs % requiredLegs === 0;
-  const legs = variations.length
-    ? (isConfiguredLegCountValid ? configuredLegs : requiredLegs)
-    : configuredLegs;
+  const legs = configuredLegs;
   const firstTeam = Math.max(1, Number(relay.firstTeam) || 1);
   if (!course || !variations.length || teams <= 0) {
     return {
@@ -179,8 +177,34 @@ export function relayBranchDisplayLegs(branchSettings = [], branchCode, maxLegs 
   return Array.from({ length: limit }, (_, index) => index + 1);
 }
 
+export function relayBranchParentAllowedLegs(branchGroups = [], branchSettings = [], branchCode, maxLegs = Infinity) {
+  return relayBranchLegContexts(branchGroups, branchSettings, maxLegs).parentByCode.get(String(branchCode || "").trim()) || [];
+}
+
+export function relayBranchEffectiveLegs(branchGroups = [], branchSettings = [], branchCode, maxLegs = Infinity) {
+  return relayBranchLegContexts(branchGroups, branchSettings, maxLegs).effectiveByCode.get(String(branchCode || "").trim()) || [];
+}
+
+export function normalizeRelayBranchSettings(branchGroups = [], branchSettings = [], maxLegs = Infinity) {
+  const contexts = relayBranchLegContexts(branchGroups, branchSettings, maxLegs);
+  const normalized = [];
+  for (const code of contexts.codes) {
+    const direct = relayBranchAllowedLegs(branchSettings, code, contexts.limit);
+    if (!direct.length) continue;
+    const parent = contexts.parentByCode.get(code) || contexts.allLegs;
+    const parentSet = new Set(parent);
+    const effective = direct.filter(leg => parentSet.has(leg));
+    if (effective.length && effective.length < parent.length) {
+      normalized.push({ branch: code, legs: effective });
+    }
+  }
+  return normalized;
+}
+
 export function relayBranchLegLabel(relay = {}, branchCode, options = {}) {
-  const legs = relayBranchDisplayLegs(relay.branches || [], branchCode, relay.legs || Infinity);
+  const legs = options.branchGroups
+    ? relayBranchEffectiveLegs(options.branchGroups, relay.branches || [], branchCode, relay.legs || Infinity)
+    : relayBranchDisplayLegs(relay.branches || [], branchCode, relay.legs || Infinity);
   if (!legs.length) return "";
   if (options.short) return legs.map(leg => relayLegName(relay, leg)).join(",");
   return legs.map(leg => `Leg ${relayLegName(relay, leg)}`).join(", ");
@@ -265,7 +289,7 @@ function planRelayAssignments(decoratedVariations, fixedBranches, teamCount, leg
   if (!decoratedVariations.length || teamCount <= 0 || legsPerTeam <= 0) return [];
   const effectiveBaseLegs = Math.max(1, Math.min(Math.max(1, Number(baseLegs) || 1), Math.max(1, Number(legsPerTeam) || 1)));
   const blockCount = Math.max(1, Math.ceil(legsPerTeam / effectiveBaseLegs));
-  const branchRules = relayBranchRuleMap(fixedBranches, legsPerTeam);
+  const branchRules = relayBranchRuleMap(fixedBranches, legsPerTeam, branchGroups);
   const offsetSpace = relayOffsetSpace(decoratedVariations, branchGroups);
   const blockShifts = chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, effectiveBaseLegs, blockCount, branchRules);
   const offsetUse = new Map();
@@ -509,6 +533,8 @@ function desiredRelaySignature(branchGroups, branchRules, teamIndex, leg, legs) 
   const legCount = Math.max(1, Number(legs) || 1);
   const legIndex = positiveModulo((Math.max(1, Number(leg) || 1) - 1) + Math.max(0, Number(teamIndex) || 0), legCount);
   for (const group of branchGroups) {
+    const active = (group.parentPath || []).every(parent => desired.get(String(parent.groupId)) === parent.code);
+    if (!active) continue;
     const codes = relayEligibleCodesForLeg(group, branchRules, Math.max(1, Number(leg) || 1));
     if (!codes.length) {
       if ((group.codes || []).some(code => branchRules.has(String(code)))) {
@@ -517,8 +543,6 @@ function desiredRelaySignature(branchGroups, branchRules, teamIndex, leg, legs) 
       continue;
     }
     if (codes.length <= 1 && !(group.codes || []).some(code => branchRules.has(String(code)))) continue;
-    const active = (group.parentPath || []).every(parent => desired.get(String(parent.groupId)) === parent.code);
-    if (!active) continue;
     const contextDenominator = Math.max(1, Number(group.contextDenominator) || 1);
     const cycleIndex = Math.floor(legIndex / contextDenominator);
     const code = codes[positiveModulo(cycleIndex, codes.length)];
@@ -530,6 +554,8 @@ function desiredRelaySignature(branchGroups, branchRules, teamIndex, leg, legs) 
 function fixedRelaySignature(branchGroups, branchRules, leg) {
   const signature = new Map();
   for (const group of branchGroups || []) {
+    const active = (group.parentPath || []).every(parent => signature.get(String(parent.groupId)) === parent.code);
+    if (!active) continue;
     const hasRule = (group.codes || []).some(code => branchRules.has(String(code)));
     if (!hasRule) continue;
     const eligibleCodes = relayEligibleCodesForLeg(group, branchRules, leg);
@@ -555,13 +581,15 @@ function relaySignatureIsImpossible(signature) {
   return [...signature.values()].includes(IMPOSSIBLE_BRANCH_CODE);
 }
 
-function relayBranchRuleMap(branchSettings = [], maxLegs = Infinity) {
+function relayBranchRuleMap(branchSettings = [], maxLegs = Infinity, branchGroups = []) {
   const map = new Map();
-  for (const setting of branchSettings || []) {
-    const code = String(setting.branch || "").trim();
-    if (!code) continue;
-    const legs = relayBranchAllowedLegs(branchSettings, code, maxLegs);
-    if (legs.length) map.set(code, new Set(legs));
+  const contexts = relayBranchLegContexts(branchGroups, branchSettings, maxLegs);
+  for (const code of contexts.codes) {
+    const parent = contexts.parentByCode.get(code) || contexts.allLegs;
+    const direct = relayBranchAllowedLegs(branchSettings, code, contexts.limit);
+    if (parent.length < contexts.allLegs.length || direct.length) {
+      map.set(code, new Set(contexts.effectiveByCode.get(code) || []));
+    }
   }
   return map;
 }
@@ -571,7 +599,39 @@ function relayEligibleCodesForLeg(group, branchRules, leg) {
   if (!codes.length) return [];
   const hasRule = codes.some(code => branchRules.has(code));
   if (!hasRule) return codes;
-  return codes.filter(code => branchRules.get(code)?.has(Number(leg)));
+  return codes.filter(code => !branchRules.has(code) || branchRules.get(code).has(Number(leg)));
+}
+
+function relayBranchLegContexts(branchGroups = [], branchSettings = [], maxLegs = Infinity) {
+  const limit = Number.isFinite(Number(maxLegs)) ? Math.max(1, Math.round(Number(maxLegs))) : 0;
+  const allLegs = Array.from({ length: limit }, (_, index) => index + 1);
+  const parentByCode = new Map();
+  const effectiveByCode = new Map();
+  const codes = [];
+  const groups = [...(branchGroups || [])].sort((a, b) => (a.depth || 0) - (b.depth || 0));
+  for (const group of groups) {
+    for (const rawCode of group.codes || []) {
+      const code = String(rawCode || "").trim();
+      if (!code) continue;
+      if (!codes.includes(code)) codes.push(code);
+      let parentAllowed = [...allLegs];
+      for (const parent of group.parentPath || []) {
+        const parentCode = String(parent.code || "").trim();
+        const inherited = effectiveByCode.get(parentCode)
+          || relayBranchDisplayLegs(branchSettings, parentCode, limit);
+        const inheritedSet = new Set(inherited);
+        parentAllowed = parentAllowed.filter(leg => inheritedSet.has(leg));
+      }
+      const direct = relayBranchAllowedLegs(branchSettings, code, limit);
+      const directSet = new Set(direct);
+      const effective = direct.length
+        ? parentAllowed.filter(leg => directSet.has(leg))
+        : parentAllowed;
+      parentByCode.set(code, parentAllowed);
+      effectiveByCode.set(code, effective);
+    }
+  }
+  return { limit, allLegs, codes, parentByCode, effectiveByCode };
 }
 
 function enumerateVariationChoices(eventModel, startId, visited = new Set()) {

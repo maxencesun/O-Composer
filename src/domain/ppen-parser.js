@@ -3,7 +3,7 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260712-2";
+} from "./event-model.js?v=20260712-7";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
@@ -60,6 +60,7 @@ export function parsePpen(text, sourceName = "Untitled.ocp") {
   }
 
   model.courses.sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name));
+  if (model.metadata.ocp?.measurements) model.metadata.measurements = model.metadata.ocp.measurements;
   return model;
 }
 
@@ -595,6 +596,9 @@ function parseOcpData(node) {
       else if (child.nodeName === "omap-source") {
         data.omapSourceText = text(child);
       }
+      else if (child.nodeName === "measurements") {
+        data.measurements = JSON.parse(text(child));
+      }
     }
     catch {
       data.parseError = child.nodeName;
@@ -1032,6 +1036,9 @@ function writeOcpData(lines, data, level) {
   }
   if (data.omapMap) {
     node(lines, level + 1, "omap-map", JSON.stringify(data.omapMap));
+  }
+  if (data.measurements) {
+    node(lines, level + 1, "measurements", JSON.stringify(data.measurements));
   }
   close(lines, level, "ocp-data");
 }

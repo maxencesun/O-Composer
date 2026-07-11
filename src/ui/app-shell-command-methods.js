@@ -273,6 +273,7 @@ export function createAppShellCommandMethods(deps) {
       ui.selection = null;
       ui.printAreaEdit = null;
       ui.tool = "select";
+      ui.measurement = null;
     }, "New event");
   },
 
@@ -314,12 +315,16 @@ export function createAppShellCommandMethods(deps) {
         this.store.updateUi(ui => { ui.omap = null; }, "OMAP map cleared");
         break;
       case "undo":
-        this.store.undo();
+        if (this.store.undo()) this.restoreMeasurementsFromEvent();
         break;
       case "redo":
-        this.store.redo();
+        if (this.store.redo()) this.restoreMeasurementsFromEvent();
         break;
       case "delete":
+        if (state.ui.tool === "measure" && state.ui.measurement?.selectedIndex !== null && state.ui.measurement?.selectedIndex !== undefined) {
+          this.deleteSelectedMeasurement();
+          break;
+        }
         if (state.ui.selection?.type === "control") {
           this.deleteSelectedControl(state);
           break;
@@ -334,6 +339,18 @@ export function createAppShellCommandMethods(deps) {
           ui.tool = "select";
           ui.printAreaEdit = null;
         }, "Select mode");
+        break;
+      case "measure-finish":
+        this.finishMeasurement();
+        break;
+      case "measure-add":
+        this.beginMeasurement();
+        break;
+      case "measure-delete":
+        this.deleteSelectedMeasurement();
+        break;
+      case "measure-clear":
+        this.clearMeasurement();
         break;
       case "fit-course":
       case "fit-map":
@@ -483,6 +500,7 @@ export function createAppShellCommandMethods(deps) {
       "tool-crossing": "control:crossing-point",
       "tool-map-issue": "control:map-issue",
       "tool-line-cut": "line-cut",
+      "tool-measure": "measure",
       "tool-description": "special:descriptions",
       "tool-text": "special:text",
       "tool-line": "special:line",
@@ -501,10 +519,263 @@ export function createAppShellCommandMethods(deps) {
     };
     const mapped = toolMap[command] || "select";
     this.store.updateUi(ui => {
+      if (mapped === "measure" && ui.tool === "measure") {
+        const current = normalizeMeasurementState(ui.measurement);
+        ui.tool = "select";
+        ui.measurement = { ...current, adding: false, selectedIndex: null, draft: { ...current.draft, points: [] } };
+        return;
+      }
       ui.tool = typeof mapped === "string" ? mapped : mapped.tool;
       ui.specialToolOptions = typeof mapped === "string" ? null : { ...(mapped.options || {}) };
       ui.printAreaEdit = null;
+      if (mapped === "measure") {
+        const current = normalizeMeasurementState(ui.measurement);
+        ui.measurement = {
+          ...current,
+          adding: false,
+          selectedIndex: null,
+          draft: { ...current.draft, points: [] }
+        };
+      }
+      if (mapped === "measure") ui.status = this.t("Measurement mode");
     }, "Add mode");
+  },
+
+  addMeasurementPoint(point) {
+    const state = this.store.snapshot();
+    if (state.ui.tool !== "measure" || !state.ui.measurement?.adding) return;
+    const closeDistance = 12 / Math.max(0.001, this.mapView.scale(state.ui));
+    let completed = false;
+    this.store.updateUi(ui => {
+      const current = normalizeMeasurementState(ui.measurement);
+      const points = [...current.draft.points];
+      const first = points[0];
+      const closes = points.length >= 3 && first && distance(first, point) <= closeDistance;
+      completed = closes;
+      if (!closes) points.push({ x: point.x, y: point.y });
+      ui.measurement = {
+        ...current,
+        items: closes ? [...current.items, measurementItem(current, points, true)] : current.items,
+        draft: { ...current.draft, points: closes ? [] : points },
+        adding: !closes,
+        selectedIndex: closes ? current.items.length : null
+      };
+      ui.status = this.t("Measurement mode");
+    }, "Measurement");
+    if (completed) this.persistMeasurements("Add measurement");
+  },
+
+  finishMeasurement(options = {}) {
+    let completed = false;
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure" || !ui.measurement?.adding) return;
+      const current = normalizeMeasurementState(ui.measurement);
+      const points = [...current.draft.points];
+      if (options.removeDuplicate && points.length >= 2) {
+        const last = points[points.length - 1];
+        const previous = points[points.length - 2];
+        const tolerance = 3 / Math.max(0.001, this.mapView.scale(ui));
+        if (distance(last, previous) <= tolerance) points.pop();
+      }
+      if (points.length >= 2) {
+        completed = true;
+        ui.measurement = {
+          ...current,
+          items: [...current.items, measurementItem(current, points, false)],
+          draft: { ...current.draft, points: [] },
+          adding: false,
+          selectedIndex: current.items.length
+        };
+        ui.status = this.t("Measurement finished");
+      }
+    }, "Measurement finished");
+    if (completed) this.persistMeasurements("Add measurement");
+  },
+
+  clearMeasurement() {
+    const currentState = normalizeMeasurementState(this.store.snapshot().ui.measurement);
+    if ((currentState.items.length || currentState.draft.points.length) && !confirm(this.t("Clear all measurements?"))) return;
+    this.store.updateUi(ui => {
+      const current = normalizeMeasurementState(ui.measurement);
+      ui.measurement = { ...current, items: [], draft: { ...current.draft, points: [] }, adding: false, selectedIndex: null };
+      ui.status = this.t("Measurement cleared");
+    }, "Measurement cleared");
+    this.persistMeasurements("Clear measurements");
+  },
+
+  undoMeasurementPoint() {
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure" || !ui.measurement?.adding) return;
+      const current = normalizeMeasurementState(ui.measurement);
+      if (!current.draft.points.length) return;
+      ui.measurement = {
+        ...current,
+        draft: { ...current.draft, points: current.draft.points.slice(0, -1) }
+      };
+      ui.status = this.t("Last measurement point removed");
+    }, "Measurement point removed");
+  },
+
+  updateMeasurementOptions(options = {}) {
+    let shouldPersist = false;
+    this.store.updateUi(ui => {
+      const current = normalizeMeasurementState(ui.measurement);
+      const color = /^#[0-9a-f]{6}$/i.test(String(options.color || "")) ? String(options.color) : current.color;
+      const showGroundLabels = options.showGroundLabels === undefined ? current.showGroundLabels : !!options.showGroundLabels;
+      const items = [...current.items];
+      if (options.color && !current.adding && Number.isInteger(current.selectedIndex) && items[current.selectedIndex]) {
+        items[current.selectedIndex] = { ...items[current.selectedIndex], color };
+        shouldPersist = true;
+      }
+      if (options.showGroundLabels !== undefined) shouldPersist = true;
+      ui.measurement = {
+        ...current,
+        items,
+        color,
+        showGroundLabels,
+        draft: { ...current.draft, color }
+      };
+    }, "Measurement options");
+    if (shouldPersist) this.persistMeasurements("Change measurement appearance");
+  },
+
+  beginMeasurement() {
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure") ui.tool = "measure";
+      const current = normalizeMeasurementState(ui.measurement);
+      ui.measurement = {
+        ...current,
+        adding: true,
+        selectedIndex: null,
+        draft: { ...current.draft, points: [], color: current.color }
+      };
+      ui.status = this.t("Click the map to add the first measurement point.");
+    }, "Add measurement");
+  },
+
+  selectMeasurement(index) {
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure" || ui.measurement?.adding) return;
+      const current = normalizeMeasurementState(ui.measurement);
+      ui.measurement = {
+        ...current,
+        selectedIndex: Number.isInteger(index) && index >= 0 && index < current.items.length ? index : null
+      };
+    }, "Select measurement");
+  },
+
+  moveMeasurementLabel(index, point, options = {}) {
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure" || ui.measurement?.adding) return;
+      const current = normalizeMeasurementState(ui.measurement);
+      if (!Number.isInteger(index) || !current.items[index]) return;
+      const items = [...current.items];
+      items[index] = { ...items[index], labelPosition: { x: point.x, y: point.y } };
+      ui.measurement = { ...current, items, selectedIndex: index };
+    }, "Move measurement label");
+    if (!options.transient) this.persistMeasurements("Move measurement label");
+  },
+
+  deleteSelectedMeasurement() {
+    let deleted = false;
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure") return;
+      const current = normalizeMeasurementState(ui.measurement);
+      const index = current.selectedIndex;
+      if (!Number.isInteger(index) || !current.items[index]) return;
+      deleted = true;
+      ui.measurement = {
+        ...current,
+        items: current.items.filter((_, itemIndex) => itemIndex !== index),
+        selectedIndex: null
+      };
+      ui.status = this.t("Measurement deleted");
+    }, "Delete measurement");
+    if (deleted) this.persistMeasurements("Delete measurement");
+  },
+
+  addMeasurementVertex(index, insertIndex, point) {
+    let changed = false;
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure" || ui.measurement?.adding) return;
+      const current = normalizeMeasurementState(ui.measurement);
+      const item = current.items[index];
+      if (!item || !Number.isInteger(insertIndex)) return;
+      const points = [...item.points];
+      points.splice(Math.max(0, Math.min(points.length, insertIndex)), 0, { x: point.x, y: point.y });
+      const items = [...current.items];
+      items[index] = { ...item, points };
+      ui.measurement = { ...current, items, selectedIndex: index };
+      changed = true;
+    }, "Add measurement vertex");
+    if (changed) this.persistMeasurements("Add measurement vertex");
+  },
+
+  deleteMeasurementVertex(index, vertexIndex) {
+    let changed = false;
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure" || ui.measurement?.adding) return;
+      const current = normalizeMeasurementState(ui.measurement);
+      const item = current.items[index];
+      const minimum = item?.closed ? 3 : 2;
+      if (!item || item.points.length <= minimum || !Number.isInteger(vertexIndex) || !item.points[vertexIndex]) return;
+      const items = [...current.items];
+      items[index] = { ...item, points: item.points.filter((_, pointIndex) => pointIndex !== vertexIndex) };
+      ui.measurement = { ...current, items, selectedIndex: index };
+      changed = true;
+    }, "Delete measurement vertex");
+    if (changed) this.persistMeasurements("Delete measurement vertex");
+  },
+
+  moveMeasurementVertex(index, vertexIndex, point, options = {}) {
+    let changed = false;
+    this.store.updateUi(ui => {
+      if (ui.tool !== "measure" || ui.measurement?.adding) return;
+      const current = normalizeMeasurementState(ui.measurement);
+      const item = current.items[index];
+      if (!item || !Number.isInteger(vertexIndex) || !item.points[vertexIndex]) return;
+      const points = [...item.points];
+      points[vertexIndex] = { x: point.x, y: point.y };
+      const items = [...current.items];
+      items[index] = { ...item, points };
+      ui.measurement = { ...current, items, selectedIndex: index };
+      changed = true;
+    }, "Move measurement vertex");
+    if (changed && !options.transient) this.persistMeasurements("Move measurement vertex");
+  },
+
+  persistMeasurements(label = "Change measurements") {
+    const measurement = normalizeMeasurementState(this.store.snapshot().ui.measurement);
+    const persisted = {
+      items: measurement.items.map(item => ({
+        points: item.points.map(point => ({ x: point.x, y: point.y })),
+        closed: !!item.closed,
+        color: item.color,
+        labelPosition: item.labelPosition ? { ...item.labelPosition } : null
+      })),
+      showGroundLabels: !!measurement.showGroundLabels,
+      color: measurement.color
+    };
+    this.store.updateEvent(model => {
+      model.metadata ||= {};
+      model.metadata.measurements = persisted;
+    }, label);
+  },
+
+  restoreMeasurementsFromEvent() {
+    const saved = this.store.snapshot().eventModel.metadata?.measurements;
+    this.store.updateUi(ui => {
+      const current = normalizeMeasurementState(ui.measurement);
+      ui.measurement = {
+        ...current,
+        items: Array.isArray(saved?.items) ? saved.items : [],
+        showGroundLabels: !!saved?.showGroundLabels,
+        color: saved?.color || current.color,
+        adding: false,
+        selectedIndex: null,
+        draft: { ...current.draft, points: [], color: saved?.color || current.color }
+      };
+    }, "Restore measurements");
   },
 
   applyTool(tool, point, toolOptions = {}) {
@@ -1207,5 +1478,49 @@ export function createAppShellCommandMethods(deps) {
     }, "Edit map background");
   }
 
+  };
+}
+
+function normalizeMeasurementState(value) {
+  const color = /^#[0-9a-f]{6}$/i.test(String(value?.color || "")) ? String(value.color) : "#007f93";
+  const showGroundLabels = !!value?.showGroundLabels;
+  if (Array.isArray(value?.items)) {
+    return {
+      items: value.items,
+      draft: {
+        points: [...(value.draft?.points || [])],
+        color: value.draft?.color || color,
+        showGroundLabels: value.draft?.showGroundLabels ?? showGroundLabels
+      },
+      color,
+      showGroundLabels,
+      adding: !!value.adding,
+      selectedIndex: Number.isInteger(value.selectedIndex) ? value.selectedIndex : null
+    };
+  }
+  const legacyPoints = [...(value?.points || [])];
+  const legacyFinished = !!value?.finished;
+  return {
+    items: legacyFinished && legacyPoints.length >= 2
+      ? [{ points: legacyPoints, closed: !!value.closed, color, showGroundLabels }]
+      : [],
+    draft: {
+      points: legacyFinished ? [] : legacyPoints,
+      color,
+      showGroundLabels
+    },
+    color,
+    showGroundLabels,
+    adding: false,
+    selectedIndex: null
+  };
+}
+
+function measurementItem(measurement, points, closed) {
+  return {
+    points: points.map(point => ({ x: point.x, y: point.y })),
+    closed,
+    color: measurement.draft.color || measurement.color,
+    showGroundLabels: measurement.draft.showGroundLabels ?? measurement.showGroundLabels
   };
 }

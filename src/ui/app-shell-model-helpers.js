@@ -1,4 +1,4 @@
-import { cloneDeep } from "../domain/clone.js?v=20260712-2";
+import { cloneDeep } from "../domain/clone.js?v=20260712-7";
 import {
   PAPER_SIZES,
   PAPER_MARGINS,
@@ -24,17 +24,17 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260712-2";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260712-2";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260712-2";
-import { findById } from "../domain/event-model.js?v=20260712-2";
+} from "./app-shell-config.js?v=20260712-7";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260712-7";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260712-7";
+import { findById } from "../domain/event-model.js?v=20260712-7";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260712-2";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260712-2";
+} from "../domain/control-descriptions.js?v=20260712-7";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260712-7";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -44,11 +44,11 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260712-2";
-import { courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-2";
-import { t } from "./i18n.js?v=20260712-2";
-import { safeFilePart } from "./app-shell-pdf-helpers.js?v=20260712-2";
-import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=20260712-2";
+} from "../domain/course-service.js?v=20260712-7";
+import { courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-7";
+import { t } from "./i18n.js?v=20260712-7";
+import { safeFilePart } from "./app-shell-pdf-helpers.js?v=20260712-7";
+import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=20260712-7";
 
 export function teamAddControlRoleFromSelection(eventModel, ui, selection) {
   const courseId = ui?.selectedCourseId;
@@ -175,7 +175,8 @@ export function safeCachedUi(ui = {}) {
       branchCourseControl: Number(ui.variationBranch.branchCourseControl) || null
     } : null,
     relayTeam: Math.max(1, Number(ui.relayTeam) || 1),
-    relayLeg: Math.max(1, Number(ui.relayLeg) || 1)
+    relayLeg: Math.max(1, Number(ui.relayLeg) || 1),
+    measurement: ui.measurement || null
   };
 }
 

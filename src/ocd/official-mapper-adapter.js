@@ -8,13 +8,23 @@ function mapperResourceUrl(path) {
   return url;
 }
 const MODULE_URL = mapperResourceUrl('mapper-converter.js');
-const INITIALIZATION_TIMEOUT_MS = 120_000;
+const MODULE_STALL_TIMEOUT_MS = 5 * 60_000;
 const QT_CANVAS_ID = 'ocad-mapper-wasm-canvas';
+const MAPPER_ARTIFACT_BYTES = Object.freeze({
+  js: 355_903,
+  data: 9_048_838,
+  wasm: 18_182_118,
+});
+export const MAPPER_BUNDLE_TOTAL_BYTES = Object.values(MAPPER_ARTIFACT_BYTES)
+  .reduce((sum, size) => sum + size, 0);
 
 let modulePromise = null;
 let mapperModule = null;
 const statusListeners = new Set();
 let clipboardPermissionGuardInstalled = false;
+let moduleProgressHeartbeat = null;
+let artifactProgress = { js: 0, data: 0, wasm: 0 };
+let artifactTotals = { ...MAPPER_ARTIFACT_BYTES };
 let currentStatus = Object.freeze({
   phase: 'idle',
   available: null,
@@ -24,6 +34,26 @@ let currentStatus = Object.freeze({
   totalBytes: 0,
   message: null,
 });
+
+function resetArtifactProgress() {
+  artifactProgress = { js: 0, data: 0, wasm: 0 };
+  artifactTotals = { ...MAPPER_ARTIFACT_BYTES };
+}
+
+function updateArtifactProgress(kind, loadedBytes, totalBytes = artifactTotals[kind], message = '') {
+  if (!(kind in artifactProgress)) return;
+  const total = Math.max(0, Number(totalBytes) || artifactTotals[kind] || 0);
+  const loaded = Math.max(0, Math.min(total || Infinity, Number(loadedBytes) || 0));
+  if (total > 0) artifactTotals[kind] = total;
+  artifactProgress[kind] = loaded;
+  moduleProgressHeartbeat?.();
+  setStatus({
+    phase: 'loading',
+    loadedBytes: Object.values(artifactProgress).reduce((sum, value) => sum + value, 0),
+    totalBytes: Object.values(artifactTotals).reduce((sum, value) => sum + value, 0),
+    ...(message ? { message } : {}),
+  });
+}
 
 function fallbackClipboardPermissionStatus() {
   const status = typeof EventTarget === 'function' ? new EventTarget() : {};
@@ -93,12 +123,7 @@ function handleRuntimeStatus(message) {
   const text = String(message || '');
   const byteProgress = text.match(/Downloading data\.\.\. \((\d+)\/(\d+)\)/i);
   if (byteProgress) {
-    setStatus({
-      phase: 'loading',
-      loadedBytes: Number(byteProgress[1]),
-      totalBytes: Number(byteProgress[2]),
-      message: text,
-    });
+    updateArtifactProgress('data', Number(byteProgress[1]), Number(byteProgress[2]), text);
     return;
   }
   if (text) setStatus({ message: text });
@@ -155,9 +180,49 @@ async function probeModuleResource() {
   }
 }
 
+async function fetchWasmBinaryWithProgress() {
+  const url = mapperResourceUrl('mapper-converter.wasm');
+  const response = await fetch(url, { credentials: 'same-origin' });
+  if (!response.ok) {
+    throw new Error(`Could not download Mapper WASM: ${response.status}`);
+  }
+
+  const declaredTotal = Number(response.headers.get('content-length')) || MAPPER_ARTIFACT_BYTES.wasm;
+  if (!response.body?.getReader) {
+    const buffer = await response.arrayBuffer();
+    updateArtifactProgress('wasm', buffer.byteLength, buffer.byteLength,
+      'Downloaded Mapper WebAssembly; compiling…');
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value?.byteLength) continue;
+    chunks.push(value);
+    received += value.byteLength;
+    updateArtifactProgress('wasm', received, Math.max(declaredTotal, received),
+      `Downloading Mapper WebAssembly… (${received}/${Math.max(declaredTotal, received)})`);
+  }
+
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  updateArtifactProgress('wasm', received, received, 'Downloaded Mapper WebAssembly; compiling…');
+  return bytes.buffer;
+}
+
 async function createModule() {
   installClipboardPermissionQueryGuard();
   const imported = await import(MODULE_URL.href);
+  updateArtifactProgress('js', MAPPER_ARTIFACT_BYTES.js, MAPPER_ARTIFACT_BYTES.js,
+    'Loaded Mapper JavaScript; downloading runtime data…');
   const factory = imported.default;
   if (typeof factory !== 'function') {
     throw new Error('Invalid OpenOrienteering Mapper WASM module factory.');
@@ -169,10 +234,17 @@ async function createModule() {
   return new Promise((resolve, reject) => {
     let settled = false;
     let timeout = 0;
+    const armStallTimeout = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        finish(new Error('Mapper WASM initialization stalled while loading or compiling.'));
+      }, MODULE_STALL_TIMEOUT_MS);
+    };
     const finish = (error, module) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      moduleProgressHeartbeat = null;
       if (error) {
         if (globalThis.Module === config) {
           if (previousGlobalModule === undefined) delete globalThis.Module;
@@ -190,6 +262,13 @@ async function createModule() {
       setStatus: handleRuntimeStatus,
       locateFile(path) {
         return mapperResourceUrl(path).href;
+      },
+      instantiateWasm(imports, receiveInstance) {
+        void fetchWasmBinaryWithProgress()
+          .then(binary => WebAssembly.instantiate(binary, imports))
+          .then(result => receiveInstance(result.instance, result.module))
+          .catch(error => finish(error instanceof Error ? error : new Error(String(error))));
+        return {};
       },
       onAbort(reason) {
         finish(new Error(`Mapper WASM aborted: ${reason || 'unknown reason'}`));
@@ -212,9 +291,8 @@ async function createModule() {
     };
 
     globalThis.Module = config;
-    timeout = setTimeout(() => {
-      finish(new Error('Mapper WASM module initialization timed out.'));
-    }, INITIALIZATION_TIMEOUT_MS);
+    moduleProgressHeartbeat = armStallTimeout;
+    armStallTimeout();
 
     try {
       const createdModule = factory(config);
@@ -230,12 +308,13 @@ async function createModule() {
 async function loadModule() {
   if (mapperModule) return mapperModule;
   if (!modulePromise) {
+    resetArtifactProgress();
     setStatus({
       phase: 'loading',
       available: null,
       error: null,
       loadedBytes: 0,
-      totalBytes: 0,
+      totalBytes: MAPPER_BUNDLE_TOTAL_BYTES,
       message: 'Loading OpenOrienteering Mapper WebAssembly…',
     });
     modulePromise = createModule()
@@ -245,7 +324,15 @@ async function loadModule() {
         const revision = revisionPointer
           ? module.UTF8ToString(revisionPointer)
           : 'OpenOrienteering Mapper';
-        setStatus({ phase: 'ready', available: true, revision, error: null });
+        setStatus({
+          phase: 'ready',
+          available: true,
+          revision,
+          error: null,
+          loadedBytes: Object.values(artifactTotals).reduce((sum, value) => sum + value, 0),
+          totalBytes: Object.values(artifactTotals).reduce((sum, value) => sum + value, 0),
+          message: 'OpenOrienteering Mapper WebAssembly is ready.',
+        });
         return module;
       })
       .catch((error) => {
@@ -261,7 +348,7 @@ export function status() {
   return currentStatus;
 }
 
-/** Subscribe to loader state and `.data` download byte progress. */
+/** Subscribe to loader state and combined JS/data/WASM byte progress. */
 export function subscribe(listener) {
   if (typeof listener !== 'function') {
     throw new TypeError('Mapper WASM status subscriber must be a function.');

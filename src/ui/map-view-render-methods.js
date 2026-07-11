@@ -1,4 +1,5 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-2";
+import { resolveTextConstants } from "../domain/constants.js?v=20260712-7";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-7";
 
 export function createMapViewRenderMethods(deps) {
   const {
@@ -133,6 +134,7 @@ export function createMapViewRenderMethods(deps) {
       this.drawPrintArea(ctx, eventModel, ui);
     }
     this.drawCourse(ctx, eventModel, ui);
+    this.drawMeasurement(ctx, ui);
     this.drawAddableControls(ctx, eventModel, ui);
     this.drawSelection(ctx, eventModel, ui);
     this.drawBackgroundCalibration(ctx, ui);
@@ -653,6 +655,83 @@ export function createMapViewRenderMethods(deps) {
     ctx.restore();
   },
 
+  drawMeasurement(ctx, ui) {
+    const measurement = ui.tool === "measure" ? ui.measurement : null;
+    if (!measurement) return;
+    const items = measurement.items || [];
+    for (let index = 0; index < items.length; index += 1) {
+      this.drawMeasurementItem(ctx, ui, items[index], null, {
+        selected: index === measurement.selectedIndex,
+        showGroundLabel: !!measurement.showGroundLabels
+      });
+    }
+    const draft = measurement.draft || { points: [], color: measurement.color, showGroundLabels: measurement.showGroundLabels };
+    if (measurement.adding) {
+      const hover = this.toolPreview?.tool === "measure" ? this.toolPreview.point : null;
+      this.drawMeasurementItem(ctx, ui, draft, hover, { showGroundLabel: false, showHandles: true });
+    }
+  },
+
+  drawMeasurementItem(ctx, ui, item, hover = null, options = {}) {
+    const fixedLocations = item.points || [];
+    if (!fixedLocations.length) return;
+    const locations = [...fixedLocations, ...(hover ? [hover] : [])];
+    const points = locations.map(location => this.toScreen(location, ui));
+    const fixedCount = fixedLocations.length;
+    const color = /^#[0-9a-f]{6}$/i.test(item.color || "") ? item.color : "#007f93";
+    ctx.save();
+    if (item.closed && fixedCount >= 3) {
+      ctx.fillStyle = hexWithAlpha(color, 0.14);
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index < fixedCount; index += 1) ctx.lineTo(points[index].x, points[index].y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (options.selected) {
+      ctx.strokeStyle = "rgba(255, 166, 0, 0.9)";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
+      if (item.closed && fixedCount >= 3) ctx.closePath();
+      ctx.stroke();
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
+    if (item.closed && fixedCount >= 3) ctx.closePath();
+    ctx.stroke();
+
+    if (options.selected || options.showHandles) {
+      for (let index = 0; index < fixedCount; index += 1) {
+        const point = points[index];
+        ctx.fillStyle = index === 0 && fixedCount >= 3 && !item.closed ? "#fff4c2" : "#ffffff";
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, index === 0 ? 6 : 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+    if (options.showGroundLabel && fixedCount >= 2) {
+      const labelMapPoint = measurementLabelPoint(item);
+      if (labelMapPoint) {
+        const labelPoint = this.toScreen(labelMapPoint, ui);
+        if (!item.labelPosition) labelPoint.y -= 14;
+        const metrics = measurementMetrics(fixedLocations, !!item.closed);
+        const totalM = item.closed ? metrics.perimeterM : metrics.lineLengthM;
+        drawGroundDistanceLabel(ctx, totalM, labelPoint, color, options.selected);
+      }
+    }
+    ctx.restore();
+  },
+
   drawToolPreview(ctx, eventModel, ui) {
     if (!this.toolPreview || this.toolPreview.tool !== ui.tool) {
       return;
@@ -743,4 +822,24 @@ export function createMapViewRenderMethods(deps) {
   }
 
   };
+}
+
+function drawGroundDistanceLabel(ctx, distanceM, point, color, selected) {
+  const label = distanceM >= 1000 ? `${(distanceM / 1000).toFixed(2)} km` : `${distanceM.toFixed(distanceM < 10 ? 1 : 0)} m`;
+  ctx.font = "600 12px Roboto, Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = selected ? "rgba(255, 214, 128, 0.98)" : "rgba(255, 255, 255, 0.94)";
+  ctx.lineWidth = selected ? 6 : 4;
+  ctx.strokeText(label, point.x, point.y);
+  ctx.fillStyle = color;
+  ctx.fillText(label, point.x, point.y);
+}
+
+function hexWithAlpha(color, alpha) {
+  const red = Number.parseInt(color.slice(1, 3), 16);
+  const green = Number.parseInt(color.slice(3, 5), 16);
+  const blue = Number.parseInt(color.slice(5, 7), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }

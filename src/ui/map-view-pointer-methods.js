@@ -1,3 +1,5 @@
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-7";
+
 export function createMapViewPointerMethods(deps) {
   const {
     allControlsView,
@@ -113,6 +115,11 @@ export function createMapViewPointerMethods(deps) {
   return {
   pointerDown(event) {
     if (event.button === 2) {
+      if (this.store.snapshot().ui.tool === "measure" && this.store.snapshot().ui.measurement?.adding) {
+        event.preventDefault();
+        this.callbacks.onMeasurementFinish?.();
+        return;
+      }
       this.finishAreaSpecialDraft(event);
       return;
     }
@@ -126,6 +133,27 @@ export function createMapViewPointerMethods(deps) {
     }
     const state = this.store.snapshot();
     const mapPoint = this.toMap(screen, state.ui);
+    if (state.ui.tool === "measure") {
+      if (state.ui.measurement?.adding) {
+        this.drag = { pointerId: event.pointerId, measurement: true, startScreen: screen, moved: false };
+      }
+      else {
+        const hit = measurementHit(this, mapPoint, state);
+        this.callbacks.onMeasurementSelect?.(hit?.index ?? null);
+        this.drag = {
+          pointerId: event.pointerId,
+          measurementSelect: true,
+          measurementLabel: !!hit?.label,
+          measurementVertex: Number.isInteger(hit?.vertexIndex),
+          measurementVertexIndex: hit?.vertexIndex ?? null,
+          measurementIndex: hit?.index ?? null,
+          measurementLabelOffset: hit?.labelPoint ? { x: hit.labelPoint.x - mapPoint.x, y: hit.labelPoint.y - mapPoint.y } : { x: 0, y: 0 },
+          startScreen: screen,
+          moved: false
+        };
+      }
+      return;
+    }
     if (isAreaSpecialTool(state.ui.tool)) {
       this.addAreaSpecialDraftPoint(state.ui.tool, mapPoint);
       return;
@@ -225,8 +253,24 @@ export function createMapViewPointerMethods(deps) {
     const mapPoint = this.toMap(screen, state.ui);
     const previewPoint = this.previewPointForTool(state.ui.tool, mapPoint, state);
     this.callbacks.onHover?.(previewPoint);
-    this.updateToolPreview(state.ui.tool, previewPoint);
+    this.updateToolPreview(state.ui.tool === "measure" && !state.ui.measurement?.adding ? "select" : state.ui.tool, previewPoint);
     if (!this.drag || this.drag.pointerId !== event.pointerId) {
+      return;
+    }
+    if (this.drag.measurement) {
+      const total = Math.hypot(screen.x - this.drag.startScreen.x, screen.y - this.drag.startScreen.y);
+      this.drag.moved = this.drag.moved || total > 5;
+      return;
+    }
+    if (this.drag.measurementSelect) {
+      const total = Math.hypot(screen.x - this.drag.startScreen.x, screen.y - this.drag.startScreen.y);
+      this.drag.moved = this.drag.moved || total > 3;
+      if (this.drag.measurementVertex && this.drag.moved && Number.isInteger(this.drag.measurementIndex)) {
+        this.callbacks.onMeasurementVertexMove?.(this.drag.measurementIndex, this.drag.measurementVertexIndex, mapPoint, { transient: true });
+      }
+      else if (this.drag.measurementLabel && this.drag.moved && Number.isInteger(this.drag.measurementIndex)) {
+        this.callbacks.onMeasurementLabelMove?.(this.drag.measurementIndex, measurementLabelDragPoint(this.drag, mapPoint), { transient: true });
+      }
       return;
     }
     const dx = screen.x - this.drag.lastScreen.x;
@@ -315,6 +359,21 @@ export function createMapViewPointerMethods(deps) {
     }
     const state = this.store.snapshot();
     const mapPoint = this.toMap(screen, state.ui);
+    if (this.drag.measurement) {
+      if (!this.drag.moved) this.callbacks.onMeasurementPoint?.(mapPoint);
+      this.cancelDrag();
+      return;
+    }
+    if (this.drag.measurementSelect) {
+      if (this.drag.measurementVertex && this.drag.moved && Number.isInteger(this.drag.measurementIndex)) {
+        this.callbacks.onMeasurementVertexMove?.(this.drag.measurementIndex, this.drag.measurementVertexIndex, mapPoint);
+      }
+      else if (this.drag.measurementLabel && this.drag.moved && Number.isInteger(this.drag.measurementIndex)) {
+        this.callbacks.onMeasurementLabelMove?.(this.drag.measurementIndex, measurementLabelDragPoint(this.drag, mapPoint));
+      }
+      this.cancelDrag();
+      return;
+    }
     if (this.drag.panning) {
       this.cancelDrag();
       return;
@@ -410,6 +469,23 @@ export function createMapViewPointerMethods(deps) {
 
   doubleClick(event) {
     const state = this.store.snapshot();
+    if (state.ui.tool === "measure") {
+      event.preventDefault();
+      if (state.ui.measurement?.adding) {
+        this.callbacks.onMeasurementFinish?.({ removeDuplicate: true });
+      }
+      else {
+        const mapPoint = this.toMap({ x: event.offsetX, y: event.offsetY }, state.ui);
+        const edit = measurementEditHit(mapPoint, state.ui.measurement, 10 / Math.max(0.001, this.scale(state.ui)));
+        if (edit?.vertexIndex !== undefined) {
+          this.callbacks.onMeasurementVertexDelete?.(edit.index, edit.vertexIndex);
+        }
+        else if (edit) {
+          this.callbacks.onMeasurementVertexAdd?.(edit.index, edit.insertIndex, edit.point);
+        }
+      }
+      return;
+    }
     const mapPoint = this.toMap({ x: event.offsetX, y: event.offsetY }, state.ui);
     const hit = this.hitTest(mapPoint, state);
     if (hit?.type === "leg-bend") {
@@ -458,7 +534,12 @@ export function createMapViewPointerMethods(deps) {
       event.stopPropagation();
       return;
     }
-    if (this.areaSpecialDraft || isAreaSpecialTool(this.store.snapshot().ui.tool)) {
+    if (this.store.snapshot().ui.tool === "measure") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.store.snapshot().ui.measurement?.adding) this.callbacks.onMeasurementFinish?.();
+    }
+    else if (this.areaSpecialDraft || isAreaSpecialTool(this.store.snapshot().ui.tool)) {
       this.finishAreaSpecialDraft(event);
     }
   },
@@ -478,7 +559,7 @@ export function createMapViewPointerMethods(deps) {
   },
 
   updateToolPreview(tool, point) {
-    const previewable = typeof tool === "string" && (tool.startsWith("control:") || tool.startsWith("special:"));
+    const previewable = typeof tool === "string" && (tool === "measure" || tool.startsWith("control:") || tool.startsWith("special:"));
     if (!previewable) {
       this.clearToolPreview();
       this.areaSpecialDraft = null;
@@ -555,4 +636,72 @@ export function createMapViewPointerMethods(deps) {
   }
 
   };
+}
+
+function measurementHit(view, mapPoint, state) {
+  const measurement = state.ui.measurement;
+  const items = measurement?.items || [];
+  const scale = Math.max(0.001, view.scale(state.ui));
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (index === measurement.selectedIndex) {
+      for (let vertexIndex = 0; vertexIndex < item.points.length; vertexIndex += 1) {
+        if (Math.hypot(mapPoint.x - item.points[vertexIndex].x, mapPoint.y - item.points[vertexIndex].y) <= 9 / scale) {
+          return { index, vertexIndex };
+        }
+      }
+    }
+    if (measurement.showGroundLabels) {
+      const labelPoint = measurementLabelPoint(item);
+      if (labelPoint) {
+        const labelScreen = view.toScreen(labelPoint, state.ui);
+        if (!item.labelPosition) labelScreen.y -= 14;
+        const pointerScreen = view.toScreen(mapPoint, state.ui);
+        if (Math.abs(pointerScreen.x - labelScreen.x) <= 42 && Math.abs(pointerScreen.y - labelScreen.y) <= 14) {
+          return { index, label: true, labelPoint: view.toMap(labelScreen, state.ui) };
+        }
+      }
+    }
+    if (measurementPathDistance(mapPoint, item) <= 10 / scale) return { index, label: false };
+  }
+  return null;
+}
+
+function measurementLabelDragPoint(drag, point) {
+  return {
+    x: point.x + (drag.measurementLabelOffset?.x || 0),
+    y: point.y + (drag.measurementLabelOffset?.y || 0)
+  };
+}
+
+function measurementEditHit(point, measurement, tolerance) {
+  const index = measurement?.selectedIndex;
+  const item = Number.isInteger(index) ? measurement.items?.[index] : null;
+  if (!item) return null;
+  for (let vertexIndex = 0; vertexIndex < item.points.length; vertexIndex += 1) {
+    if (Math.hypot(point.x - item.points[vertexIndex].x, point.y - item.points[vertexIndex].y) <= tolerance) {
+      return { index, vertexIndex };
+    }
+  }
+  let best = null;
+  for (let endIndex = 1; endIndex < item.points.length; endIndex += 1) {
+    const projected = projectedPointOnSegment(point, item.points[endIndex - 1], item.points[endIndex]);
+    if (!best || projected.distance < best.distance) best = { index, insertIndex: endIndex, ...projected };
+  }
+  if (item.closed && item.points.length >= 3) {
+    const projected = projectedPointOnSegment(point, item.points[item.points.length - 1], item.points[0]);
+    if (!best || projected.distance < best.distance) best = { index, insertIndex: item.points.length, ...projected };
+  }
+  return best?.distance <= tolerance ? best : null;
+}
+
+function projectedPointOnSegment(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const ratio = lengthSquared > 0
+    ? Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared))
+    : 0;
+  const projected = { x: start.x + dx * ratio, y: start.y + dy * ratio };
+  return { point: projected, distance: Math.hypot(point.x - projected.x, point.y - projected.y) };
 }

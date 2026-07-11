@@ -286,7 +286,21 @@ export function createAppShellDialogMethods(deps) {
       this.runCommand(event.shiftKey ? "redo" : "undo");
     }
     else if (event.key === "Delete" || event.key === "Backspace") {
-      if (!["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) {
+      const active = document.activeElement;
+      const textEntry = active?.isContentEditable
+        || active?.tagName === "TEXTAREA"
+        || (active?.tagName === "INPUT" && !["button", "checkbox", "color", "radio", "range"].includes(active.type));
+      const measurementUi = this.store.snapshot().ui;
+      if (measurementUi.tool === "measure" && !textEntry) {
+        event.preventDefault();
+        if (event.key === "Backspace" && measurementUi.measurement?.adding) {
+          this.undoMeasurementPoint();
+        }
+        else {
+          this.deleteSelectedMeasurement();
+        }
+      }
+      else if (!["INPUT", "TEXTAREA", "SELECT"].includes(active?.tagName)) {
         this.runCommand("delete");
       }
     }

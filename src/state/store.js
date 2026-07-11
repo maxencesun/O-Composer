@@ -1,4 +1,4 @@
-import { cloneEvent, createBlankEvent } from "../domain/event-model.js?v=20260712-2";
+import { cloneEvent, createBlankEvent } from "../domain/event-model.js?v=20260712-7";
 
 export class Store {
   constructor() {
@@ -26,6 +26,7 @@ export class Store {
         relayLeg: 1,
         report: { title: "Course Summary", rows: [], kind: "summary" },
         status: "Ready",
+        measurement: null,
         background: null
       }
     };

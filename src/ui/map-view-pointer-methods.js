@@ -1,4 +1,4 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-18";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-19";
 
 export function createMapViewPointerMethods(deps) {
   const {

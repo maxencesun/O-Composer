@@ -1,5 +1,5 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-18";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-18";
+import { resolveTextConstants } from "../domain/constants.js?v=20260712-19";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-19";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -787,11 +787,10 @@ export function createMapViewRenderMethods(deps) {
     ctx.save();
     ctx.globalAlpha = 0.62;
     if (ui.tool === "background-calibration") {
-      const selectedPoints = backgroundCalibrationMapPoints(ui.background, this.backgroundImage);
-      const previewPoints = selectedPoints.length
-        ? [this.toScreen(selectedPoints[0], ui), point]
-        : [point];
-      drawBackgroundCalibrationGuide(ctx, previewPoints);
+      const selectedPoints = backgroundCalibrationMapPoints(ui.background, this.backgroundImage)
+        .map(selectedPoint => this.toScreen(selectedPoint, ui));
+      const previewPoints = backgroundCalibrationHoverGuidePoints(selectedPoints, point);
+      if (previewPoints.length) drawBackgroundCalibrationGuide(ctx, previewPoints);
     }
     else if (ui.tool.startsWith("control:")) {
       const kind = ui.tool.slice("control:".length);
@@ -872,6 +871,12 @@ export function createMapViewRenderMethods(deps) {
   }
 
   };
+}
+
+export function backgroundCalibrationHoverGuidePoints(selectedPoints, hoverPoint) {
+  const points = Array.isArray(selectedPoints) ? selectedPoints : [];
+  if (points.length >= 2 || !hoverPoint) return [];
+  return points.length === 1 ? [points[0], hoverPoint] : [hoverPoint];
 }
 
 export function drawBackgroundCalibrationGuide(ctx, points) {

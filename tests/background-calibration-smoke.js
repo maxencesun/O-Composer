@@ -14,13 +14,16 @@ import {
   requireBackgroundCalibration,
   resetBackgroundCalibrationBase
 } from "../src/ui/app-shell-model-helpers.js";
-import { drawBackgroundCalibrationGuide } from "../src/ui/map-view-render-methods.js";
+import { backgroundCalibrationHoverGuidePoints, drawBackgroundCalibrationGuide } from "../src/ui/map-view-render-methods.js";
 
 assert.equal(calibrationGroundDistance(2, "map", 10000), 200);
 assert.equal(calibrationGroundDistance(125, "ground", 15000), 125);
 assert.equal(calibrationGroundDistance(0, "ground", 15000), 0);
 assert.equal(calibrationGroundDistance(-2, "map", 10000), 0);
 assert.equal(calibrationGroundDistance(Infinity, "ground", 15000), 0);
+assert.deepEqual(backgroundCalibrationHoverGuidePoints([], { x: 3, y: 4 }), [{ x: 3, y: 4 }]);
+assert.deepEqual(backgroundCalibrationHoverGuidePoints([{ x: 1, y: 2 }], { x: 3, y: 4 }), [{ x: 1, y: 2 }, { x: 3, y: 4 }]);
+assert.deepEqual(backgroundCalibrationHoverGuidePoints([{ x: 1, y: 2 }, { x: 3, y: 4 }], { x: 8, y: 9 }), [], "two selected calibration points must suppress the stale hover guide");
 
 const newlyImportedBackground = requireBackgroundCalibration({ calibration: { imagePoints: [{ x: 0.5, y: 0.5 }] } });
 assert.equal(backgroundCalibrationRequired(newlyImportedBackground), true);

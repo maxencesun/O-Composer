@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260712-18";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260712-18";
-import { findById } from "../domain/event-model.js?v=20260712-18";
+} from "./app-shell-config.js?v=20260712-19";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260712-19";
+import { findById } from "../domain/event-model.js?v=20260712-19";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260712-18";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260712-18";
+} from "../domain/control-descriptions.js?v=20260712-19";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260712-19";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -44,11 +44,11 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260712-18";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-18";
-import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260712-18";
-import { t } from "./i18n.js?v=20260712-18";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260712-18";
+} from "../domain/course-service.js?v=20260712-19";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-19";
+import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260712-19";
+import { t } from "./i18n.js?v=20260712-19";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260712-19";
 
 export { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap };
 

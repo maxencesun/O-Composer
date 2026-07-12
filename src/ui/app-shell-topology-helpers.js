@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260713-21";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260713-21";
-import { findById } from "../domain/event-model.js?v=20260713-21";
+} from "./app-shell-config.js?v=20260713-23";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260713-23";
+import { findById } from "../domain/event-model.js?v=20260713-23";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260713-21";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260713-21";
+} from "../domain/control-descriptions.js?v=20260713-23";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260713-23";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -44,11 +44,11 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260713-21";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260713-21";
-import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260713-21";
-import { t } from "./i18n.js?v=20260713-21";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260713-21";
+} from "../domain/course-service.js?v=20260713-23";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260713-23";
+import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260713-23";
+import { t } from "./i18n.js?v=20260713-23";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260713-23";
 
 export { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap };
 
@@ -304,11 +304,15 @@ export function topologyHitPathSvg(path, options = {}) {
 export function topologyPathAttrs(options = {}) {
   const insertAfter = Number(options.insertAfterCourseControl) || null;
   const insertBefore = Number(options.insertBeforeCourseControl) || null;
+  const openVariationEndOwner = Number(options.openVariationEndOwnerCourseControl) || null;
   const insertAttrs = insertAfter ? ` data-select-variation-insertion data-insert-after-course-control="${insertAfter}"` : "";
   const insertBeforeAttrs = insertBefore ? ` data-select-variation-insertion data-insert-before-course-control="${insertBefore}"` : "";
+  const openVariationEndAttrs = openVariationEndOwner
+    ? ` data-select-variation-insertion data-open-variation-end-owner-course-control="${openVariationEndOwner}"`
+    : "";
   const segmentAttr = options.segmentKey ? ` data-variation-segment="${escapeAttr(options.segmentKey)}"` : "";
   const branchAttrs = options.branchAttrs || "";
-  return `${insertAttrs}${insertBeforeAttrs}${segmentAttr}${branchAttrs}`;
+  return `${insertAttrs}${insertBeforeAttrs}${openVariationEndAttrs}${segmentAttr}${branchAttrs}`;
 }
 
 export function topologyNodeCourseControlId(view) {
@@ -546,7 +550,18 @@ export function insertionBeforeCourseControlId(state) {
 
 export function insertionVariationEndOwnerId(state) {
   const courseId = state.ui.selectedCourseId;
-  const match = String(state.ui.variationSelectedSegment || "").match(/^prejoin:(\d+):/);
+  const segment = String(state.ui.variationSelectedSegment || "");
+  const openJoinMatch = segment.match(/^postjoin-open:(\d+):/);
+  if (openJoinMatch && courseId && courseId !== "all") {
+    const topology = courseTopology(state.eventModel, courseId);
+    const forkIndex = Number(openJoinMatch[1]);
+    const fork = topology[forkIndex];
+    const owner = getCourseControl(state.eventModel, topologyNodeCourseControlId(fork));
+    if (fork?.virtualJoinIndex === fork?.joinIndex && owner?.variation === "fork" && !owner.variationEnd) {
+      return owner.id;
+    }
+  }
+  const match = segment.match(/^prejoin:(\d+):/);
   if (!match || !courseId || courseId === "all") return null;
   const topology = courseTopology(state.eventModel, courseId);
   const forkIndex = Number(match[1]);

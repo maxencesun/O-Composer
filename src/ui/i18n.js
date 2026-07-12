@@ -359,6 +359,7 @@ const ZH = Object.freeze({
   "Page": "页面",
   "Files": "文件",
   "File name prefix": "文件名前缀",
+  "File name": "文件名",
   "Add course names to exported files": "导出文件名包含路线名",
   "Only export used relay variation codes": "只导出已使用的接力字母编号",
   "Lossless PDF compression": "PDF 无损压缩",

@@ -5,7 +5,9 @@ import { createAppShellCoursePanelMethods } from "../src/ui/app-shell-course-pan
 import { createAppShellDialogMethods } from "../src/ui/app-shell-dialog-methods.js";
 import {
   insertionCourseControlId,
+  insertionVariationEndOwnerId,
   topologyNodeCourseControlId,
+  topologyPathAttrs,
   variationAnchorCourseControl
 } from "../src/ui/app-shell-topology-helpers.js";
 import { selectionKey } from "../src/ui/app-shell-ui-helpers.js";
@@ -108,6 +110,26 @@ assert.equal(populatedOpenTopology.filter(view => view.virtualVariationJoin).len
 const populatedBranchStart = populatedOpenTopology[0].legTo.find(index => index !== populatedVirtualJoinIndex);
 assert.ok(Number.isInteger(populatedBranchStart), "the populated branch must start at its real checkpoint");
 assert.deepEqual(populatedOpenTopology[populatedBranchStart].legTo, [populatedVirtualJoinIndex], "the real branch tail must close at the shared virtual join");
+const openPostJoinSegment = `postjoin-open:0:${populatedVirtualJoinIndex}`;
+startOnlyUi.variationSelectedSegment = openPostJoinSegment;
+assert.equal(insertionVariationEndOwnerId({ eventModel: startOnlyModel, ui: startOnlyUi }), 20, "the post-join stem must target the open fork owner");
+assert.match(
+  topologyPathAttrs({ openVariationEndOwnerCourseControl: 20, segmentKey: openPostJoinSegment }),
+  /data-select-variation-insertion/,
+  "the post-join stem must be selectable"
+);
+const sharedAfterOpenFork = addControlAt(startOnlyModel, "normal", { x: 100, y: 0 }, 2, {
+  variationEndOwnerCourseControl: 20
+});
+const openForkOwner = startOnlyModel.courseControls.find(item => item.id === 20);
+assert.equal(openForkOwner.variationEnd, sharedAfterOpenFork.courseControl, "the first post-join checkpoint must become variationEnd");
+for (const branchId of openForkOwner.variationCourseControls) {
+  let branch = startOnlyModel.courseControls.find(item => item.id === branchId);
+  while (branch?.nextCourseControl && Number(branch.nextCourseControl) !== Number(sharedAfterOpenFork.courseControl)) {
+    branch = startOnlyModel.courseControls.find(item => item.id === branch.nextCourseControl);
+  }
+  assert.equal(branch?.nextCourseControl, sharedAfterOpenFork.courseControl, "every open branch must connect to the new shared checkpoint");
+}
 
 const state = {
   eventModel: branchModel,

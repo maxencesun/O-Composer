@@ -1,4 +1,4 @@
-import { debugLog } from "./debug-log.js?v=20260713-21";
+import { debugLog } from "./debug-log.js?v=20260713-23";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -463,11 +463,34 @@ export function createAppShellFileExportMethods(deps) {
 
   downloadOcp() {
     const state = this.store.snapshot();
-    const model = cloneEvent(state.eventModel);
-    syncDescriptionLanguageWithApp(model);
-    const fileName = `${baseName(model.sourceName || "Untitled")}.ocp`;
-    download(fileName, serializeOcp(model, { ocpData: this.ocpDataForSave(state) }), "application/xml");
-    this.store.markClean(fileName);
+    const defaultFileName = `${baseName(state.eventModel.sourceName || "Untitled")}.ocp`;
+    this.openCommandDialog({
+      title: "Save .ocp",
+      applyLabel: "Save",
+      modal: true,
+      body: `
+        <div class="form-grid compact-form">
+          <label>${escapeHtml(this.t("File name"))}
+            <input id="ocpFileName" value="${escapeAttr(defaultFileName)}" autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+      `,
+      onOpen: dialog => {
+        const input = dialog.querySelector("#ocpFileName");
+        input?.focus();
+        input?.select();
+      },
+      apply: dialog => {
+        const requestedName = dialog.querySelector("#ocpFileName")?.value.trim() || defaultFileName;
+        const requestedStem = requestedName.replace(/\.ocp$/i, "");
+        const fileName = `${safeFilePart(requestedStem)}.ocp`;
+        const currentState = this.store.snapshot();
+        const model = cloneEvent(currentState.eventModel);
+        syncDescriptionLanguageWithApp(model);
+        download(fileName, serializeOcp(model, { ocpData: this.ocpDataForSave(currentState) }), "application/xml");
+        this.store.markClean(fileName);
+      }
+    });
   },
 
   downloadNativePpen() {

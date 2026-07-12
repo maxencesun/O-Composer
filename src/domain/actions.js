@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260713-21";
-import { cloneDeep } from "./clone.js?v=20260713-21";
+} from "./event-model.js?v=20260713-23";
+import { cloneDeep } from "./clone.js?v=20260713-23";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260713-21";
+} from "./course-service.js?v=20260713-23";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -237,6 +237,19 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
   }
 
   const insertAfter = options.afterCourseControl ? getCourseControl(eventModel, options.afterCourseControl) : null;
+  const openVariationOwner = options.variationEndOwnerCourseControl
+    ? getCourseControl(eventModel, options.variationEndOwnerCourseControl)
+    : null;
+  if (!insertBefore
+    && openVariationOwner?.variation === "fork"
+    && !openVariationOwner.variationEnd
+    && courseContainsCourseControl(eventModel, courseId, openVariationOwner.id)) {
+    for (const branchId of openVariationOwner.variationCourseControls || []) {
+      connectOpenCourseControlPathToJoin(eventModel, branchId, newCourseControl.id);
+    }
+    openVariationOwner.variationEnd = newCourseControl.id;
+    return newCourseControl;
+  }
   if (insertAfter && courseContainsCourseControl(eventModel, courseId, insertAfter.id)) {
     if (insertAfter.variation && insertAfter.variationCourseControls?.length) {
       insertCourseControlBetweenForkOwnerAndVariation(eventModel, insertAfter, newCourseControl);
@@ -789,6 +802,37 @@ function collectBranchCourseControlIds(eventModel, startId, stopId) {
 
   visit(startId, stopId);
   return ids;
+}
+
+function connectOpenCourseControlPathToJoin(eventModel, startId, joinId, seen = new Set()) {
+  let currentId = Number(startId) || 0;
+  const target = Number(joinId) || 0;
+  const maxSteps = Math.max(1000, (eventModel.courseControls?.length || 0) * 20);
+  let steps = 0;
+  while (currentId && currentId !== target && !seen.has(currentId) && steps++ < maxSteps) {
+    seen.add(currentId);
+    const courseControl = getCourseControl(eventModel, currentId);
+    if (!courseControl) return;
+    if (courseControl.variation && courseControl.variationCourseControls?.length) {
+      if (!courseControl.variationEnd && courseControl.variation === "fork") {
+        for (const branchId of courseControl.variationCourseControls) {
+          connectOpenCourseControlPathToJoin(eventModel, branchId, target, seen);
+        }
+        courseControl.variationEnd = target;
+        return;
+      }
+      currentId = Number(courseControl.variation === "loop"
+        ? courseControl.nextCourseControl
+        : courseControl.variationEnd) || 0;
+      continue;
+    }
+    const nextId = Number(courseControl.nextCourseControl) || 0;
+    if (!nextId) {
+      courseControl.nextCourseControl = target;
+      return;
+    }
+    currentId = nextId;
+  }
 }
 
 function nextAvailableCode(eventModel) {

@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260713-21";
+import { debugError } from "./debug-log.js?v=20260713-23";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -712,6 +712,36 @@ export function createAppShellVariationMethods(deps) {
       const joinCourseControlId = Number.isInteger(view.joinIndex) && view.joinIndex !== index
         ? topologyNodeCourseControlId(topology[view.joinIndex])
         : null;
+      if (view.variation !== "loop"
+        && (view.legTo || []).length > 1
+        && joinHitPoint
+        && Number.isInteger(view.virtualJoinIndex)
+        && view.virtualJoinIndex === view.joinIndex) {
+        const virtualJoinPosition = layout.positions[view.virtualJoinIndex];
+        const forkOwnerCourseControlId = topologyNodeCourseControlId(view);
+        if (virtualJoinPosition && forkOwnerCourseControlId) {
+          const postJoinEndY = Math.max(
+            virtualJoinPosition.y + TOPOLOGY_HEIGHT_UNIT * 0.5,
+            joinHitPoint.y + TOPOLOGY_HEIGHT_UNIT * 0.75
+          );
+          const postJoinSegmentKey = `postjoin-open:${index}:${view.virtualJoinIndex}`;
+          const postJoinPath = `M ${formatSvgNumber(joinHitPoint.x)} ${formatSvgNumber(joinHitPoint.y)} V ${formatSvgNumber(postJoinEndY)}`;
+          includeSvgBounds(joinHitPoint.x - 2, joinHitPoint.x + 2, joinHitPoint.y, postJoinEndY);
+          pushTopologyPath(postJoinPath, {
+            openVariationEndOwnerCourseControl: forkOwnerCourseControlId,
+            segmentKey: postJoinSegmentKey,
+            selected: ui.variationSelectedSegment === postJoinSegmentKey
+          });
+          topPriorityHits.push({
+            publicSegment: true,
+            svg: topologyHitPathSvg(postJoinPath, {
+              openVariationEndOwnerCourseControl: forkOwnerCourseControlId,
+              segmentKey: postJoinSegmentKey,
+              hitClass: "variation-topology-leg-hit-tight"
+            })
+          });
+        }
+      }
       if (view.variation !== "loop" && (view.legTo || []).length > 1 && joinHitPoint && joinCourseControlId) {
         junctions.push(`<circle class="variation-topology-junction-hit" cx="${formatSvgNumber(joinHitPoint.x)}" cy="${formatSvgNumber(joinHitPoint.y)}" r="24" data-select-variation-course-control="${joinCourseControlId}"></circle>`);
         const joinPosition = layout.positions[view.joinIndex];

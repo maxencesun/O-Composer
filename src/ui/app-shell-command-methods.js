@@ -919,7 +919,7 @@ export function createAppShellCommandMethods(deps) {
       const pending = this.store.snapshot().eventModel.metadata.pendingSelection;
       this.store.updateUi(ui => {
         ui.selection = pending;
-        if ((afterCourseControl || beforeCourseControl || selectedLegCourseControls || ui.variationBranch) && pending?.courseControl) {
+        if ((afterCourseControl || beforeCourseControl || variationEndOwnerCourseControl || selectedLegCourseControls || ui.variationBranch) && pending?.courseControl) {
           ui.variationInsertAfterCourseControl = pending.courseControl;
           ui.variationInsertBeforeCourseControl = null;
           ui.variationAnchorCourseControl = pending.courseControl;
@@ -1003,7 +1003,7 @@ export function createAppShellCommandMethods(deps) {
     const pending = this.store.snapshot().eventModel.metadata.pendingSelection;
     this.store.updateUi(ui => {
       ui.selection = pending || selection;
-      if ((afterCourseControl || beforeCourseControl || selectedLegCourseControls || ui.variationBranch) && pending?.courseControl) {
+      if ((afterCourseControl || beforeCourseControl || variationEndOwnerCourseControl || selectedLegCourseControls || ui.variationBranch) && pending?.courseControl) {
         ui.variationInsertAfterCourseControl = pending.courseControl;
         ui.variationInsertBeforeCourseControl = null;
         ui.variationAnchorCourseControl = pending.courseControl;

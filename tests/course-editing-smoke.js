@@ -118,11 +118,22 @@ assert.match(
   /data-select-variation-insertion/,
   "the post-join stem must be selectable"
 );
-const sharedAfterOpenFork = addControlAt(startOnlyModel, "normal", { x: 100, y: 0 }, 2, {
+const reusableFinishModel = structuredClone(startOnlyModel);
+reusableFinishModel.controls.push({ id: 99, kind: "finish", code: "", location: { x: 120, y: 0 } });
+const reusedFinish = addExistingControlToCourse(reusableFinishModel, 2, 99, {
+  variationEndOwnerCourseControl: 20
+});
+assert.equal(
+  reusableFinishModel.courseControls.find(item => item.id === 20)?.variationEnd,
+  reusedFinish?.courseControl,
+  "an existing finish added on the post-join stem must become variationEnd"
+);
+const sharedAfterOpenFork = addControlAt(startOnlyModel, "finish", { x: 100, y: 0 }, 2, {
   variationEndOwnerCourseControl: 20
 });
 const openForkOwner = startOnlyModel.courseControls.find(item => item.id === 20);
-assert.equal(openForkOwner.variationEnd, sharedAfterOpenFork.courseControl, "the first post-join checkpoint must become variationEnd");
+assert.equal(openForkOwner.variationEnd, sharedAfterOpenFork.courseControl, "a finish added on the post-join stem must become variationEnd");
+assert.equal(startOnlyModel.controls.find(item => item.id === sharedAfterOpenFork.id)?.kind, "finish");
 for (const branchId of openForkOwner.variationCourseControls) {
   let branch = startOnlyModel.courseControls.find(item => item.id === branchId);
   while (branch?.nextCourseControl && Number(branch.nextCourseControl) !== Number(sharedAfterOpenFork.courseControl)) {

@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260713-23";
-import { cloneDeep } from "./clone.js?v=20260713-23";
+} from "./event-model.js?v=20260713-24";
+import { cloneDeep } from "./clone.js?v=20260713-24";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,10 +15,17 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260713-23";
+} from "./course-service.js?v=20260713-24";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
-  const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
+  const automaticCoursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
+  const hasExplicitCourseInsertion = !!(
+    options.afterCourseControl
+    || options.beforeCourseControl
+    || options.variationEndOwnerCourseControl
+    || (options.fromCourseControl && options.toCourseControl)
+  );
+  const coursePlacement = hasExplicitCourseInsertion ? null : automaticCoursePlacement;
   const id = nextId(eventModel.controls);
   const code = kind === "normal" ? nextAvailableCode(eventModel) : "";
   const control = createControl(id, kind, location, code);
@@ -55,7 +62,14 @@ export function addControlAt(eventModel, kind, location, selectedCourseId = null
 
 export function addExistingControlToCourse(eventModel, courseId, controlId, options = {}) {
   const control = getControl(eventModel, controlId);
-  const coursePlacement = controlCoursePlacement(control?.kind, eventModel, courseId);
+  const automaticCoursePlacement = controlCoursePlacement(control?.kind, eventModel, courseId);
+  const hasExplicitCourseInsertion = !!(
+    options.afterCourseControl
+    || options.beforeCourseControl
+    || options.variationEndOwnerCourseControl
+    || (options.fromCourseControl && options.toCourseControl)
+  );
+  const coursePlacement = hasExplicitCourseInsertion ? null : automaticCoursePlacement;
   const courseControl = appendControlToCourse(eventModel, Number(courseId), Number(controlId), {
     afterCourseControl: coursePlacement ? null : options.afterCourseControl,
     beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,

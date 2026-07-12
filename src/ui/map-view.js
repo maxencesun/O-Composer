@@ -7,16 +7,16 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260712-11";
+} from "../domain/course-service.js?v=20260712-16";
 import {
   createDescriptionSpecialOptions,
   descriptionBounds,
   drawControlDescriptionBlock,
   resizedDescriptionSpecial,
   specialVisibleForCourse
-} from "../domain/control-descriptions.js?v=20260712-11";
-import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js?v=20260712-11";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-11";
+} from "../domain/control-descriptions.js?v=20260712-16";
+import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js?v=20260712-16";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-16";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
@@ -28,15 +28,15 @@ import {
   drawCourseLeg,
   drawPointSpecialSymbol,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260712-11";
-import { drawOmapMap } from "./omap-renderer.js?v=20260712-11";
+} from "./course-symbols.js?v=20260712-16";
+import { drawOmapMap } from "./omap-renderer.js?v=20260712-16";
 import {
   effectiveCanvasPixelRatio,
   effectiveOmapPixelRatio,
   omapPaddingMultiplier,
   renderQualityHighQuality,
   renderQualityImageSmoothingQuality
-} from "./render-quality.js?v=20260712-11";
+} from "./render-quality.js?v=20260712-16";
 
 import {
   ADDABLE_CONTROL_SNAP_PIXELS,
@@ -50,6 +50,8 @@ import {
   currentCourseLegs,
   moveOffsetForHit,
   moveTargetForDrag,
+  crossingRotationHandle,
+  crossingOrientationForPoint,
   resizeForHit,
   specialResizeHandles,
   specialSelectionPoints,
@@ -120,13 +122,13 @@ import {
   specialCategoryForHitTest,
   symbolApparentRadiusControl,
   clamp
-} from "./map-view-helpers.js?v=20260712-11";
-import { createMapViewRenderMethods } from "./map-view-render-methods.js?v=20260712-11";
-import { createMapViewOmapMethods } from "./map-view-omap-methods.js?v=20260712-11";
-import { createMapViewPointerMethods } from "./map-view-pointer-methods.js?v=20260712-11";
-import { createMapViewHitTestMethods } from "./map-view-hit-test-methods.js?v=20260712-11";
-import { createMapViewCoordinateMethods } from "./map-view-coordinate-methods.js?v=20260712-11";
-import { debugLog, installDebugLogDownloadButton } from "./debug-log.js?v=20260712-11";
+} from "./map-view-helpers.js?v=20260712-16";
+import { createMapViewRenderMethods } from "./map-view-render-methods.js?v=20260712-16";
+import { createMapViewOmapMethods } from "./map-view-omap-methods.js?v=20260712-16";
+import { createMapViewPointerMethods } from "./map-view-pointer-methods.js?v=20260712-16";
+import { createMapViewHitTestMethods } from "./map-view-hit-test-methods.js?v=20260712-16";
+import { createMapViewCoordinateMethods } from "./map-view-coordinate-methods.js?v=20260712-16";
+import { debugLog, installDebugLogDownloadButton } from "./debug-log.js?v=20260712-16";
 export class MapView {
   constructor(canvas, store, callbacks = {}) {
     this.canvas = canvas;
@@ -300,6 +302,8 @@ const MAP_VIEW_METHOD_DEPS = {
   currentCourseLegs,
   moveOffsetForHit,
   moveTargetForDrag,
+  crossingRotationHandle,
+  crossingOrientationForPoint,
   resizeForHit,
   specialResizeHandles,
   specialSelectionPoints,

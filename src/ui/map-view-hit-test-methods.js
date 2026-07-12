@@ -40,6 +40,7 @@ export function createMapViewHitTestMethods(deps) {
     currentCourseLegs,
     moveOffsetForHit,
     moveTargetForDrag,
+    crossingRotationHandle,
     resizeForHit,
     specialResizeHandles,
     specialSelectionPoints,
@@ -120,6 +121,10 @@ export function createMapViewHitTestMethods(deps) {
     const calibrationPoint = this.hitTestBackgroundCalibrationPoint(point, state, baseThreshold);
     if (calibrationPoint) {
       return calibrationPoint;
+    }
+    const rotationHandle = this.hitTestSelectedCrossingRotation(point, state, baseThreshold);
+    if (rotationHandle) {
+      return rotationHandle;
     }
     const bendHandle = this.hitTestSelectedLegBend(point, state, baseThreshold);
     if (bendHandle) {
@@ -346,6 +351,16 @@ export function createMapViewHitTestMethods(deps) {
       }
     }
     return null;
+  },
+
+  hitTestSelectedCrossingRotation(point, state, threshold) {
+    if (!["control", "special"].includes(state.ui.selection?.type)) return null;
+    const crossing = state.ui.selection.type === "control"
+      ? getControl(state.eventModel, state.ui.selection.id)
+      : state.eventModel.specials.find(special => Number(special.id) === Number(state.ui.selection.id));
+    const handlePoint = crossingRotationHandle(crossing, this.scale(state.ui));
+    if (!handlePoint || distance(point, handlePoint) > threshold * 1.5) return null;
+    return { ...state.ui.selection, handle: "rotate" };
   },
 
   hitTestSelectedLegGap(point, state, threshold) {

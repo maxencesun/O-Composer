@@ -1,4 +1,4 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-11";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-16";
 
 export function createMapViewPointerMethods(deps) {
   const {
@@ -42,6 +42,7 @@ export function createMapViewPointerMethods(deps) {
     currentCourseLegs,
     moveOffsetForHit,
     moveTargetForDrag,
+    crossingOrientationForPoint,
     resizeForHit,
     specialResizeHandles,
     specialSelectionPoints,
@@ -230,6 +231,9 @@ export function createMapViewPointerMethods(deps) {
     if (hit?.type === "background-calibration-point") {
       this.canvas.style.cursor = "grabbing";
     }
+    else if (["control", "special"].includes(hit?.type) && hit.handle === "rotate") {
+      this.canvas.style.cursor = "grabbing";
+    }
     this.drag = {
       pointerId: event.pointerId,
       startScreen: screen,
@@ -261,7 +265,10 @@ export function createMapViewPointerMethods(deps) {
       const calibrationHit = state.ui.tool === "select"
         ? this.hitTestBackgroundCalibrationPoint(mapPoint, state, 16 / this.scale(state.ui))
         : null;
-      this.canvas.style.cursor = calibrationHit ? "grab" : "";
+      const rotationHit = state.ui.tool === "select"
+        ? this.hitTestSelectedCrossingRotation(mapPoint, state, 16 / this.scale(state.ui))
+        : null;
+      this.canvas.style.cursor = calibrationHit || rotationHit ? "grab" : "";
       return;
     }
     if (this.drag.measurement) {
@@ -340,6 +347,14 @@ export function createMapViewPointerMethods(deps) {
 
     if (this.drag.hit?.type === "background-calibration-point" && this.drag.moved && state.ui.tool === "select") {
       this.callbacks.onBackgroundCalibrationPointMove?.(this.drag.hit, mapPoint, { transient: true });
+      return;
+    }
+
+    if (["control", "special"].includes(this.drag.hit?.type) && this.drag.hit.handle === "rotate" && this.drag.moved && state.ui.tool === "select") {
+      const crossing = this.drag.hit.type === "control"
+        ? getControl(state.eventModel, this.drag.hit.id)
+        : state.eventModel.specials.find(special => Number(special.id) === Number(this.drag.hit.id));
+      this.callbacks.onCrossingRotationPreview?.(this.drag.hit, crossingOrientationForPoint(crossing, mapPoint));
       return;
     }
 
@@ -429,6 +444,18 @@ export function createMapViewPointerMethods(deps) {
     }
     else if (this.drag.hit?.type === "background-calibration-point" && this.drag.moved && state.ui.tool === "select") {
       this.callbacks.onBackgroundCalibrationPointMove?.(this.drag.hit, mapPoint, { transient: false });
+      this.drag.hit = null;
+    }
+    else if (["control", "special"].includes(this.drag.hit?.type) && this.drag.hit.handle === "rotate" && this.drag.moved && state.ui.tool === "select") {
+      const crossing = this.drag.hit.type === "control"
+        ? getControl(state.eventModel, this.drag.hit.id)
+        : state.eventModel.specials.find(special => Number(special.id) === Number(this.drag.hit.id));
+      this.callbacks.onCrossingRotation?.(this.drag.hit, crossingOrientationForPoint(crossing, mapPoint));
+      this.drag.hit = null;
+    }
+    else if (["control", "special"].includes(this.drag.hit?.type) && this.drag.hit.handle === "rotate" && state.ui.tool === "select") {
+      const { handle, ...selection } = this.drag.hit;
+      this.callbacks.onSelect?.(selection);
       this.drag.hit = null;
     }
     else if (this.drag.hit?.type === "background-calibration-point" && state.ui.tool === "select") {
@@ -559,6 +586,7 @@ export function createMapViewPointerMethods(deps) {
     if (this.drag?.hit) {
       this.callbacks.onMoveSelectionPreview?.(null, null);
       this.callbacks.onResizeSelectionPreview?.(null, null, null);
+      this.callbacks.onCrossingRotationPreview?.(null, null);
     }
     this.descriptionDragPreview = null;
     this.specialShapePreview = null;

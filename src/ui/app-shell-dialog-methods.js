@@ -165,6 +165,7 @@ export function createAppShellDialogMethods(deps) {
     positiveNumber,
     backgroundMetadataForImage,
     backgroundMetadataForPdf,
+    backgroundCalibrationRequired,
     cachePdfBasemapSource,
     ensurePdfBasemapCacheKey,
     backgroundForSessionCache,
@@ -323,15 +324,31 @@ export function createAppShellDialogMethods(deps) {
     if (hasActions) {
       this.querySelector("#commandApplyButton").textContent = this.t(config.applyLabel || "Apply");
     }
+    const cancelButton = this.querySelector('#commandActions [data-command-cancel]');
+    if (cancelButton) cancelButton.hidden = config.showCancel === false;
     this.querySelector("#commandCloseButton").hidden = config.showClose === false;
     const message = this.querySelector("#commandMessage");
     message.hidden = !config.message;
     message.textContent = this.t(config.message || "");
     config.onOpen?.(this.querySelector("#commandDialog"));
     const dialog = this.querySelector("#commandDialog");
+    if (dialog && !this.commandDialogCancelGuardInstalled) {
+      dialog.addEventListener("cancel", event => {
+        if (this.activeCommandDialog?.required === true) {
+          event.preventDefault();
+          this.store.updateUi(ui => {
+            ui.status = this.t("Complete the two-point map scale calibration before continuing.");
+          }, "Map scale calibration required");
+        }
+      });
+      this.commandDialogCancelGuardInstalled = true;
+    }
     dialog?.removeAttribute("hidden");
     if (!dialog.open) {
-      if (dialog.show) {
+      if (config.modal === true && dialog.showModal) {
+        dialog.showModal();
+      }
+      else if (dialog.show) {
         dialog.show();
       }
       else {
@@ -340,7 +357,13 @@ export function createAppShellDialogMethods(deps) {
     }
   },
 
-  closeCommandDialog() {
+  closeCommandDialog(options = {}) {
+    if (this.activeCommandDialog?.required === true && options.force !== true) {
+      this.store.updateUi(ui => {
+        ui.status = this.t("Complete the two-point map scale calibration before continuing.");
+      }, "Map scale calibration required");
+      return false;
+    }
     const dialog = this.querySelector("#commandDialog");
     this.activeCommandDialog = null;
     this.courseOrderDraft = null;
@@ -351,6 +374,7 @@ export function createAppShellDialogMethods(deps) {
       dialog?.removeAttribute("open");
     }
     dialog?.setAttribute("hidden", "");
+    return true;
   },
 
   applyCommandDialog() {
@@ -358,7 +382,7 @@ export function createAppShellDialogMethods(deps) {
     if (!config) return;
     const shouldClose = config.apply?.(this.querySelector("#commandDialog")) !== false;
     if (shouldClose) {
-      this.closeCommandDialog();
+      this.closeCommandDialog({ force: config.required === true });
     }
   },
 
@@ -407,8 +431,9 @@ export function createAppShellDialogMethods(deps) {
     if (event.target.closest("[data-background-calibrate]")) {
       this.store.updateUi(ui => {
         if (ui.background) {
+          const required = backgroundCalibrationRequired?.(ui.background) === true;
           const distanceMode = ui.background.calibration?.distanceMode === "map" ? "map" : "ground";
-          ui.background.calibration = { imagePoints: [], awaitingDistance: true, distanceMode };
+          ui.background.calibration = { imagePoints: [], awaitingDistance: true, distanceMode, required, completed: false };
           ui.tool = "background-calibration";
           ui.selection = { type: "background" };
           ui.status = this.t("Click the first calibration point on the map.");
@@ -552,11 +577,16 @@ export function createAppShellDialogMethods(deps) {
     if (!background || backgroundCalibrationDistance(background) <= 0) return;
     const mapScale = positiveScale(state.eventModel.event?.map?.scale) || 15000;
     const defaultMode = background.calibration?.distanceMode === "map" ? "map" : "ground";
+    const required = backgroundCalibrationRequired?.(background) === true;
     const groundValue = positiveNumber(background.calibrationDistanceMeters, 0);
     const mapValue = positiveNumber(background.calibrationPrintedCm, groundValue > 0 ? groundValue / mapScale * 100 : 0);
     this.openCommandDialog({
       title: "Set two-point calibration distance",
       applyLabel: "Scale background",
+      required,
+      modal: required,
+      showClose: !required,
+      showCancel: !required,
       body: `
         <div class="calibration-distance-dialog">
           <p class="muted" data-background-calibration-current>${escapeHtml(this.backgroundCalibrationLineSummary(background))}</p>
@@ -631,6 +661,8 @@ export function createAppShellDialogMethods(deps) {
           currentBackground.calibration ||= {};
           currentBackground.calibration.awaitingDistance = false;
           currentBackground.calibration.distanceMode = mode;
+          currentBackground.calibration.required = false;
+          currentBackground.calibration.completed = true;
           currentBackground.calibrationDistanceMeters = targetGroundDistance;
           currentBackground.calibrationPrintedCm = targetGroundDistance / mapScale * 100;
           resetBackgroundCalibrationBase(currentBackground);
@@ -864,6 +896,30 @@ export function createAppShellDialogMethods(deps) {
     this.store.updateUi(ui => {
       ui.movePreview = null;
     }, "Move item");
+  },
+
+  previewCrossingRotation(selection, orientation) {
+    this.store.updateUi(ui => {
+      ui.crossingRotationPreview = ["control", "special"].includes(selection?.type) && Number.isFinite(Number(orientation))
+        ? { selection: { type: selection.type, id: selection.id }, orientation: Number(orientation) }
+        : null;
+    }, "Rotate preview");
+  },
+
+  commitCrossingRotation(selection, orientation) {
+    const degrees = Number(orientation);
+    if (!["control", "special"].includes(selection?.type) || !Number.isFinite(degrees)) {
+      this.store.updateUi(ui => { ui.crossingRotationPreview = null; }, "Rotate crossing point");
+      return;
+    }
+    this.store.updateEvent(model => {
+      const crossing = findById(selection.type === "control" ? model.controls : model.specials, selection.id);
+      const expectedKind = selection.type === "control" ? "crossing-point" : "optional-crossing-point";
+      if (crossing?.kind === expectedKind) {
+        crossing.orientation = ((degrees % 360) + 360) % 360;
+      }
+    }, "Rotate crossing point");
+    this.store.updateUi(ui => { ui.crossingRotationPreview = null; }, "Rotate crossing point");
   },
 
   previewResizeSelection(selection, anchor, point) {

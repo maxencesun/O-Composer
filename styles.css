@@ -289,6 +289,35 @@ button:hover {
   position: relative;
 }
 
+.background-calibration-gate {
+  position: absolute;
+  z-index: 24;
+  top: 52px;
+  left: 50%;
+  display: grid;
+  gap: 3px;
+  width: min(520px, calc(100% - 24px));
+  padding: 9px 12px;
+  transform: translateX(-50%);
+  border: 1px solid #d97706;
+  border-radius: 7px;
+  background: rgba(255, 247, 214, 0.96);
+  box-shadow: 0 4px 16px rgba(120, 53, 15, 0.18);
+  color: #78350f;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
+
+.background-calibration-gate[hidden] {
+  display: none;
+}
+
+o-composer-app.background-calibration-required [inert] {
+  opacity: 0.58;
+}
+
 .measurement-panel {
   position: absolute;
   top: 52px;

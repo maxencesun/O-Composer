@@ -52,6 +52,7 @@ def verify_app_files() -> None:
     assert (ROOT / "tests" / "background-calibration-smoke.js").exists()
     assert (ROOT / "tests" / "constants-smoke.js").exists()
     assert (ROOT / "tests" / "course-editing-smoke.js").exists()
+    assert (ROOT / "tests" / "special-symbols-smoke.js").exists()
     assert (ROOT / "assets" / "iscd-symbols.xml").exists()
 
     app_shell_entry = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
@@ -126,13 +127,32 @@ def verify_app_files() -> None:
         assert token in app_shell, f"missing app i18n hook: {token}"
     assert '["open-measure", "Measurement"]' in app_shell, "measurement should be opened from the Add menu"
     assert '${this.menu("Measure"' not in app_shell, "measurement should not remain a standalone top-level menu"
-    assert 'this.toolButton("tool-measure"' not in app_shell, "measurement should not remain a standalone toolbar item"
+    assert 'this.toolButton("tool-measure", "Measure polyline or area", "measure", "Measure")' in app_shell, "measurement should remain available in the quick toolbar"
+    for token in [
+        '["tool-danger", "Dangerous Area"]',
+        '["tool-danger", "Dangerous Area", "dangerous-area"]',
+        '["tool-opt-crossing", "Optional Crossing Point"]',
+        '"tool-opt-crossing": "special:optional-crossing-point"',
+        'this.toolGroup("Restricted Areas and Special Symbols", "restricted-special"',
+        '["tool-water", "Water", "water"]',
+        '["tool-first-aid", "First Aid", "first-aid"]',
+        '["tool-forbidden", "Forbidden Route", "forbidden-route"]',
+        '["tool-regmark", "Registration Mark", "registration-mark"]'
+    ]:
+        assert token in app_shell, f"missing point-special add/toolbar entry: {token}"
+    assert 'this.toolGroup("Restricted Areas", "restricted"' not in app_shell
+    assert 'this.toolGroup("Special Symbols", "special-symbols"' not in app_shell
+    for token in ['"restricted-special"', '"optional-crossing-point"', 'water:', '"first-aid"', '"registration-mark"']:
+        assert token in (ROOT / "src" / "ui" / "icons.js").read_text(encoding="utf-8"), f"missing point-special toolbar icon: {token}"
     for token in ['case "open-measure":', "this.openMeasurementPanel()", "adding: false"]:
         assert token in app_shell, f"opening the measurement panel must not start a new measurement: {token}"
+    for token in ["Rotation angle (°)", 'data-field="control.orientation"', 'data-field="special.orientation"', "onCrossingRotationPreview", "commitCrossingRotation", 'handle: "rotate"', "crossingRotationHandle", "crossingOrientationForPoint"]:
+        assert token in app_shell + map_view, f"mandatory and optional crossing points must support interactive rotation: {token}"
+    assert "ctx.ellipse(center.x, center.y - rim.y * u" in (ROOT / "src" / "ui" / "course-symbols.js").read_text(encoding="utf-8"), "water symbol must include the complete cup-rim ellipse"
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.2"' in app_config, "app version should be centrally maintained at 0.0.2"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CODE_VERSION = "20260712-11"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CODE_VERSION = "20260712-16"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
@@ -156,7 +176,7 @@ def verify_app_files() -> None:
     course_banner_html = template_methods.split('<div id="courseBanner" class="course-banner">', 1)[1].split("</div>\n            <canvas", 1)[0]
     assert footer_html.index('id="dirtyText"') < footer_html.index('id="zoomSlider"') < footer_html.index('id="intensitySlider"'), "zoom and intensity sliders should sit at the far right of the status bar"
     assert 'id="zoomSlider"' not in course_banner_html and 'id="intensitySlider"' not in course_banner_html, "map sliders should no longer occupy the course banner"
-    for token in ["grid-template-columns: minmax(0, 1fr)", "overflow-wrap: anywhere", "text-overflow: clip", "white-space: normal"]:
+    for token in ["grid-template-columns: minmax(0, 1fr)", 'input[type="checkbox"]', "flex: 0 0 16px", "width: 16px", "flex: 1 1 auto", "overflow-wrap: anywhere", "text-overflow: clip", "white-space: normal"]:
         assert token in template_methods, f"special visibility course names should remain readable: {token}"
     for field in ["eventTitleChoice", "mapScaleChoice", "addCourseName", "duplicateCourseName", "courseLoadChoice", "textSpecialPreset"]:
         assert f'<input id="{field}"' in app_shell, f"{field} should allow typed input"
@@ -232,6 +252,8 @@ def verify_app_files() -> None:
         assert token in map_view + app_shell, f"background calibration points should only show in map adjustment and be draggable: {token}"
     for token in ["mapBackgroundEditor", "data-background-field", "backgroundMetadataForImage", "background-calibration", "applyBackgroundCalibration", "calibrationPrintedCm", "calibrationDistanceMeters", "Calibrate with two points", "promptBackgroundCalibrationDistance", "calibrationGroundDistance", "Distance on map (cm)", "Ground distance (m)", "Enter a distance greater than zero."]:
         assert token in app_shell, f"selection panel should expose map background info and calibration controls: {token}"
+    for token in ["requireBackgroundCalibration", "backgroundCalibrationRequired", "background-calibration-required", "backgroundCalibrationGate", "Map scale calibration required", "showClose: !required", "showCancel: !required", "modal: required", "commandDialogCancelGuardInstalled", "completed = true"]:
+        assert token in app_shell + styles, f"new image/PDF basemaps must block other editing until two-point scale calibration completes: {token}"
     command_methods = (ROOT / "src" / "ui" / "app-shell-command-methods.js").read_text(encoding="utf-8")
     calibration_tool_flow = command_methods.split('if (tool === "background-calibration") {', 1)[1].split('if (tool.startsWith("control:")) {', 1)[0]
     assert "promptBackgroundCalibrationDistance" in calibration_tool_flow, "the second calibration point should open the distance dialog"
@@ -324,7 +346,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-11", "ocd-convert-worker.js?v=20260712-11", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-16", "ocd-convert-worker.js?v=20260712-16", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")

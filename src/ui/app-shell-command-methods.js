@@ -172,6 +172,7 @@ export function createAppShellCommandMethods(deps) {
     positiveNumber,
     backgroundMetadataForImage,
     backgroundMetadataForPdf,
+    backgroundCalibrationRequired,
     cachePdfBasemapSource,
     ensurePdfBasemapCacheKey,
     backgroundForSessionCache,
@@ -279,6 +280,14 @@ export function createAppShellCommandMethods(deps) {
 
   runCommand(command) {
     const state = this.store.snapshot();
+    if (backgroundCalibrationRequired?.(state.ui.background) === true) {
+      this.store.updateUi(ui => {
+        ui.tool = "background-calibration";
+        ui.selection = { type: "background" };
+        ui.status = this.t("Complete the two-point map scale calibration before continuing.");
+      }, "Map scale calibration required");
+      return;
+    }
     const eventModel = state.eventModel;
     switch (command) {
       case "new":
@@ -495,6 +504,14 @@ export function createAppShellCommandMethods(deps) {
   },
 
   setTool(command) {
+    if (backgroundCalibrationRequired?.(this.store.snapshot().ui.background) === true) {
+      this.store.updateUi(ui => {
+        ui.tool = "background-calibration";
+        ui.selection = { type: "background" };
+        ui.status = this.t("Complete the two-point map scale calibration before continuing.");
+      }, "Map scale calibration required");
+      return;
+    }
     const toolMap = {
       "tool-start": "control:start",
       "tool-control": "control:normal",
@@ -513,6 +530,7 @@ export function createAppShellCommandMethods(deps) {
       "tool-oob-no-boundary": { tool: "special:out-of-bounds", options: { lineKind: "none" } },
       "tool-danger": "special:dangerous-area",
       "tool-construction": "special:temporary-construction",
+      "tool-opt-crossing": "special:optional-crossing-point",
       "tool-water": "special:water",
       "tool-first-aid": "special:first-aid",
       "tool-forbidden": "special:forbidden-route",
@@ -807,6 +825,14 @@ export function createAppShellCommandMethods(deps) {
 
   applyTool(tool, point, toolOptions = {}) {
     const state = this.store.snapshot();
+    if (backgroundCalibrationRequired?.(state.ui.background) === true && tool !== "background-calibration") {
+      this.store.updateUi(ui => {
+        ui.tool = "background-calibration";
+        ui.selection = { type: "background" };
+        ui.status = this.t("Complete the two-point map scale calibration before continuing.");
+      }, "Map scale calibration required");
+      return;
+    }
     const selectedCourseId = state.ui.selectedCourseId;
     const selectedLegCourseControls = selectedLegCourseControlPair(state);
     const afterCourseControl = insertionCourseControlId(state);
@@ -1347,6 +1373,16 @@ export function createAppShellCommandMethods(deps) {
         object.cellSize = Math.max(1.2, Number(target.value) || 5.2);
         return;
       }
+      if (field === "control.orientation" && object.kind === "crossing-point") {
+        const degrees = Number(target.value);
+        object.orientation = Number.isFinite(degrees) ? ((degrees % 360) + 360) % 360 : 0;
+        return;
+      }
+      if (field === "special.orientation" && object.kind === "optional-crossing-point") {
+        const degrees = Number(target.value);
+        object.orientation = Number.isFinite(degrees) ? ((degrees % 360) + 360) % 360 : 0;
+        return;
+      }
       if (field === "course.relay.legs") {
         object.relay ||= { firstTeam: 1, teams: 0, legs: 0, branches: [], teamPrefix: "", teamDigits: 0, legNames: [] };
         const legs = target.value === "" ? 0 : Math.max(1, Math.round(Number(target.value) || 1));
@@ -1379,7 +1415,7 @@ export function createAppShellCommandMethods(deps) {
       }
     }, "Edit selection");
     // Re-render selection panel when kind or lineKind changes to show/hide relevant fields
-    if (field === "special.lineKind" || field === "course.kind" || field.startsWith("course.relay.") || field === "course.hideVariationsOnMap") {
+    if (field === "special.lineKind" || field === "control.kind" || field === "course.kind" || field.startsWith("course.relay.") || field === "course.hideVariationsOnMap") {
       this.renderKeys = null;
       this.render(this.store.snapshot());
     }

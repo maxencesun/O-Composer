@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { createAppShellCommandMethods } from "../src/ui/app-shell-command-methods.js";
-import { calibrationGroundDistance } from "../src/ui/app-shell-dialog-methods.js";
+import { calibrationGroundDistance, createAppShellDialogMethods } from "../src/ui/app-shell-dialog-methods.js";
 import {
   applyBackgroundCalibration,
   backgroundAspect,
   backgroundCalibrationAnchorCenter,
   backgroundCalibrationDistance,
+  backgroundCalibrationRequired,
   backgroundImagePointForMap,
+  requireBackgroundCalibration,
   resetBackgroundCalibrationBase
 } from "../src/ui/app-shell-model-helpers.js";
 import { drawBackgroundCalibrationGuide } from "../src/ui/map-view-render-methods.js";
@@ -16,6 +18,11 @@ assert.equal(calibrationGroundDistance(125, "ground", 15000), 125);
 assert.equal(calibrationGroundDistance(0, "ground", 15000), 0);
 assert.equal(calibrationGroundDistance(-2, "map", 10000), 0);
 assert.equal(calibrationGroundDistance(Infinity, "ground", 15000), 0);
+
+const newlyImportedBackground = requireBackgroundCalibration({ calibration: { imagePoints: [{ x: 0.5, y: 0.5 }] } });
+assert.equal(backgroundCalibrationRequired(newlyImportedBackground), true);
+assert.deepEqual(newlyImportedBackground.calibration.imagePoints, []);
+assert.equal(newlyImportedBackground.calibration.awaitingDistance, true);
 
 const interactionState = {
   eventModel: {},
@@ -47,6 +54,7 @@ const commandMethods = createAppShellCommandMethods({
   selectedLegCourseControlPair: () => null,
   backgroundImagePointForMap,
   backgroundCalibrationDistance,
+  backgroundCalibrationRequired,
   resetBackgroundCalibrationBase,
   backgroundAspect,
   applyBackgroundCalibration: () => { applyCount += 1; }
@@ -70,6 +78,23 @@ assert.equal(applyCount, 0, "pending calibration points should be draggable with
 interactionState.ui.background.calibration.awaitingDistance = false;
 commandMethods.moveBackgroundCalibrationPoint.call(commandHost, { type: "background-calibration-point", pointIndex: 1 }, { x: 30, y: 0 });
 assert.equal(applyCount, 1, "committed calibration points should rescale after dragging");
+
+interactionState.ui.background.calibration.required = true;
+interactionState.ui.background.calibration.completed = false;
+interactionState.ui.tool = "select";
+commandMethods.runCommand.call(commandHost, "save");
+assert.equal(interactionState.ui.tool, "background-calibration", "required scale calibration must block every other command");
+assert.deepEqual(interactionState.ui.selection, { type: "background" });
+
+const dialogMethods = createAppShellDialogMethods({});
+const lockedDialogUi = { status: "" };
+const lockedDialogHost = {
+  activeCommandDialog: { required: true },
+  store: { updateUi(update) { update(lockedDialogUi); } },
+  t: value => value
+};
+assert.equal(dialogMethods.closeCommandDialog.call(lockedDialogHost), false, "required calibration dialog must not be dismissible");
+assert.equal(lockedDialogUi.status, "Complete the two-point map scale calibration before continuing.");
 
 const background = {
   naturalWidth: 2000,

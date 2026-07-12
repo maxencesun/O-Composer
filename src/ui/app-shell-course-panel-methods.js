@@ -1,4 +1,4 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260712-11";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260712-16";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -174,6 +174,7 @@ export function createAppShellCoursePanelMethods(deps) {
     positiveNumber,
     backgroundMetadataForImage,
     backgroundMetadataForPdf,
+    backgroundCalibrationRequired,
     cachePdfBasemapSource,
     ensurePdfBasemapCacheKey,
     backgroundForSessionCache,
@@ -302,6 +303,13 @@ export function createAppShellCoursePanelMethods(deps) {
   },
 
   render(state) {
+    const calibrationRequired = backgroundCalibrationRequired?.(state.ui.background) === true;
+    this.classList.toggle("background-calibration-required", calibrationRequired);
+    for (const selector of [".menubar", ".toolbar", ".course-tabs", ".left-panel", "#topologyLeftDivider", "#variationTopologyColumn", "#workspaceDivider", "#courseBanner", "#measurementPanel", ".statusbar"]) {
+      this.querySelector(selector)?.toggleAttribute("inert", calibrationRequired);
+    }
+    const calibrationGate = this.querySelector("#backgroundCalibrationGate");
+    if (calibrationGate) calibrationGate.hidden = !calibrationRequired;
     const keys = renderKeysFor(state);
     const selectionContextChanged = !this.renderKeys
       || this.renderKeys.selection !== keys.selection

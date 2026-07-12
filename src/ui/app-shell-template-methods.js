@@ -690,7 +690,18 @@ export function createAppShellTemplateMethods(deps) {
           min-width: 0;
           line-height: 1.25;
         }
+        o-composer-app .form-grid .special-visibility-course input[type="checkbox"],
+        o-composer-app .form-grid .special-visibility-all input[type="checkbox"] {
+          flex: 0 0 16px;
+          width: 16px;
+          min-width: 16px;
+          height: 16px;
+          margin: 0;
+          padding: 0;
+        }
         o-composer-app .special-visibility-course span {
+          flex: 1 1 auto;
+          width: auto;
           min-width: 0;
           overflow: visible;
           overflow-wrap: anywhere;
@@ -941,7 +952,9 @@ export function createAppShellTemplateMethods(deps) {
             ["tool-ellipse", "Ellipse"],
             ["tool-oob", "Out of Bounds"],
             ["tool-oob-no-boundary", "Out of Bounds (No Boundary)"],
+            ["tool-danger", "Dangerous Area"],
             ["tool-construction", "Temporary Closed Area"],
+            ["tool-opt-crossing", "Optional Crossing Point"],
             ["tool-water", "Water"],
             ["tool-first-aid", "First Aid"],
             ["tool-forbidden", "Forbidden Route"],
@@ -997,14 +1010,20 @@ export function createAppShellTemplateMethods(deps) {
           ${this.toolButton("tool-finish", "Finish", "finish")}
           ${this.toolButton("tool-map-issue", "Map Issue", "map-issue")}
           ${this.toolButton("tool-line-cut", "Cut Line", "cut")}
+          ${this.toolButton("tool-measure", "Measure polyline or area", "measure", "Measure")}
           ${this.toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")}
-          ${this.toolGroup("Restricted Areas", "restricted", [
+          ${this.toolGroup("Restricted Areas and Special Symbols", "restricted-special", [
             ["tool-oob", "Out of Bounds", "out-of-bounds"],
             ["tool-oob-no-boundary", "Out of Bounds (No Boundary)", "out-of-bounds"],
+            ["tool-danger", "Dangerous Area", "dangerous-area"],
             ["tool-construction", "Temporary Closed Area", "construction"],
-            ["tool-forbidden", "Forbidden Route", "forbidden-route"],
             ["tool-boundary", "Boundary", "boundary"],
-            ["tool-whiteout", "White Out", "whiteout"]
+            ["tool-whiteout", "White Out", "whiteout"],
+            ["tool-opt-crossing", "Optional Crossing Point", "optional-crossing-point"],
+            ["tool-water", "Water", "water"],
+            ["tool-first-aid", "First Aid", "first-aid"],
+            ["tool-forbidden", "Forbidden Route", "forbidden-route"],
+            ["tool-regmark", "Registration Mark", "registration-mark"]
           ])}
           ${this.toolGroup("Decorations", "decoration", [
             ["tool-text", "Text", "text"],
@@ -1057,6 +1076,10 @@ export function createAppShellTemplateMethods(deps) {
             <div id="courseBanner" class="course-banner">
               <div id="courseBannerText" class="course-banner-text"></div>
               <div id="courseVariationControls" class="course-variation-controls"></div>
+            </div>
+            <div id="backgroundCalibrationGate" class="background-calibration-gate" hidden aria-live="assertive">
+              <strong>${escapeHtml(this.t("Map scale calibration required"))}</strong>
+              <span>${escapeHtml(this.t("Select two points and enter their map or ground distance before using other tools."))}</span>
             </div>
             <canvas id="mapCanvas" class="map-canvas"></canvas>
             <aside id="measurementPanel" class="measurement-panel" aria-live="polite" hidden>

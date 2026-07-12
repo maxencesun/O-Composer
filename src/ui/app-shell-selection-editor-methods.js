@@ -477,6 +477,7 @@ export function createAppShellSelectionEditorMethods(deps) {
         <label>${escapeHtml(this.t("Code"))} <input data-field="control.code" value="${escapeAttr(control.code || "")}" ${control.kind !== "normal" ? "disabled" : ""}></label>
         <label>X <input data-field="control.location.x" type="number" step="0.1" value="${control.location.x}"></label>
         <label>Y <input data-field="control.location.y" type="number" step="0.1" value="${control.location.y}"></label>
+        ${control.kind === "crossing-point" ? `<label class="span-2">${escapeHtml(this.t("Rotation angle (°)"))} <input data-field="control.orientation" type="number" min="0" max="359.9" step="0.1" value="${Math.round(((Number(control.orientation) || 0) % 360 + 360) % 360 * 10) / 10}"></label>` : ""}
         <label>${escapeHtml(this.t("Before"))} <input data-field="control.descTextBefore" value="${escapeAttr(control.descTextBefore || "")}"></label>
         <label>${escapeHtml(this.t("After"))} <input data-field="control.descTextAfter" value="${escapeAttr(control.descTextAfter || "")}"></label>
       </div>
@@ -733,7 +734,9 @@ export function createAppShellSelectionEditorMethods(deps) {
     ];
 
     if (category === "point") {
-      // Point specials: kind only (orientation handled by rotation tool if needed)
+      if (special.kind === "optional-crossing-point") {
+        fields.push(`<label class="span-2">${escapeHtml(this.t("Rotation angle (°)"))} <input data-field="special.orientation" type="number" min="0" max="359.9" step="0.1" value="${Math.round(((Number(special.orientation) || 0) % 360 + 360) % 360 * 10) / 10}"></label>`);
+      }
     }
     else if (category === "text") {
       fields.push(`<label class="span-2">${escapeHtml(this.t("Text"))} <input data-field="special.text" value="${escapeAttr(special.text || "")}"></label>`);

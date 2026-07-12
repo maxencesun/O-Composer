@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { addControlAt, addCourse, addExistingControlToCourse } from "../src/domain/actions.js";
 import { courseTopology, courseView } from "../src/domain/course-service.js";
 import { createAppShellCoursePanelMethods } from "../src/ui/app-shell-course-panel-methods.js";
+import { createAppShellDialogMethods } from "../src/ui/app-shell-dialog-methods.js";
 import {
   insertionCourseControlId,
   topologyNodeCourseControlId,
@@ -100,5 +101,25 @@ assert.equal(insertionCourseControlId(state), 4);
 const appended = addControlAt(branchModel, "normal", { x: 350, y: 0 }, 1, { afterCourseControl: insertionCourseControlId(state) });
 assert.equal(branchModel.courseControls.find(item => item.id === 4).nextCourseControl, appended.courseControl, "a control selected on the map must insert after the corresponding topology node");
 assert.notEqual(selectionKey({ type: "control", id: 10, courseControl: 1 }), selectionKey({ type: "control", id: 10, courseControl: 2 }));
+
+const crossingModel = {
+  controls: [{ id: 21, kind: "crossing-point", location: { x: 10, y: 20 }, orientation: 0 }],
+  specials: [{ id: 31, kind: "optional-crossing-point", locations: [{ x: 30, y: 40 }], orientation: 0 }]
+};
+const crossingUi = {};
+const rotationStore = {
+  updateEvent(update) { update(crossingModel); },
+  updateUi(update) { update(crossingUi); }
+};
+const rotationMethods = createAppShellDialogMethods({
+  findById: (items, id) => items.find(item => Number(item.id) === Number(id)) || null
+});
+rotationMethods.previewCrossingRotation.call({ store: rotationStore }, { type: "control", id: 21 }, 45);
+assert.equal(crossingUi.crossingRotationPreview.orientation, 45);
+rotationMethods.commitCrossingRotation.call({ store: rotationStore }, { type: "control", id: 21 }, -90);
+assert.equal(crossingModel.controls[0].orientation, 270, "mandatory crossing rotation must normalize and persist the dragged angle");
+rotationMethods.commitCrossingRotation.call({ store: rotationStore }, { type: "special", id: 31 }, 450);
+assert.equal(crossingModel.specials[0].orientation, 90, "optional crossing rotation must normalize and persist the dragged angle");
+assert.equal(crossingUi.crossingRotationPreview, null);
 
 console.log("course editing smoke test passed");

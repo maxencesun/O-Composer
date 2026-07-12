@@ -4,17 +4,17 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260712-11";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260712-11";
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-11";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-11";
+} from "../domain/course-service.js?v=20260712-16";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260712-16";
+import { resolveTextConstants } from "../domain/constants.js?v=20260712-16";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-16";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260712-11";
+} from "./course-symbols.js?v=20260712-16";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
@@ -102,6 +102,28 @@ export function moveTargetForDrag(drag, mapPoint) {
   return drag?.moveOffset
     ? { x: mapPoint.x - drag.moveOffset.x, y: mapPoint.y - drag.moveOffset.y }
     : mapPoint;
+}
+
+export function crossingRotationHandle(crossing, scale, distancePixels = 34) {
+  if (!["crossing-point", "optional-crossing-point"].includes(crossing?.kind)) return null;
+  const location = crossing.location || crossing.locations?.[0];
+  if (!location) return null;
+  const distance = Math.max(1, Number(distancePixels) || 34) / Math.max(0.001, Number(scale) || 1);
+  const radians = (Number(crossing.orientation) || 0) * Math.PI / 180;
+  return {
+    x: location.x - Math.sin(radians) * distance,
+    y: location.y + Math.cos(radians) * distance
+  };
+}
+
+export function crossingOrientationForPoint(crossing, point) {
+  const location = crossing?.location || crossing?.locations?.[0];
+  if (!["crossing-point", "optional-crossing-point"].includes(crossing?.kind) || !location || !point) return Number(crossing?.orientation) || 0;
+  const dx = point.x - location.x;
+  const dy = point.y - location.y;
+  if (Math.hypot(dx, dy) < 0.001) return Number(crossing.orientation) || 0;
+  const degrees = Math.atan2(-dx, dy) * 180 / Math.PI;
+  return ((degrees % 360) + 360) % 360;
 }
 
 export function resizeForHit(hit) {

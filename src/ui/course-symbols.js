@@ -325,21 +325,37 @@ function drawRegistrationMark(ctx, center, metrics) {
 
 function drawWater(ctx, center, metrics) {
   const u = metrics.unit;
+  const legacy = metrics.mapStandard === "2000";
+  const rim = legacy
+    ? { y: 1.375, radiusX: 1.5, radiusY: 0.375 }
+    : { y: 1.071, radiusX: 1.55, radiusY: 0.35 };
+  const base = legacy
+    ? { y: -1.5, radiusX: 1.0, radiusY: 0.25 }
+    : { y: -1.529, radiusX: 0.85, radiusY: 0.15 };
   ctx.save();
   ctx.strokeStyle = metrics.color;
-  ctx.lineWidth = screenSize((metrics.mapStandard === "2000" ? NORMAL.lineThickness * (metrics.appearance?.lineWidthRatio || 1) : 0.4) * u);
+  ctx.lineWidth = screenSize((legacy ? NORMAL.lineThickness * (metrics.appearance?.lineWidthRatio || 1) : 0.4) * u);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+
+  // Purple Pen/ISCD water points use a complete elliptical cup rim. The
+  // lower half of this ellipse is a separate visible arc, not a straight
+  // closing segment.
   ctx.beginPath();
-  const topLeft = localToScreen(center, { x: -1.55, y: 1.05 }, 0, u);
-  const topRight = localToScreen(center, { x: 1.55, y: 1.05 }, 0, u);
-  const bottomRight = localToScreen(center, { x: 0.85, y: -1.55 }, 0, u);
-  const bottomLeft = localToScreen(center, { x: -0.85, y: -1.55 }, 0, u);
-  ctx.moveTo(topLeft.x, topLeft.y);
-  ctx.quadraticCurveTo(center.x, center.y - 1.65 * u, topRight.x, topRight.y);
+  ctx.ellipse(center.x, center.y - rim.y * u, rim.radiusX * u, rim.radiusY * u, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const topRight = localToScreen(center, { x: rim.radiusX, y: rim.y }, 0, u);
+  const topLeft = localToScreen(center, { x: -rim.radiusX, y: rim.y }, 0, u);
+  const bottomRight = localToScreen(center, { x: base.radiusX, y: base.y }, 0, u);
+  const bottomLeft = localToScreen(center, { x: -base.radiusX, y: base.y }, 0, u);
+  ctx.beginPath();
+  ctx.moveTo(topRight.x, topRight.y);
   ctx.lineTo(bottomRight.x, bottomRight.y);
-  ctx.quadraticCurveTo(center.x, center.y + 1.85 * u, bottomLeft.x, bottomLeft.y);
-  ctx.closePath();
+  ctx.moveTo(topLeft.x, topLeft.y);
+  ctx.lineTo(bottomLeft.x, bottomLeft.y);
+  ctx.moveTo(bottomRight.x, bottomRight.y);
+  ctx.ellipse(center.x, center.y - base.y * u, base.radiusX * u, base.radiusY * u, 0, 0, Math.PI);
   ctx.stroke();
   ctx.restore();
 }

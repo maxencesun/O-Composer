@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { screenSize } from "../src/ui/course-symbols.js";
-import { drawFallbackSpecialPoint, drawSquareHandle, mapScreenSize, specialLineWidth, textMetrics } from "../src/ui/map-view-helpers.js";
+import { crossingOrientationForPoint, crossingRotationHandle, drawFallbackSpecialPoint, drawSquareHandle, mapScreenSize, specialLineWidth, textMetrics } from "../src/ui/map-view-helpers.js";
 import { measurementLineDash, zoomScreenSize } from "../src/ui/map-view-render-methods.js";
 import { omapScreenSize } from "../src/ui/omap-renderer.js";
 
@@ -41,5 +41,18 @@ const fallbackContext = {
 drawFallbackSpecialPoint(fallbackContext, "line", { x: 0, y: 0 }, 1);
 drawFallbackSpecialPoint(fallbackContext, "line", { x: 0, y: 0 }, quarter);
 assert.deepEqual(fallbackRects.map(rect => rect.width), [16, 4]);
+
+const crossing = { kind: "crossing-point", location: { x: 100, y: 200 }, orientation: 0 };
+assert.deepEqual(crossingRotationHandle(crossing, 1), { x: 100, y: 234 });
+assert.deepEqual(crossingRotationHandle({ ...crossing, orientation: 90 }, 1), { x: 66, y: 200 });
+assert.equal(crossingOrientationForPoint(crossing, { x: 100, y: 240 }), 0);
+assert.equal(crossingOrientationForPoint(crossing, { x: 60, y: 200 }), 90);
+assert.equal(crossingOrientationForPoint(crossing, { x: 100, y: 160 }), 180);
+assert.equal(crossingOrientationForPoint(crossing, { x: 140, y: 200 }), 270);
+const optionalCrossing = { kind: "optional-crossing-point", locations: [{ x: 10, y: 20 }], orientation: 90 };
+const optionalHandle = crossingRotationHandle(optionalCrossing, 1);
+assert.equal(optionalHandle.x, -24);
+assert.ok(Math.abs(optionalHandle.y - 20) < 1e-9);
+assert.equal(crossingOrientationForPoint(optionalCrossing, { x: 10, y: -20 }), 180);
 
 console.log("render zoom scaling smoke test passed");

@@ -1,5 +1,5 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-11";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-11";
+import { resolveTextConstants } from "../domain/constants.js?v=20260712-16";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-16";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -54,6 +54,7 @@ export function createMapViewRenderMethods(deps) {
     currentCourseLegs,
     moveOffsetForHit,
     moveTargetForDrag,
+    crossingRotationHandle,
     resizeForHit,
     specialResizeHandles,
     specialSelectionPoints,
@@ -373,29 +374,34 @@ export function createMapViewRenderMethods(deps) {
       if (!specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) {
         continue;
       }
-      const points = (special.locations || []).map(point => this.toScreen(point, ui));
+      const rotationPreview = ui.crossingRotationPreview?.selection?.type === "special"
+        && Number(ui.crossingRotationPreview.selection.id) === Number(special.id)
+        ? ui.crossingRotationPreview.orientation
+        : null;
+      const renderedSpecial = rotationPreview === null ? special : { ...special, orientation: rotationPreview };
+      const points = (renderedSpecial.locations || []).map(point => this.toScreen(point, ui));
       ctx.save();
-      if (["boundary", "line"].includes(special.kind) && points.length >= 2) {
-        drawLineSpecial(ctx, special, points, this.scale(ui), metrics);
+      if (["boundary", "line"].includes(renderedSpecial.kind) && points.length >= 2) {
+        drawLineSpecial(ctx, renderedSpecial, points, this.scale(ui), metrics);
       }
-      else if (["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(special.kind) && points.length >= 3) {
-        drawAreaSpecial(ctx, special, points, this.scale(ui), metrics);
+      else if (["out-of-bounds", "dangerous-area", "temporary-construction", "white-out"].includes(renderedSpecial.kind) && points.length >= 3) {
+        drawAreaSpecial(ctx, renderedSpecial, points, this.scale(ui), metrics);
       }
-      else if (special.kind === "rectangle" && points.length >= 2) {
-        drawRectSpecial(ctx, special, points[0], points[1], this.scale(ui), false);
+      else if (renderedSpecial.kind === "rectangle" && points.length >= 2) {
+        drawRectSpecial(ctx, renderedSpecial, points[0], points[1], this.scale(ui), false);
       }
-      else if (special.kind === "ellipse" && points.length >= 2) {
-        drawRectSpecial(ctx, special, points[0], points[1], this.scale(ui), true);
+      else if (renderedSpecial.kind === "ellipse" && points.length >= 2) {
+        drawRectSpecial(ctx, renderedSpecial, points[0], points[1], this.scale(ui), true);
       }
-      else if (special.kind === "text" && points.length >= 1) {
-        drawTextSpecial(ctx, { ...special, text: resolveTextConstants(special.text, eventModel, ui) }, points, this.scale(ui));
+      else if (renderedSpecial.kind === "text" && points.length >= 1) {
+        drawTextSpecial(ctx, { ...renderedSpecial, text: resolveTextConstants(renderedSpecial.text, eventModel, ui) }, points, this.scale(ui));
       }
-      else if (special.kind === "descriptions" && points.length >= 2) {
-        drawControlDescriptionBlock(ctx, eventModel, special, ui.selectedCourseId, point => this.toScreen(point, ui), mapCourseDisplayOptions(eventModel, ui));
+      else if (renderedSpecial.kind === "descriptions" && points.length >= 2) {
+        drawControlDescriptionBlock(ctx, eventModel, renderedSpecial, ui.selectedCourseId, point => this.toScreen(point, ui), mapCourseDisplayOptions(eventModel, ui));
       }
       else if (points.length) {
-        if (!drawPointSpecialSymbol(ctx, special, points[0], metrics)) {
-          drawFallbackSpecialPoint(ctx, special.kind, points[0], Math.min(1, ui.zoom || 1));
+        if (!drawPointSpecialSymbol(ctx, renderedSpecial, points[0], metrics)) {
+          drawFallbackSpecialPoint(ctx, renderedSpecial.kind, points[0], Math.min(1, ui.zoom || 1));
         }
       }
       ctx.restore();
@@ -448,7 +454,12 @@ export function createMapViewRenderMethods(deps) {
 
     for (const row of rows) {
       const point = this.toScreen(row.control.location, ui);
-      drawCourseControl(ctx, row.control, point, metrics, {
+      const rotationPreview = ui.crossingRotationPreview?.selection?.type === "control"
+        && Number(ui.crossingRotationPreview.selection.id) === Number(row.control.id)
+        ? ui.crossingRotationPreview.orientation
+        : null;
+      const renderedControl = rotationPreview === null ? row.control : { ...row.control, orientation: rotationPreview };
+      drawCourseControl(ctx, renderedControl, point, metrics, {
         directionAngle: outgoingDirection(row, legs),
         circleGaps: autoCircleGaps.get(String(row.control.id)) || []
       });
@@ -495,10 +506,24 @@ export function createMapViewRenderMethods(deps) {
         const allControls = selectedCourseId === "all";
         const selectedCourse = allControls ? null : getCourse(eventModel, selectedCourseId);
         const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), allControls);
-        const point = this.toScreen(control.location, ui);
-        const radius = Math.max(4, symbolApparentRadius(control, metrics));
+        const rotationPreview = ui.crossingRotationPreview?.selection?.type === "control"
+          && Number(ui.crossingRotationPreview.selection.id) === Number(control.id)
+          ? ui.crossingRotationPreview.orientation
+          : null;
+        const displayedControl = rotationPreview === null ? control : { ...control, orientation: rotationPreview };
+        const point = this.toScreen(displayedControl.location, ui);
+        const radius = Math.max(4, symbolApparentRadius(displayedControl, metrics));
         ctx.strokeRect(point.x - radius, point.y - radius, radius * 2, radius * 2);
         drawControlCenterPoint(ctx, point);
+        const rotationHandle = crossingRotationHandle(displayedControl, this.scale(ui));
+        if (rotationHandle) {
+          const handlePoint = this.toScreen(rotationHandle, ui);
+          ctx.setLineDash([]);
+          ctx.strokeStyle = "#2477c9";
+          ctx.lineWidth = 1.5;
+          line(ctx, point.x, point.y, handlePoint.x, handlePoint.y);
+          drawHandleDot(ctx, handlePoint, "end", Math.min(1, ui.zoom || 1));
+        }
       }
     }
     else if (ui.selection.type === "leg" || ui.selection.type === "leg-bend") {
@@ -571,6 +596,21 @@ export function createMapViewRenderMethods(deps) {
     if (!special || !specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) return;
     const scale = this.scale(ui);
     ctx.save();
+    const rotationPreview = ui.crossingRotationPreview?.selection?.type === "special"
+      && Number(ui.crossingRotationPreview.selection.id) === Number(special.id)
+      ? ui.crossingRotationPreview.orientation
+      : null;
+    const displayedSpecial = rotationPreview === null ? special : { ...special, orientation: rotationPreview };
+    const rotationHandle = crossingRotationHandle(displayedSpecial, scale);
+    if (rotationHandle) {
+      const center = this.toScreen(displayedSpecial.locations[0], ui);
+      const handlePoint = this.toScreen(rotationHandle, ui);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#2477c9";
+      ctx.lineWidth = 1.5;
+      line(ctx, center.x, center.y, handlePoint.x, handlePoint.y);
+      drawHandleDot(ctx, handlePoint, "end", Math.min(1, ui.zoom || 1));
+    }
     const handles = specialResizeHandles(special, ui, scale, eventModel);
     for (const handle of handles) {
       drawSquareHandle(ctx, this.toScreen(handle.point, ui), true, Math.min(1, ui.zoom || 1));

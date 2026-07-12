@@ -1,4 +1,4 @@
-import { debugLog } from "./debug-log.js?v=20260712-11";
+import { debugLog } from "./debug-log.js?v=20260712-16";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -170,6 +170,8 @@ export function createAppShellFileExportMethods(deps) {
     positiveNumber,
     backgroundMetadataForImage,
     backgroundMetadataForPdf,
+    requireBackgroundCalibration,
+    backgroundCalibrationRequired,
     cachePdfBasemapSource,
     ensurePdfBasemapCacheKey,
     backgroundForSessionCache,
@@ -277,6 +279,12 @@ export function createAppShellFileExportMethods(deps) {
           ui.background = embeddedBaseMap.background;
           ui.omap = embeddedBaseMap.omap;
           ui.measurement = measurementUiFromPersisted(model.metadata?.measurements);
+          if (backgroundCalibrationRequired(ui.background)) {
+            requireBackgroundCalibration(ui.background);
+            ui.tool = "background-calibration";
+            ui.selection = { type: "background" };
+            ui.status = this.t("Complete the two-point map scale calibration before continuing.");
+          }
         }, "Loaded");
       }
       catch (error) {
@@ -309,6 +317,12 @@ export function createAppShellFileExportMethods(deps) {
         ui.background = embeddedBaseMap.background;
         ui.omap = embeddedBaseMap.omap;
         ui.measurement = measurementUiFromPersisted(model.metadata?.measurements);
+        if (backgroundCalibrationRequired(ui.background)) {
+          requireBackgroundCalibration(ui.background);
+          ui.tool = "background-calibration";
+          ui.selection = { type: "background" };
+          ui.status = this.t("Complete the two-point map scale calibration before continuing.");
+        }
       }, "Sample loaded");
     }
     catch (error) {
@@ -323,6 +337,7 @@ export function createAppShellFileExportMethods(deps) {
   },
   async openMapFile(file) {
     if (!file) return;
+    this.closeCommandDialog({ force: true });
     if (isPdfFile(file)) {
       await this.openPdfMapFile(file);
       return;
@@ -334,12 +349,15 @@ export function createAppShellFileExportMethods(deps) {
       image.onload = () => {
         this.mapView.setBackground(url);
         this.mapView.setOmap(null);
-        const metadata = backgroundMetadataForImage(file, url, image, this.store.snapshot().eventModel);
+        const metadata = requireBackgroundCalibration(backgroundMetadataForImage(file, url, image, this.store.snapshot().eventModel));
         this.store.updateUi(ui => {
           ui.background = metadata;
           ui.omap = null;
           ui.pan = { x: 0, y: 0 };
           ui.zoom = 1;
+          ui.tool = "background-calibration";
+          ui.selection = { type: "background" };
+          ui.status = this.t("Click the first calibration point on the map.");
         }, "Map image loaded");
       };
       image.onerror = () => {
@@ -364,14 +382,16 @@ export function createAppShellFileExportMethods(deps) {
       const image = await loadImage(rendered.url);
       this.mapView.setBackground(rendered.url);
       this.mapView.setOmap(null);
-      const metadata = backgroundMetadataForPdf(file, rendered, image, this.store.snapshot().eventModel);
+      const metadata = requireBackgroundCalibration(backgroundMetadataForPdf(file, rendered, image, this.store.snapshot().eventModel));
       await cachePdfBasemapSource(metadata);
       this.store.updateUi(ui => {
         ui.background = metadata;
         ui.omap = null;
         ui.pan = { x: 0, y: 0 };
         ui.zoom = 1;
-        ui.status = this.t("PDF map imported at {dpi} dpi.", { dpi: Math.round(rendered.renderDpi) });
+        ui.tool = "background-calibration";
+        ui.selection = { type: "background" };
+        ui.status = this.t("Click the first calibration point on the map.");
       }, "PDF map loaded");
     }
     catch (error) {

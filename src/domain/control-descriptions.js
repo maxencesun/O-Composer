@@ -1,5 +1,5 @@
-import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260712-7";
-import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260712-7";
+import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260712-8";
+import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260712-8";
 import {
   alignTopologySharedJoinPoints,
   layoutVariationTopology,
@@ -12,7 +12,7 @@ import {
   topologyCommonJoinPointMap,
   topologyEdgeKey,
   topologySharedJoinParentMap
-} from "./variation-topology-layout.js?v=20260712-7";
+} from "./variation-topology-layout.js?v=20260712-8";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -709,7 +709,7 @@ function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outpu
   ctx.save();
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
-  ctx.lineWidth = Math.max(0.5, 3 * scale * outputScale);
+  ctx.lineWidth = Math.max(0.01, 3 * scale * outputScale);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
@@ -831,7 +831,7 @@ function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outpu
     const control = view.control;
     ctx.strokeStyle = color;
     ctx.fillStyle = "#fff";
-    ctx.lineWidth = Math.max(0.5, 1.5 * scale * outputScale);
+    ctx.lineWidth = Math.max(0.01, 1.5 * scale * outputScale);
     if (control.kind === "start") {
       ctx.beginPath();
       ctx.moveTo(center.x, center.y - 18 * scale * outputScaleY);

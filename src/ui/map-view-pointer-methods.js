@@ -1,4 +1,4 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-7";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-8";
 
 export function createMapViewPointerMethods(deps) {
   const {
@@ -655,7 +655,7 @@ function measurementHit(view, mapPoint, state) {
       const labelPoint = measurementLabelPoint(item);
       if (labelPoint) {
         const labelScreen = view.toScreen(labelPoint, state.ui);
-        if (!item.labelPosition) labelScreen.y -= 14;
+        if (!item.labelPosition) labelScreen.y -= 14 * Math.min(1, Math.max(0.01, Number(state.ui.zoom) || 1));
         const pointerScreen = view.toScreen(mapPoint, state.ui);
         if (Math.abs(pointerScreen.x - labelScreen.x) <= 42 && Math.abs(pointerScreen.y - labelScreen.y) <= 14) {
           return { index, label: true, labelPoint: view.toMap(labelScreen, state.ui) };

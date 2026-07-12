@@ -7,6 +7,7 @@ const measurements = {
     points: [{ x: 1, y: 2 }, { x: 30, y: 40 }],
     closed: false,
     color: "#123456",
+    lineStyle: "dashed",
     labelPosition: { x: 15, y: 25 }
   }],
   showGroundLabels: true,
@@ -17,4 +18,5 @@ assert.match(xml, /<measurements>/);
 assert.match(xml, /#123456/);
 assert.match(xml, /showGroundLabels/);
 assert.match(xml, /labelPosition/);
+assert.match(xml, /dashed/);
 console.log("measurement persistence smoke test passed");

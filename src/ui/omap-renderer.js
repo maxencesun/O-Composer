@@ -1,3 +1,9 @@
+export function omapScreenSize(mapSize, scale) {
+  const size = Math.abs(Number(mapSize) || 0);
+  const pixelsPerMapUnit = Math.max(0, Number(scale) || 0);
+  return Math.max(0.01, size * pixelsPerMapUnit);
+}
+
 export function drawOmapMap(ctx, omap, project, scale, options = {}) {
   if (!omap?.objects?.length) {
     return { visibleObjectCount: 0, priorityCount: 0 };
@@ -79,7 +85,7 @@ function renderObject(ctx, object, symbol, symbols, project, scale, transform, d
     drawLine(ctx, object, symbol.line, symbols, project, scale, transform, depth, targetPriority);
   }
   else if (targetPriority === FALLBACK_PRIORITY) {
-    drawFallbackPath(ctx, object, project, transform);
+    drawFallbackPath(ctx, object, project, scale, transform);
   }
 }
 
@@ -119,7 +125,7 @@ function drawLine(ctx, object, line, symbols, project, scale, transform, depth, 
   if (line.color && priorityMatches(line.priority, targetPriority) && line.width > 0 && drawableParts.length) {
     ctx.save();
     ctx.strokeStyle = line.color;
-    ctx.lineWidth = Math.max(0.45, line.width * scale);
+    ctx.lineWidth = omapScreenSize(line.width, scale);
     ctx.lineCap = canvasLineCap(line.capStyle);
     ctx.lineJoin = line.joinStyle === "2" ? "round" : "miter";
     ctx.setLineDash([]);
@@ -155,7 +161,7 @@ function drawLineBorders(ctx, line, points, project, scale, targetPriority, clos
     const parts = flattenPathParts(points);
     ctx.save();
     ctx.strokeStyle = border.color;
-    ctx.lineWidth = Math.max(0.45, border.width * scale);
+    ctx.lineWidth = omapScreenSize(border.width, scale);
     ctx.lineCap = canvasLineCap(line.capStyle);
     ctx.lineJoin = line.joinStyle === "2" ? "round" : "miter";
     ctx.setLineDash([]);
@@ -707,7 +713,7 @@ function drawPointSymbol(ctx, pointSymbol, origin, rotation, symbols, project, s
     ctx.save();
     ctx.fillStyle = "#222";
     ctx.beginPath();
-    ctx.arc(center.x, center.y, Math.max(3, 1.2 * scale), 0, Math.PI * 2);
+    ctx.arc(center.x, center.y, omapScreenSize(1.2, scale), 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
     return;
@@ -717,15 +723,15 @@ function drawPointSymbol(ctx, pointSymbol, origin, rotation, symbols, project, s
   if (pointSymbol.innerColor && pointSymbol.innerRadius > 0 && priorityMatches(pointSymbol.innerPriority, targetPriority)) {
     ctx.fillStyle = pointSymbol.innerColor;
     ctx.beginPath();
-    ctx.arc(center.x, center.y, Math.max(0.75, pointSymbol.innerRadius * scale), 0, Math.PI * 2);
+    ctx.arc(center.x, center.y, omapScreenSize(pointSymbol.innerRadius, scale), 0, Math.PI * 2);
     ctx.fill();
   }
   if (pointSymbol.outerColor && pointSymbol.outerWidth > 0 && priorityMatches(pointSymbol.outerPriority, targetPriority)) {
     ctx.strokeStyle = pointSymbol.outerColor;
-    ctx.lineWidth = Math.max(0.5, pointSymbol.outerWidth * scale);
+    ctx.lineWidth = omapScreenSize(pointSymbol.outerWidth, scale);
     const radius = pointSymbol.innerRadius + pointSymbol.outerWidth / 2;
     ctx.beginPath();
-    ctx.arc(center.x, center.y, Math.max(0.75, radius * scale), 0, Math.PI * 2);
+    ctx.arc(center.x, center.y, omapScreenSize(radius, scale), 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.restore();
@@ -745,7 +751,8 @@ function drawText(ctx, object, textStyle, project, scale, transform, targetPrior
   if (!anchor) return;
   const screen = project(anchor);
   const lines = String(object.text || "").split(/\r?\n/);
-  const fontSize = Math.max(7, (textStyle?.size || 3.5) * scale);
+  const fontSize = omapScreenSize(textStyle?.size || 3.5, scale);
+  if (fontSize < 0.5) return;
   const lineHeight = fontSize * (textStyle?.lineSpacing || 1.15);
   const totalHeight = lineHeight * lines.length;
 
@@ -815,7 +822,8 @@ function patternOriginScreenPoint(pattern, project) {
 
 function drawLinePattern(ctx, pattern, origin, visibleBounds, scale, targetPriority) {
   if (!priorityMatches(pattern.priority, targetPriority)) return;
-  const spacing = Math.max(2, pattern.lineSpacing * scale);
+  const spacing = omapScreenSize(pattern.lineSpacing, scale);
+  if (spacing < 0.75) return;
   const direction = screenDirection(pattern.angle);
   const normal = { x: -direction.y, y: direction.x };
   // Keep the hatch phase anchored to the shared map/object pattern origin, not
@@ -836,7 +844,7 @@ function drawLinePattern(ctx, pattern, origin, visibleBounds, scale, targetPrior
 
   ctx.save();
   ctx.strokeStyle = pattern.color || "#777";
-  ctx.lineWidth = Math.max(0.35, pattern.lineWidth * scale);
+  ctx.lineWidth = omapScreenSize(pattern.lineWidth, scale);
   ctx.beginPath();
   for (let i = first; i <= last; i += 1) {
     const offset = i * spacing + pattern.lineOffset * scale;
@@ -855,9 +863,10 @@ function drawPointPattern(ctx, pattern, origin, visibleBounds, scale, targetPrio
   const canStroke = pointStyle?.outerColor && pointStyle.outerWidth > 0 && priorityMatches(pointStyle.outerPriority, targetPriority);
   const canFallback = !pointStyle && priorityMatches(pattern.priority, targetPriority);
   if (!canFill && !canStroke && !canFallback) return;
-  const fallbackRadius = Math.max(0.7, (pattern.lineWidth || 0.45) * scale);
-  const lineSpacing = Math.max(4, pattern.lineSpacing * scale);
-  const pointDistance = Math.max(4, pattern.pointDistance * scale);
+  const fallbackRadius = omapScreenSize(pattern.lineWidth || 0.45, scale);
+  const lineSpacing = omapScreenSize(pattern.lineSpacing, scale);
+  const pointDistance = omapScreenSize(pattern.pointDistance, scale);
+  if (lineSpacing < 1 || pointDistance < 1) return;
   const direction = screenDirection(pattern.angle);
   const normal = { x: -direction.y, y: direction.x };
   // Anchor the point grid to the same shared origin as line hatching so
@@ -872,7 +881,7 @@ function drawPointPattern(ctx, pattern, origin, visibleBounds, scale, targetPrio
   ctx.save();
   if (canStroke) {
     ctx.strokeStyle = pointStyle.outerColor;
-    ctx.lineWidth = Math.max(0.5, pointStyle.outerWidth * scale);
+    ctx.lineWidth = omapScreenSize(pointStyle.outerWidth, scale);
   }
   if (canFill) {
     ctx.fillStyle = pointStyle.innerColor;
@@ -886,12 +895,12 @@ function drawPointPattern(ctx, pattern, origin, visibleBounds, scale, targetPrio
       const y = origin.y + normal.y * (i * lineSpacing + pattern.lineOffset * scale) + direction.y * (j * pointDistance + pattern.offsetAlongLine * scale);
       if (canFill) {
         ctx.beginPath();
-        ctx.arc(x, y, Math.max(0.7, pointStyle.innerRadius * scale), 0, Math.PI * 2);
+        ctx.arc(x, y, omapScreenSize(pointStyle.innerRadius, scale), 0, Math.PI * 2);
         ctx.fill();
       }
       if (canStroke) {
         ctx.beginPath();
-        ctx.arc(x, y, Math.max(0.7, (pointStyle.innerRadius + pointStyle.outerWidth / 2) * scale), 0, Math.PI * 2);
+        ctx.arc(x, y, omapScreenSize(pointStyle.innerRadius + pointStyle.outerWidth / 2, scale), 0, Math.PI * 2);
         ctx.stroke();
       }
       if (canFallback) {
@@ -904,12 +913,12 @@ function drawPointPattern(ctx, pattern, origin, visibleBounds, scale, targetPrio
   ctx.restore();
 }
 
-function drawFallbackPath(ctx, object, project, transform) {
+function drawFallbackPath(ctx, object, project, scale, transform) {
   const points = object.coords.map(point => transformedPoint(point, transform)).filter(Boolean);
   if (points.length < 2) return;
   ctx.save();
   ctx.strokeStyle = "rgba(30, 42, 54, 0.55)";
-  ctx.lineWidth = 1;
+  ctx.lineWidth = omapScreenSize(0.35, scale);
   makePath(ctx, projectPoints(points, project), shouldClose(object));
   ctx.stroke();
   ctx.restore();

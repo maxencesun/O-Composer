@@ -1,4 +1,4 @@
-import { debugLog } from "./debug-log.js?v=20260712-7";
+import { debugLog } from "./debug-log.js?v=20260712-8";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -1068,9 +1068,10 @@ function measurementUiFromPersisted(value) {
     items: Array.isArray(value.items) ? value.items : [],
     showGroundLabels: !!value.showGroundLabels,
     color: value.color || "#007f93",
+    lineStyle: ["solid", "dashed", "dotted"].includes(value.lineStyle) ? value.lineStyle : "solid",
     adding: false,
     selectedIndex: null,
-    draft: { points: [], color: value.color || "#007f93" }
+    draft: { points: [], color: value.color || "#007f93", lineStyle: ["solid", "dashed", "dotted"].includes(value.lineStyle) ? value.lineStyle : "solid" }
   };
 }
 
@@ -1079,6 +1080,7 @@ function measurementPersistedForSave(value) {
   return {
     items: Array.isArray(value.items) ? value.items : [],
     showGroundLabels: !!value.showGroundLabels,
-    color: value.color || "#007f93"
+    color: value.color || "#007f93",
+    lineStyle: ["solid", "dashed", "dotted"].includes(value.lineStyle) ? value.lineStyle : "solid"
   };
 }

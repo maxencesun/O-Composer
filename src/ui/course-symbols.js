@@ -99,7 +99,7 @@ export function drawCourseLeg(ctx, screenPoints, fromControl, toControl, metrics
     return;
   }
   if (flagged || options.dashed) {
-    ctx.setLineDash([Math.max(1, 2.0 * metrics.unit), Math.max(1, 0.5 * metrics.unit)]);
+    ctx.setLineDash([screenSize(2.0 * metrics.unit), screenSize(0.5 * metrics.unit)]);
   }
   drawPolylineWithGaps(ctx, points, options.gaps || []);
   ctx.restore();
@@ -130,7 +130,8 @@ export function drawControlLabel(ctx, text, center, metrics) {
   if (!text) {
     return;
   }
-  const fontPx = Math.max(8, NORMAL.controlNumberHeightFactor * NORMAL.nominalControlNumberHeight * metrics.unit * (metrics.appearance?.numberSizeRatio || 1));
+  const fontPx = screenSize(NORMAL.controlNumberHeightFactor * NORMAL.nominalControlNumberHeight * metrics.unit * (metrics.appearance?.numberSizeRatio || 1));
+  if (fontPx < 0.5) return;
   const outline = Math.max(0, metrics.appearance?.numberOutlineWidth || 0) * metrics.unit;
 
   ctx.save();
@@ -198,7 +199,7 @@ export function directionAngle(from, to) {
 
 function drawControlCircle(ctx, center, metrics, control, automaticGaps = []) {
   const lw = lineWidth(metrics);
-  const radius = Math.max(0.1, (controlOutsideDiameter(metrics) * metrics.unit - lw) / 2);
+  const radius = screenSize((controlOutsideDiameter(metrics) * metrics.unit - lw) / 2);
   ctx.save();
   ctx.strokeStyle = metrics.color;
   ctx.lineWidth = lw;
@@ -216,8 +217,8 @@ function drawControlCircle(ctx, center, metrics, control, automaticGaps = []) {
 
 function drawFinish(ctx, center, metrics, automaticGaps = []) {
   const lw = lineWidth(metrics);
-  const outer = Math.max(0.1, (finishOutsideDiameter(metrics) * metrics.unit - lw) / 2);
-  const inner = Math.max(0.1, (finishInsideDiameter(metrics) * metrics.unit - lw) / 2);
+  const outer = screenSize((finishOutsideDiameter(metrics) * metrics.unit - lw) / 2);
+  const inner = screenSize((finishInsideDiameter(metrics) * metrics.unit - lw) / 2);
   const gaps = automaticGaps || [];
   ctx.save();
   ctx.strokeStyle = metrics.color;
@@ -252,7 +253,7 @@ function drawMapIssue(ctx, center, metrics, direction) {
   ];
   ctx.save();
   ctx.strokeStyle = metrics.color;
-  ctx.lineWidth = Math.max(0.7, NORMAL.mapIssueWidth * metrics.unit * (metrics.appearance?.controlCircleSizeRatio || 1));
+  ctx.lineWidth = screenSize(NORMAL.mapIssueWidth * metrics.unit * (metrics.appearance?.controlCircleSizeRatio || 1));
   ctx.lineCap = "butt";
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
@@ -294,7 +295,7 @@ function drawForbidden(ctx, center, metrics) {
   ];
   ctx.save();
   ctx.strokeStyle = metrics.color;
-  ctx.lineWidth = Math.max(0.7, NORMAL.lineThickness * metrics.unit * (metrics.appearance?.controlCircleSizeRatio || 1));
+  ctx.lineWidth = screenSize(NORMAL.lineThickness * metrics.unit * (metrics.appearance?.controlCircleSizeRatio || 1));
   ctx.lineCap = "butt";
   for (const line of points) {
     const a = localToScreen(center, line[0], 0, metrics.unit);
@@ -311,7 +312,7 @@ function drawRegistrationMark(ctx, center, metrics) {
   const extent = 2 * metrics.unit;
   ctx.save();
   ctx.strokeStyle = metrics.color;
-  ctx.lineWidth = Math.max(0.45, 0.1 * metrics.unit * (metrics.appearance?.lineWidthRatio || 1));
+  ctx.lineWidth = screenSize(0.1 * metrics.unit * (metrics.appearance?.lineWidthRatio || 1));
   ctx.lineCap = "butt";
   ctx.beginPath();
   ctx.moveTo(center.x - extent, center.y);
@@ -326,7 +327,7 @@ function drawWater(ctx, center, metrics) {
   const u = metrics.unit;
   ctx.save();
   ctx.strokeStyle = metrics.color;
-  ctx.lineWidth = Math.max(0.7, (metrics.mapStandard === "2000" ? NORMAL.lineThickness * (metrics.appearance?.lineWidthRatio || 1) : 0.4) * u);
+  ctx.lineWidth = screenSize((metrics.mapStandard === "2000" ? NORMAL.lineThickness * (metrics.appearance?.lineWidthRatio || 1) : 0.4) * u);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
@@ -505,7 +506,8 @@ function drawPolylineSegment(ctx, points, gaps, start, stop, flagged) {
   if (segment.length < 2) return;
   ctx.save();
   if (flagged) {
-    ctx.setLineDash([Math.max(1, 2.0 * Math.max(1, ctx.lineWidth / NORMAL.lineThickness)), Math.max(1, 0.5 * Math.max(1, ctx.lineWidth / NORMAL.lineThickness))]);
+    const dashScale = ctx.lineWidth / NORMAL.lineThickness;
+    ctx.setLineDash([screenSize(2.0 * dashScale), screenSize(0.5 * dashScale)]);
   }
   else {
     ctx.setLineDash([]);
@@ -651,7 +653,11 @@ export function courseLegTrimRadius(control, metrics, options = {}) {
 }
 
 function lineWidth(metrics) {
-  return Math.max(0.7, NORMAL.lineThickness * metrics.unit * (metrics.appearance?.lineWidthRatio || 1));
+  return screenSize(NORMAL.lineThickness * metrics.unit * (metrics.appearance?.lineWidthRatio || 1));
+}
+
+export function screenSize(value) {
+  return Math.max(0.01, Math.abs(Number(value) || 0));
 }
 
 function courseLineEndpointGap(control, metrics) {

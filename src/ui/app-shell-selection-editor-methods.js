@@ -877,11 +877,17 @@ export function createAppShellSelectionEditorMethods(deps) {
       panel.hidden = !measurement;
       if (measurement) {
         const colorInput = this.querySelector("#measurementColor");
+        const lineStyleInput = this.querySelector("#measurementLineStyle");
         const labelsInput = this.querySelector("#measurementGroundLabels");
         const selectedMeasurement = Number.isInteger(measurement.selectedIndex) ? measurement.items?.[measurement.selectedIndex] : null;
         const activeColor = selectedMeasurement?.color || measurement.draft?.color || measurement.color;
         if (colorInput && /^#[0-9a-f]{6}$/i.test(activeColor || "")) colorInput.value = activeColor;
         if (colorInput) colorInput.disabled = !measurement.adding && !selectedMeasurement;
+        const activeLineStyle = selectedMeasurement?.lineStyle || measurement.draft?.lineStyle || measurement.lineStyle || "solid";
+        if (lineStyleInput) {
+          lineStyleInput.value = ["solid", "dashed", "dotted"].includes(activeLineStyle) ? activeLineStyle : "solid";
+          lineStyleInput.disabled = !measurement.adding && !selectedMeasurement;
+        }
         if (labelsInput) labelsInput.checked = !!measurement.showGroundLabels;
         const addButton = this.querySelector("#measurementAddButton");
         const finishButton = this.querySelector("#measurementFinishButton");

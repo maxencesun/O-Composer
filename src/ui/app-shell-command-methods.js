@@ -621,10 +621,15 @@ export function createAppShellCommandMethods(deps) {
     this.store.updateUi(ui => {
       const current = normalizeMeasurementState(ui.measurement);
       const color = /^#[0-9a-f]{6}$/i.test(String(options.color || "")) ? String(options.color) : current.color;
+      const lineStyle = normalizeMeasurementLineStyle(options.lineStyle || current.lineStyle);
       const showGroundLabels = options.showGroundLabels === undefined ? current.showGroundLabels : !!options.showGroundLabels;
       const items = [...current.items];
       if (options.color && !current.adding && Number.isInteger(current.selectedIndex) && items[current.selectedIndex]) {
         items[current.selectedIndex] = { ...items[current.selectedIndex], color };
+        shouldPersist = true;
+      }
+      if (options.lineStyle && !current.adding && Number.isInteger(current.selectedIndex) && items[current.selectedIndex]) {
+        items[current.selectedIndex] = { ...items[current.selectedIndex], lineStyle };
         shouldPersist = true;
       }
       if (options.showGroundLabels !== undefined) shouldPersist = true;
@@ -632,8 +637,9 @@ export function createAppShellCommandMethods(deps) {
         ...current,
         items,
         color,
+        lineStyle,
         showGroundLabels,
-        draft: { ...current.draft, color }
+        draft: { ...current.draft, color, lineStyle }
       };
     }, "Measurement options");
     if (shouldPersist) this.persistMeasurements("Change measurement appearance");
@@ -647,7 +653,7 @@ export function createAppShellCommandMethods(deps) {
         ...current,
         adding: true,
         selectedIndex: null,
-        draft: { ...current.draft, points: [], color: current.color }
+        draft: { ...current.draft, points: [], color: current.color, lineStyle: current.lineStyle }
       };
       ui.status = this.t("Click the map to add the first measurement point.");
     }, "Add measurement");
@@ -751,10 +757,12 @@ export function createAppShellCommandMethods(deps) {
         points: item.points.map(point => ({ x: point.x, y: point.y })),
         closed: !!item.closed,
         color: item.color,
+        lineStyle: normalizeMeasurementLineStyle(item.lineStyle),
         labelPosition: item.labelPosition ? { ...item.labelPosition } : null
       })),
       showGroundLabels: !!measurement.showGroundLabels,
-      color: measurement.color
+      color: measurement.color,
+      lineStyle: measurement.lineStyle
     };
     this.store.updateEvent(model => {
       model.metadata ||= {};
@@ -771,9 +779,10 @@ export function createAppShellCommandMethods(deps) {
         items: Array.isArray(saved?.items) ? saved.items : [],
         showGroundLabels: !!saved?.showGroundLabels,
         color: saved?.color || current.color,
+        lineStyle: normalizeMeasurementLineStyle(saved?.lineStyle || current.lineStyle),
         adding: false,
         selectedIndex: null,
-        draft: { ...current.draft, points: [], color: saved?.color || current.color }
+        draft: { ...current.draft, points: [], color: saved?.color || current.color, lineStyle: normalizeMeasurementLineStyle(saved?.lineStyle || current.lineStyle) }
       };
     }, "Restore measurements");
   },
@@ -1483,16 +1492,19 @@ export function createAppShellCommandMethods(deps) {
 
 function normalizeMeasurementState(value) {
   const color = /^#[0-9a-f]{6}$/i.test(String(value?.color || "")) ? String(value.color) : "#007f93";
+  const lineStyle = normalizeMeasurementLineStyle(value?.lineStyle);
   const showGroundLabels = !!value?.showGroundLabels;
   if (Array.isArray(value?.items)) {
     return {
-      items: value.items,
+      items: value.items.map(item => ({ ...item, lineStyle: normalizeMeasurementLineStyle(item?.lineStyle) })),
       draft: {
         points: [...(value.draft?.points || [])],
         color: value.draft?.color || color,
+        lineStyle: normalizeMeasurementLineStyle(value.draft?.lineStyle || lineStyle),
         showGroundLabels: value.draft?.showGroundLabels ?? showGroundLabels
       },
       color,
+      lineStyle,
       showGroundLabels,
       adding: !!value.adding,
       selectedIndex: Number.isInteger(value.selectedIndex) ? value.selectedIndex : null
@@ -1502,14 +1514,16 @@ function normalizeMeasurementState(value) {
   const legacyFinished = !!value?.finished;
   return {
     items: legacyFinished && legacyPoints.length >= 2
-      ? [{ points: legacyPoints, closed: !!value.closed, color, showGroundLabels }]
+      ? [{ points: legacyPoints, closed: !!value.closed, color, lineStyle, showGroundLabels }]
       : [],
     draft: {
       points: legacyFinished ? [] : legacyPoints,
       color,
+      lineStyle,
       showGroundLabels
     },
     color,
+    lineStyle,
     showGroundLabels,
     adding: false,
     selectedIndex: null
@@ -1521,6 +1535,11 @@ function measurementItem(measurement, points, closed) {
     points: points.map(point => ({ x: point.x, y: point.y })),
     closed,
     color: measurement.draft.color || measurement.color,
+    lineStyle: normalizeMeasurementLineStyle(measurement.draft.lineStyle || measurement.lineStyle),
     showGroundLabels: measurement.draft.showGroundLabels ?? measurement.showGroundLabels
   };
+}
+
+function normalizeMeasurementLineStyle(value) {
+  return ["solid", "dashed", "dotted"].includes(value) ? value : "solid";
 }

@@ -4,17 +4,17 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260712-7";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260712-7";
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-7";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-7";
+} from "../domain/course-service.js?v=20260712-8";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260712-8";
+import { resolveTextConstants } from "../domain/constants.js?v=20260712-8";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-8";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260712-7";
+} from "./course-symbols.js?v=20260712-8";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
@@ -273,7 +273,7 @@ export function textFontHeight(special) {
 
 export function textMetrics(special, scale = 1, context = null) {
   const lines = String(special.text || "Text").split(/\r?\n/);
-  const fontPx = Math.max(6, textFontHeight(special) * Math.max(0.0001, scale));
+  const fontPx = mapScreenSize(textFontHeight(special) * Math.max(0.0001, scale));
   const ctx = context || textMeasureContext();
   let maxLineWidth = 1;
   if (ctx) {
@@ -503,7 +503,7 @@ export function addLegLabelGaps(result, legs, segmentSets, rows, metrics, pixels
     .filter(row => row?.control?.kind === "normal" && row.label)
     .map(row => ({
       row,
-      rect: controlNumberScreenRect(row, metrics, rows, legs, project, Math.max(2, 0.15 * metrics.unit))
+      rect: controlNumberScreenRect(row, metrics, rows, legs, project, mapScreenSize(0.15 * metrics.unit))
     }));
   if (!labelItems.length) return;
 
@@ -576,7 +576,7 @@ export function segmentRectIntersectionRange(a, b, rect) {
 }
 
 export function addLegCircleGaps(result, legs, segmentSets, rows, metrics, pixelsPerMapUnit, gapSize) {
-  const lineWidthMap = Math.max(0.7, 0.35 * metrics.unit * (metrics.appearance?.lineWidthRatio || 1)) / Math.max(0.0001, pixelsPerMapUnit);
+  const lineWidthMap = mapScreenSize(0.35 * metrics.unit * (metrics.appearance?.lineWidthRatio || 1)) / Math.max(0.0001, pixelsPerMapUnit);
   const controls = uniqueDrawableControls(rows)
     .map(control => ({
       control,
@@ -615,7 +615,7 @@ export function legEndpointIds(leg) {
 
 export function automaticControlCircleGaps(rows, metrics, pixelsPerMapUnit) {
   const result = new Map();
-  const lineWidthMap = Math.max(0.7, 0.35 * metrics.unit * (metrics.appearance?.lineWidthRatio || 1)) / Math.max(0.0001, pixelsPerMapUnit);
+  const lineWidthMap = mapScreenSize(0.35 * metrics.unit * (metrics.appearance?.lineWidthRatio || 1)) / Math.max(0.0001, pixelsPerMapUnit);
   const controls = uniqueDrawableControls(rows)
     .map(control => ({
       control,
@@ -856,38 +856,41 @@ export function nearestLeg(point, state, threshold) {
   return best;
 }
 
-export function drawHandleDot(ctx, point, label) {
+export function drawHandleDot(ctx, point, label, visualScale = 1) {
+  const scale = Math.min(1, Math.max(0.01, Number(visualScale) || 1));
   ctx.save();
   ctx.fillStyle = label === "start" ? "#ffffff" : "#2477c9";
   ctx.strokeStyle = "#2477c9";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * scale;
   ctx.beginPath();
-  ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+  ctx.arc(point.x, point.y, 5 * scale, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.restore();
 }
 
-export function drawSquareHandle(ctx, point, selected = false) {
-  const size = selected ? 8 : 6;
+export function drawSquareHandle(ctx, point, selected = false, visualScale = 1) {
+  const scale = Math.min(1, Math.max(0.01, Number(visualScale) || 1));
+  const size = (selected ? 8 : 6) * scale;
   ctx.save();
   ctx.setLineDash([]);
   ctx.globalAlpha = selected ? 1 : 0.78;
   ctx.fillStyle = selected ? "#2477c9" : "#ffffff";
   ctx.strokeStyle = "#2477c9";
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 * scale;
   ctx.fillRect(point.x - size / 2, point.y - size / 2, size, size);
   ctx.strokeRect(point.x - size / 2, point.y - size / 2, size, size);
   ctx.restore();
 }
 
-export function drawBendDot(ctx, point, selected = false) {
+export function drawBendDot(ctx, point, selected = false, visualScale = 1) {
+  const scale = Math.min(1, Math.max(0.01, Number(visualScale) || 1));
   ctx.save();
   ctx.fillStyle = selected ? "#2477c9" : "#ffffff";
   ctx.strokeStyle = "#2477c9";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * scale;
   ctx.beginPath();
-  ctx.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+  ctx.arc(point.x, point.y, 4.5 * scale, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.restore();
@@ -1247,7 +1250,7 @@ export function NORMALIZED_LABEL_GAP(metrics) {
 }
 
 export function controlLabelSize(text, metrics) {
-  const fontPx = Math.max(8, 5.57 * metrics.unit * (metrics.appearance?.numberSizeRatio || 1));
+  const fontPx = mapScreenSize(5.57 * metrics.unit * (metrics.appearance?.numberSizeRatio || 1));
   return {
     width: Math.max(fontPx * 0.75, String(text || "").length * fontPx * 0.62),
     height: fontPx
@@ -1359,22 +1362,23 @@ export function orientation(a, b, c) {
   return Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
 }
 
-export function drawFallbackSpecialPoint(ctx, kind, point) {
+export function drawFallbackSpecialPoint(ctx, kind, point, zoom = 1) {
+  const size = Math.max(0, Number(zoom) || 0);
   ctx.save();
-  ctx.lineWidth = 2;
+  ctx.lineWidth = mapScreenSize(2 * size);
   ctx.strokeStyle = "#222";
   ctx.fillStyle = fillForSpecial(kind);
   ctx.beginPath();
   if (kind === "water") {
-    ctx.arc(point.x, point.y, 9, 0, Math.PI * 2);
+    ctx.arc(point.x, point.y, mapScreenSize(9 * size), 0, Math.PI * 2);
     ctx.fill();
   }
   else if (kind === "first-aid") {
-    ctx.fillRect(point.x - 9, point.y - 3, 18, 6);
-    ctx.fillRect(point.x - 3, point.y - 9, 6, 18);
+    ctx.fillRect(point.x - 9 * size, point.y - 3 * size, 18 * size, 6 * size);
+    ctx.fillRect(point.x - 3 * size, point.y - 9 * size, 6 * size, 18 * size);
   }
   else {
-    ctx.rect(point.x - 8, point.y - 8, 16, 16);
+    ctx.rect(point.x - 8 * size, point.y - 8 * size, 16 * size, 16 * size);
     ctx.fill();
     ctx.stroke();
   }
@@ -1481,8 +1485,10 @@ export function drawAreaSpecial(ctx, special, points, scale, metrics = null) {
   ctx.lineWidth = hatchWidth;
   ctx.lineCap = "butt";
   const spacing = hatchWidth + hatchGap;
-  drawClippedHatching(ctx, points, spacing, 45);
-  drawClippedHatching(ctx, points, spacing, 135);
+  if (spacing >= 0.75) {
+    drawClippedHatching(ctx, points, spacing, 45);
+    drawClippedHatching(ctx, points, spacing, 135);
+  }
 
   if (special.lineKind !== "none") {
     ctx.restore();
@@ -1543,6 +1549,7 @@ export function drawRectSpecial(ctx, special, a, b, scale, ellipse) {
 
 export function drawTextSpecial(ctx, special, points, scale) {
   const metrics = textMetrics(special, scale, ctx);
+  if (metrics.fontPx < 0.5) return;
 
   ctx.save();
   ctx.fillStyle = specialColor(special);
@@ -1593,12 +1600,12 @@ export function polylineNormal(previous, point, next) {
 }
 
 export function specialLineWidth(special, scale) {
-  return Math.max(1, (Number(special.lineWidth) > 0 ? Number(special.lineWidth) : 0.35) * scale);
+  return mapScreenSize((Number(special.lineWidth) > 0 ? Number(special.lineWidth) : 0.35) * scale);
 }
 
 export function specialDashArray(special, scale) {
-  const dash = Math.max(1, (Number(special.dashSize) > 0 ? Number(special.dashSize) : 4) * scale);
-  const gap = Math.max(1, (Number(special.gapSize) > 0 ? Number(special.gapSize) : 2) * scale);
+  const dash = mapScreenSize((Number(special.dashSize) > 0 ? Number(special.dashSize) : 4) * scale);
+  const gap = mapScreenSize((Number(special.gapSize) > 0 ? Number(special.gapSize) : 2) * scale);
   return [dash, gap];
 }
 
@@ -1615,7 +1622,11 @@ export function specialSymbolMetrics(eventModel, ui, scale) {
 
 export function symbolMmToPx(mm, metrics, scale) {
   const pixels = courseSymbolMmToMapDistance(mm, metrics, scale) * Math.max(0, Number(scale) || 0);
-  return Math.max(1, pixels || 0);
+  return mapScreenSize(pixels);
+}
+
+export function mapScreenSize(value) {
+  return Math.max(0.01, Math.abs(Number(value) || 0));
 }
 
 export function boundaryColor(metrics) {

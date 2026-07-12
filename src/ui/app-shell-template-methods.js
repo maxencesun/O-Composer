@@ -551,6 +551,14 @@ export function createAppShellTemplateMethods(deps) {
           min-height: 0 !important;
           overflow: auto !important;
         }
+        o-composer-app.desktop-ui .left-panel > .panel-block:not(.selection-panel),
+        o-composer-app.desktop-ui .left-panel > .selection-panel {
+          flex: 0 0 50% !important;
+          width: 100% !important;
+          height: 50% !important;
+          min-height: 0 !important;
+          max-height: 50% !important;
+        }
         o-composer-app.desktop-ui .variation-topology-column {
           grid-column: 3 !important;
           grid-row: 1 !important;
@@ -1063,6 +1071,13 @@ export function createAppShellTemplateMethods(deps) {
               <button type="button" class="measurement-minimize" data-command="tool-measure" title="${escapeAttr(this.t("Minimize measurement panel"))}" aria-label="${escapeAttr(this.t("Minimize measurement panel"))}">−</button>
               <div class="measurement-options">
                 <label>${escapeHtml(this.t("Color"))} <input id="measurementColor" type="color" value="#007f93"></label>
+                <label>${escapeHtml(this.t("Line style"))}
+                  <select id="measurementLineStyle">
+                    <option value="solid">${escapeHtml(this.t("Solid"))}</option>
+                    <option value="dashed">${escapeHtml(this.t("Dashed"))}</option>
+                    <option value="dotted">${escapeHtml(this.t("Dotted"))}</option>
+                  </select>
+                </label>
                 <label><input id="measurementGroundLabels" type="checkbox"> ${escapeHtml(this.t("Show ground distance on map"))}</label>
               </div>
               <div id="measurementSummary"></div>

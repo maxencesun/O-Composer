@@ -351,6 +351,9 @@ export function createAppShellMenuMethods(deps) {
     this.querySelector("#measurementColor")?.addEventListener("change", event => {
       this.updateMeasurementOptions({ color: event.target.value });
     });
+    this.querySelector("#measurementLineStyle")?.addEventListener("change", event => {
+      this.updateMeasurementOptions({ lineStyle: event.target.value });
+    });
     this.querySelector("#measurementGroundLabels")?.addEventListener("change", event => {
       this.updateMeasurementOptions({ showGroundLabels: event.target.checked });
     });

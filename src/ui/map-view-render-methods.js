@@ -1,5 +1,16 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-7";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-7";
+import { resolveTextConstants } from "../domain/constants.js?v=20260712-8";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-8";
+
+export function zoomScreenSize(basePixels, zoom) {
+  const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
+  return Math.max(0.01, Math.abs(Number(basePixels) || 0) * editorScale);
+}
+
+export function measurementLineDash(lineStyle, zoom) {
+  if (lineStyle === "dashed") return [zoomScreenSize(8, zoom), zoomScreenSize(5, zoom)];
+  if (lineStyle === "dotted") return [zoomScreenSize(0.1, zoom), zoomScreenSize(5, zoom)];
+  return [];
+}
 
 export function createMapViewRenderMethods(deps) {
   const {
@@ -384,7 +395,7 @@ export function createMapViewRenderMethods(deps) {
       }
       else if (points.length) {
         if (!drawPointSpecialSymbol(ctx, special, points[0], metrics)) {
-          drawFallbackSpecialPoint(ctx, special.kind, points[0]);
+          drawFallbackSpecialPoint(ctx, special.kind, points[0], Math.min(1, ui.zoom || 1));
         }
       }
       ctx.restore();
@@ -497,7 +508,7 @@ export function createMapViewRenderMethods(deps) {
         drawLegSelectionOutline(ctx, points);
         for (let index = 0; index < (leg.leg?.bends || []).length; index += 1) {
           const bendPoint = this.toScreen(leg.leg.bends[index], ui);
-          drawBendDot(ctx, bendPoint, ui.selection.type === "leg-bend" && Number(ui.selection.bendIndex) === index);
+          drawBendDot(ctx, bendPoint, ui.selection.type === "leg-bend" && Number(ui.selection.bendIndex) === index, Math.min(1, ui.zoom || 1));
         }
       }
     }
@@ -514,8 +525,9 @@ export function createMapViewRenderMethods(deps) {
         ctx.strokeStyle = "#2477c9";
         ctx.lineWidth = 2;
         line(ctx, startScreen.x, startScreen.y, endScreen.x, endScreen.y);
-        drawHandleDot(ctx, startScreen, "start");
-        drawHandleDot(ctx, endScreen, "end");
+        const handleScale = Math.min(1, ui.zoom || 1);
+        drawHandleDot(ctx, startScreen, "start", handleScale);
+        drawHandleDot(ctx, endScreen, "end", handleScale);
       }
     }
     else if (ui.selection.type === "control-number") {
@@ -575,7 +587,7 @@ export function createMapViewRenderMethods(deps) {
     ctx.save();
     const handles = specialResizeHandles(special, ui, scale, eventModel);
     for (const handle of handles) {
-      drawSquareHandle(ctx, this.toScreen(handle.point, ui), true);
+      drawSquareHandle(ctx, this.toScreen(handle.point, ui), true, Math.min(1, ui.zoom || 1));
     }
     ctx.restore();
   },
@@ -679,6 +691,7 @@ export function createMapViewRenderMethods(deps) {
     const points = locations.map(location => this.toScreen(location, ui));
     const fixedCount = fixedLocations.length;
     const color = /^#[0-9a-f]{6}$/i.test(item.color || "") ? item.color : "#007f93";
+    const zoomScale = Math.min(1, Math.max(0.01, Number(ui.zoom) || 1));
     ctx.save();
     if (item.closed && fixedCount >= 3) {
       ctx.fillStyle = hexWithAlpha(color, 0.14);
@@ -690,7 +703,8 @@ export function createMapViewRenderMethods(deps) {
     }
     if (options.selected) {
       ctx.strokeStyle = "rgba(255, 166, 0, 0.9)";
-      ctx.lineWidth = 8;
+      ctx.lineWidth = zoomScreenSize(8, zoomScale);
+      ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(points[0].x, points[0].y);
       for (let index = 1; index < points.length; index += 1) ctx.lineTo(points[index].x, points[index].y);
@@ -698,7 +712,8 @@ export function createMapViewRenderMethods(deps) {
       ctx.stroke();
     }
     ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = zoomScreenSize(3, zoomScale);
+    ctx.setLineDash(measurementLineDash(item.lineStyle, zoomScale));
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();
@@ -708,13 +723,14 @@ export function createMapViewRenderMethods(deps) {
     ctx.stroke();
 
     if (options.selected || options.showHandles) {
+      ctx.setLineDash([]);
       for (let index = 0; index < fixedCount; index += 1) {
         const point = points[index];
         ctx.fillStyle = index === 0 && fixedCount >= 3 && !item.closed ? "#fff4c2" : "#ffffff";
         ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = zoomScreenSize(2, zoomScale);
         ctx.beginPath();
-        ctx.arc(point.x, point.y, index === 0 ? 6 : 4.5, 0, Math.PI * 2);
+        ctx.arc(point.x, point.y, zoomScreenSize(index === 0 ? 6 : 4.5, zoomScale), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -723,10 +739,10 @@ export function createMapViewRenderMethods(deps) {
       const labelMapPoint = measurementLabelPoint(item);
       if (labelMapPoint) {
         const labelPoint = this.toScreen(labelMapPoint, ui);
-        if (!item.labelPosition) labelPoint.y -= 14;
+        if (!item.labelPosition) labelPoint.y -= 14 * zoomScale;
         const metrics = measurementMetrics(fixedLocations, !!item.closed);
         const totalM = item.closed ? metrics.perimeterM : metrics.lineLengthM;
-        drawGroundDistanceLabel(ctx, totalM, labelPoint, color, options.selected);
+        drawGroundDistanceLabel(ctx, totalM, labelPoint, color, options.selected, zoomScale);
       }
     }
     ctx.restore();
@@ -776,10 +792,11 @@ export function createMapViewRenderMethods(deps) {
           drawAreaSpecial(ctx, special, points, this.scale(ui), metrics);
         }
         else if (points.length >= 1) {
+          const previewZoom = Math.min(1, Math.max(0.01, Number(ui.zoom) || 1));
           ctx.strokeStyle = metrics.color;
           ctx.fillStyle = metrics.color;
-          ctx.lineWidth = 2;
-          ctx.setLineDash([6, 4]);
+          ctx.lineWidth = Math.max(0.01, 2 * previewZoom);
+          ctx.setLineDash([6 * previewZoom, 4 * previewZoom]);
           ctx.beginPath();
           ctx.moveTo(points[0].x, points[0].y);
           for (let i = 1; i < points.length; i += 1) {
@@ -788,7 +805,7 @@ export function createMapViewRenderMethods(deps) {
           ctx.stroke();
           for (const p of points) {
             ctx.beginPath();
-            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, 3 * previewZoom, 0, Math.PI * 2);
             ctx.fill();
           }
         }
@@ -815,7 +832,7 @@ export function createMapViewRenderMethods(deps) {
         }
       }
       else if (!drawPointSpecialSymbol(ctx, { kind, orientation: 0, stretch: 0 }, point, metrics)) {
-        drawFallbackSpecialPoint(ctx, kind, point);
+        drawFallbackSpecialPoint(ctx, kind, point, Math.min(1, ui.zoom || 1));
       }
     }
     ctx.restore();
@@ -824,14 +841,16 @@ export function createMapViewRenderMethods(deps) {
   };
 }
 
-function drawGroundDistanceLabel(ctx, distanceM, point, color, selected) {
+function drawGroundDistanceLabel(ctx, distanceM, point, color, selected, zoomScale) {
   const label = distanceM >= 1000 ? `${(distanceM / 1000).toFixed(2)} km` : `${distanceM.toFixed(distanceM < 10 ? 1 : 0)} m`;
-  ctx.font = "600 12px Roboto, Arial, sans-serif";
+  const fontSize = zoomScreenSize(12, zoomScale);
+  if (fontSize < 0.5) return;
+  ctx.font = `600 ${fontSize}px Roboto, Arial, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
   ctx.strokeStyle = selected ? "rgba(255, 214, 128, 0.98)" : "rgba(255, 255, 255, 0.94)";
-  ctx.lineWidth = selected ? 6 : 4;
+  ctx.lineWidth = zoomScreenSize(selected ? 6 : 4, zoomScale);
   ctx.strokeText(label, point.x, point.y);
   ctx.fillStyle = color;
   ctx.fillText(label, point.x, point.y);

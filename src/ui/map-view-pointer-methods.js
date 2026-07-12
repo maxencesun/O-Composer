@@ -1,4 +1,4 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-16";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-18";
 
 export function createMapViewPointerMethods(deps) {
   const {
@@ -42,6 +42,7 @@ export function createMapViewPointerMethods(deps) {
     currentCourseLegs,
     moveOffsetForHit,
     moveTargetForDrag,
+    constrainPointToOctants,
     crossingOrientationForPoint,
     resizeForHit,
     specialResizeHandles,
@@ -226,7 +227,14 @@ export function createMapViewPointerMethods(deps) {
       this.requestDraw(state);
       return;
     }
-    const hit = this.hitTest(mapPoint, state);
+    const calibrationPointCount = state.ui.background?.calibration?.imagePoints?.length
+      || state.ui.background?.calibration?.points?.length
+      || 0;
+    const calibrationAdjusting = state.ui.tool === "background-calibration" && calibrationPointCount >= 2;
+    let hit = this.hitTest(mapPoint, state);
+    if (calibrationAdjusting && hit?.type !== "background-calibration-point") {
+      hit = null;
+    }
     const emptySpacePan = state.ui.tool === "select" && !state.ui.selection && !hit;
     if (hit?.type === "background-calibration-point") {
       this.canvas.style.cursor = "grabbing";
@@ -243,7 +251,7 @@ export function createMapViewPointerMethods(deps) {
       moveOffset: moveOffsetForHit(state.eventModel, hit, mapPoint),
       resize: resizeForHit(hit),
       moved: false,
-      panning: emptySpacePan || event.button === 1 || event.altKey || state.ui.tool === "pan"
+      panning: emptySpacePan || (calibrationAdjusting && !hit) || event.button === 1 || event.altKey || state.ui.tool === "pan"
     };
   },
 
@@ -257,12 +265,12 @@ export function createMapViewPointerMethods(deps) {
       return;
     }
     const state = this.store.snapshot();
-    const mapPoint = this.toMap(screen, state.ui);
+    const mapPoint = this.shiftConstrainedPoint(this.toMap(screen, state.ui), state, event);
     const previewPoint = this.previewPointForTool(state.ui.tool, mapPoint, state);
     this.callbacks.onHover?.(previewPoint);
     this.updateToolPreview(state.ui.tool === "measure" && !state.ui.measurement?.adding ? "select" : state.ui.tool, previewPoint);
     if (!this.drag || this.drag.pointerId !== event.pointerId) {
-      const calibrationHit = state.ui.tool === "select"
+      const calibrationHit = ["select", "background-calibration"].includes(state.ui.tool)
         ? this.hitTestBackgroundCalibrationPoint(mapPoint, state, 16 / this.scale(state.ui))
         : null;
       const rotationHit = state.ui.tool === "select"
@@ -345,7 +353,7 @@ export function createMapViewPointerMethods(deps) {
       return;
     }
 
-    if (this.drag.hit?.type === "background-calibration-point" && this.drag.moved && state.ui.tool === "select") {
+    if (this.drag.hit?.type === "background-calibration-point" && this.drag.moved && ["select", "background-calibration"].includes(state.ui.tool)) {
       this.callbacks.onBackgroundCalibrationPointMove?.(this.drag.hit, mapPoint, { transient: true });
       return;
     }
@@ -380,7 +388,7 @@ export function createMapViewPointerMethods(deps) {
       return;
     }
     const state = this.store.snapshot();
-    const mapPoint = this.toMap(screen, state.ui);
+    const mapPoint = this.shiftConstrainedPoint(this.toMap(screen, state.ui), state, event);
     if (this.drag.measurement) {
       if (!this.drag.moved) this.callbacks.onMeasurementPoint?.(mapPoint);
       this.cancelDrag();
@@ -442,7 +450,7 @@ export function createMapViewPointerMethods(deps) {
       this.callbacks.onLegBendMove?.(this.drag.hit, mapPoint);
       this.drag.hit = null;
     }
-    else if (this.drag.hit?.type === "background-calibration-point" && this.drag.moved && state.ui.tool === "select") {
+    else if (this.drag.hit?.type === "background-calibration-point" && this.drag.moved && ["select", "background-calibration"].includes(state.ui.tool)) {
       this.callbacks.onBackgroundCalibrationPointMove?.(this.drag.hit, mapPoint, { transient: false });
       this.drag.hit = null;
     }
@@ -458,7 +466,7 @@ export function createMapViewPointerMethods(deps) {
       this.callbacks.onSelect?.(selection);
       this.drag.hit = null;
     }
-    else if (this.drag.hit?.type === "background-calibration-point" && state.ui.tool === "select") {
+    else if (this.drag.hit?.type === "background-calibration-point" && ["select", "background-calibration"].includes(state.ui.tool)) {
       this.callbacks.onSelect?.({ type: "background" });
       this.drag.hit = null;
     }
@@ -596,6 +604,28 @@ export function createMapViewPointerMethods(deps) {
     this.drag = null;
     this._dragRect = null;
     this.canvas.style.cursor = "";
+  },
+
+  shiftConstrainedPoint(point, state, event) {
+    if (!event?.shiftKey) return point;
+    if (this.drag?.specialShapeAdd && this.drag.tool === "special:line") {
+      return constrainPointToOctants(this.drag.startMap, point);
+    }
+    if (this.drag?.hit?.type === "background-calibration-point") {
+      const points = backgroundCalibrationMapPoints(state.ui.background, this.backgroundImage);
+      const anchor = points[Number(this.drag.hit.pointIndex) === 0 ? 1 : 0];
+      return anchor ? constrainPointToOctants(anchor, point) : point;
+    }
+    if (state.ui.tool === "measure" && state.ui.measurement?.adding) {
+      const points = state.ui.measurement?.draft?.points || [];
+      const anchor = points[points.length - 1];
+      return anchor ? constrainPointToOctants(anchor, point) : point;
+    }
+    if (state.ui.tool === "background-calibration") {
+      const points = backgroundCalibrationMapPoints(state.ui.background, this.backgroundImage);
+      return points.length === 1 ? constrainPointToOctants(points[0], point) : point;
+    }
+    return point;
   },
 
   updateToolPreview(tool, point) {

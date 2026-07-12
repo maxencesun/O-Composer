@@ -554,13 +554,14 @@ export function createAppShellDialogMethods(deps) {
     }
     const dialogOutput = this.querySelector("[data-background-calibration-current]");
     if (dialogOutput) {
-      dialogOutput.textContent = this.backgroundCalibrationLineSummary(background);
+      const paletteScale = Number(this.querySelector("#backgroundCalibrationMapScale")?.value);
+      dialogOutput.textContent = this.backgroundCalibrationLineSummary(background, paletteScale);
     }
   },
 
-  backgroundCalibrationLineSummary(background = this.store.snapshot().ui.background) {
+  backgroundCalibrationLineSummary(background = this.store.snapshot().ui.background, mapScaleOverride = null) {
     const measured = backgroundCalibrationDistance(background);
-    const mapScale = positiveScale(this.store.snapshot().eventModel.event?.map?.scale) || 15000;
+    const mapScale = positiveScale(mapScaleOverride) || positiveScale(this.store.snapshot().eventModel.event?.map?.scale) || 15000;
     const printedCm = measured > 0 ? measured / mapScale * 100 : 0;
     return measured > 0
       ? this.t("The selected line currently represents {ground} m ({map} cm on a 1:{scale} map).", {
@@ -584,12 +585,15 @@ export function createAppShellDialogMethods(deps) {
       title: "Set two-point calibration distance",
       applyLabel: "Scale background",
       required,
-      modal: required,
       showClose: !required,
       showCancel: !required,
       body: `
         <div class="calibration-distance-dialog">
           <p class="muted" data-background-calibration-current>${escapeHtml(this.backgroundCalibrationLineSummary(background))}</p>
+          <label class="calibration-map-scale">
+            <span>${escapeHtml(this.t("Map scale"))}</span>
+            <span class="calibration-map-scale-input">1:<input id="backgroundCalibrationMapScale" type="number" min="1" step="1" inputmode="numeric" value="${escapeAttr(Math.round(mapScale))}"></span>
+          </label>
           <fieldset class="choice-group calibration-distance-options">
             <legend>${escapeHtml(this.t("Known distance type"))}</legend>
             <div class="calibration-distance-option">
@@ -634,9 +638,16 @@ export function createAppShellDialogMethods(deps) {
             if (message) message.hidden = true;
           });
         });
+        dialog.querySelector("#backgroundCalibrationMapScale")?.addEventListener("input", () => {
+          const message = dialog.querySelector("#commandMessage");
+          if (message) message.hidden = true;
+          this.syncBackgroundMeasurement();
+        });
         syncMode();
         setTimeout(() => {
-          const activeInput = dialog.querySelector(".calibration-distance-option.active input[type=number]");
+          const activeInput = required
+            ? dialog.querySelector("#backgroundCalibrationMapScale")
+            : dialog.querySelector(".calibration-distance-option.active input[type=number]");
           activeInput?.focus();
           activeInput?.select();
         }, 0);
@@ -644,8 +655,19 @@ export function createAppShellDialogMethods(deps) {
       apply: dialog => {
         const mode = dialog.querySelector('input[name="backgroundCalibrationDistanceMode"]:checked')?.value === "map" ? "map" : "ground";
         const input = dialog.querySelector(mode === "map" ? "#backgroundCalibrationMapDistance" : "#backgroundCalibrationGroundDistance");
+        const scaleInput = dialog.querySelector("#backgroundCalibrationMapScale");
+        const targetMapScale = positiveScale(scaleInput?.value);
+        if (!targetMapScale) {
+          const message = dialog.querySelector("#commandMessage");
+          if (message) {
+            message.textContent = this.t("Enter a valid map scale.");
+            message.hidden = false;
+          }
+          scaleInput?.focus();
+          return false;
+        }
         const value = Number(input?.value);
-        const targetGroundDistance = calibrationGroundDistance(value, mode, mapScale);
+        const targetGroundDistance = calibrationGroundDistance(value, mode, targetMapScale);
         if (!(targetGroundDistance > 0)) {
           const message = dialog.querySelector("#commandMessage");
           if (message) {
@@ -655,6 +677,9 @@ export function createAppShellDialogMethods(deps) {
           input?.focus();
           return false;
         }
+        this.store.updateEvent(model => {
+          applyMapScale(model, targetMapScale);
+        }, "Set map scale");
         this.store.updateUi(ui => {
           const currentBackground = ui.background;
           if (!currentBackground || backgroundCalibrationDistance(currentBackground) <= 0) return;
@@ -664,7 +689,7 @@ export function createAppShellDialogMethods(deps) {
           currentBackground.calibration.required = false;
           currentBackground.calibration.completed = true;
           currentBackground.calibrationDistanceMeters = targetGroundDistance;
-          currentBackground.calibrationPrintedCm = targetGroundDistance / mapScale * 100;
+          currentBackground.calibrationPrintedCm = targetGroundDistance / targetMapScale * 100;
           resetBackgroundCalibrationBase(currentBackground);
           applyBackgroundCalibration(currentBackground, backgroundAspect(currentBackground));
           ui.tool = "select";

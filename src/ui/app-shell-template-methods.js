@@ -1079,7 +1079,7 @@ export function createAppShellTemplateMethods(deps) {
             </div>
             <div id="backgroundCalibrationGate" class="background-calibration-gate" hidden aria-live="assertive">
               <strong>${escapeHtml(this.t("Map scale calibration required"))}</strong>
-              <span>${escapeHtml(this.t("Select two points and enter their map or ground distance before using other tools."))}</span>
+              <span>${escapeHtml(this.t("Select two points, enter the map scale and their map or ground distance before using other tools."))}</span>
             </div>
             <canvas id="mapCanvas" class="map-canvas"></canvas>
             <aside id="measurementPanel" class="measurement-panel" aria-live="polite" hidden>

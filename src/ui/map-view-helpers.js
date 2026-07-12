@@ -4,17 +4,17 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260712-16";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260712-16";
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-16";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-16";
+} from "../domain/course-service.js?v=20260712-18";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260712-18";
+import { resolveTextConstants } from "../domain/constants.js?v=20260712-18";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-18";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260712-16";
+} from "./course-symbols.js?v=20260712-18";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
@@ -102,6 +102,22 @@ export function moveTargetForDrag(drag, mapPoint) {
   return drag?.moveOffset
     ? { x: mapPoint.x - drag.moveOffset.x, y: mapPoint.y - drag.moveOffset.y }
     : mapPoint;
+}
+
+export function constrainPointToOctants(anchor, point) {
+  if (!anchor || !point) return point;
+  const dx = point.x - anchor.x;
+  const dy = point.y - anchor.y;
+  const length = Math.hypot(dx, dy);
+  if (length < 0.000001) return { x: point.x, y: point.y };
+  const step = Math.PI / 4;
+  const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+  const snappedX = length * Math.cos(angle);
+  const snappedY = length * Math.sin(angle);
+  return {
+    x: anchor.x + (Math.abs(snappedX) < 1e-12 ? 0 : snappedX),
+    y: anchor.y + (Math.abs(snappedY) < 1e-12 ? 0 : snappedY)
+  };
 }
 
 export function crossingRotationHandle(crossing, scale, distancePixels = 34) {

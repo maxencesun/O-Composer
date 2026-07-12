@@ -1602,6 +1602,33 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   line-height: 1.45;
 }
 
+.calibration-map-scale {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.calibration-map-scale-input {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.calibration-map-scale-input input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  background: #fff;
+}
+
 .calibration-distance-options {
   grid-template-columns: 1fr;
 }

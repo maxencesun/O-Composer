@@ -853,7 +853,7 @@ export function createAppShellCommandMethods(deps) {
         ui.selection = { type: "background" };
         if (imagePoints.length >= 2) {
           if (backgroundCalibrationDistance(ui.background) > 0.0001) {
-            ui.tool = "select";
+            ui.tool = backgroundCalibrationRequired?.(ui.background) === true ? "background-calibration" : "select";
             ui.status = this.t("Enter the known distance for the selected map line.");
             shouldPromptForDistance = true;
           }

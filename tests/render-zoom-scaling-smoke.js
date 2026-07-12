@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { screenSize } from "../src/ui/course-symbols.js";
-import { crossingOrientationForPoint, crossingRotationHandle, drawFallbackSpecialPoint, drawSquareHandle, mapScreenSize, specialLineWidth, textMetrics } from "../src/ui/map-view-helpers.js";
+import { constrainPointToOctants, crossingOrientationForPoint, crossingRotationHandle, drawFallbackSpecialPoint, drawSquareHandle, mapScreenSize, specialLineWidth, textMetrics } from "../src/ui/map-view-helpers.js";
 import { measurementLineDash, zoomScreenSize } from "../src/ui/map-view-render-methods.js";
 import { omapScreenSize } from "../src/ui/omap-renderer.js";
 
@@ -54,5 +54,14 @@ const optionalHandle = crossingRotationHandle(optionalCrossing, 1);
 assert.equal(optionalHandle.x, -24);
 assert.ok(Math.abs(optionalHandle.y - 20) < 1e-9);
 assert.equal(crossingOrientationForPoint(optionalCrossing, { x: 10, y: -20 }), 180);
+
+const horizontal = constrainPointToOctants({ x: 0, y: 0 }, { x: 10, y: 2 });
+assert.equal(horizontal.y, 0);
+assert.ok(Math.abs(Math.hypot(horizontal.x, horizontal.y) - Math.hypot(10, 2)) < 1e-9);
+const diagonal = constrainPointToOctants({ x: 5, y: 7 }, { x: 13, y: 13 });
+assert.ok(Math.abs((diagonal.x - 5) - (diagonal.y - 7)) < 1e-9);
+const vertical = constrainPointToOctants({ x: 2, y: 3 }, { x: 4, y: -9 });
+assert.equal(vertical.x, 2);
+assert.ok(vertical.y < 3);
 
 console.log("render zoom scaling smoke test passed");

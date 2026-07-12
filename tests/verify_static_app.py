@@ -152,7 +152,7 @@ def verify_app_files() -> None:
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.2"' in app_config, "app version should be centrally maintained at 0.0.2"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CODE_VERSION = "20260712-16"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CODE_VERSION = "20260712-18"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
@@ -252,8 +252,13 @@ def verify_app_files() -> None:
         assert token in map_view + app_shell, f"background calibration points should only show in map adjustment and be draggable: {token}"
     for token in ["mapBackgroundEditor", "data-background-field", "backgroundMetadataForImage", "background-calibration", "applyBackgroundCalibration", "calibrationPrintedCm", "calibrationDistanceMeters", "Calibrate with two points", "promptBackgroundCalibrationDistance", "calibrationGroundDistance", "Distance on map (cm)", "Ground distance (m)", "Enter a distance greater than zero."]:
         assert token in app_shell, f"selection panel should expose map background info and calibration controls: {token}"
-    for token in ["requireBackgroundCalibration", "backgroundCalibrationRequired", "background-calibration-required", "backgroundCalibrationGate", "Map scale calibration required", "showClose: !required", "showCancel: !required", "modal: required", "commandDialogCancelGuardInstalled", "completed = true"]:
+    for token in ["requireBackgroundCalibration", "backgroundCalibrationRequired", "background-calibration-required", "backgroundCalibrationGate", "Map scale calibration required", "showClose: !required", "showCancel: !required", "commandDialogCancelGuardInstalled", "completed = true", "backgroundCalibrationMapScale", "targetMapScale", "applyMapScale(model, targetMapScale)"]:
         assert token in app_shell + styles, f"new image/PDF basemaps must block other editing until two-point scale calibration completes: {token}"
+    assert "modal: required" not in app_shell, "the required calibration palette must remain non-modal so its two map points can be dragged"
+    for token in ['["select", "background-calibration"].includes(state.ui.tool)', "calibrationAdjusting", 'hit?.type !== "background-calibration-point"']:
+        assert token in map_view, f"calibration points must remain draggable while the required palette is open: {token}"
+    for token in ["constrainPointToOctants", 'event?.shiftKey', 'this.drag.tool === "special:line"', 'state.ui.tool === "measure"', 'state.ui.tool === "background-calibration"']:
+        assert token in map_view, f"Shift should constrain decoration lines, measurements, and calibration guides to eight directions: {token}"
     command_methods = (ROOT / "src" / "ui" / "app-shell-command-methods.js").read_text(encoding="utf-8")
     calibration_tool_flow = command_methods.split('if (tool === "background-calibration") {', 1)[1].split('if (tool.startsWith("control:")) {', 1)[0]
     assert "promptBackgroundCalibrationDistance" in calibration_tool_flow, "the second calibration point should open the distance dialog"
@@ -346,7 +351,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-16", "ocd-convert-worker.js?v=20260712-16", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-18", "ocd-convert-worker.js?v=20260712-18", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")

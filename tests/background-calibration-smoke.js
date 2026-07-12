@@ -8,6 +8,9 @@ import {
   backgroundCalibrationDistance,
   backgroundCalibrationRequired,
   backgroundImagePointForMap,
+  formatInputNumber,
+  positiveNumber,
+  positiveScale,
   requireBackgroundCalibration,
   resetBackgroundCalibrationBase
 } from "../src/ui/app-shell-model-helpers.js";
@@ -95,6 +98,42 @@ const lockedDialogHost = {
 };
 assert.equal(dialogMethods.closeCommandDialog.call(lockedDialogHost), false, "required calibration dialog must not be dismissible");
 assert.equal(lockedDialogUi.status, "Complete the two-point map scale calibration before continuing.");
+
+let calibrationPalette = null;
+const paletteMethods = createAppShellDialogMethods({
+  backgroundCalibrationDistance,
+  backgroundCalibrationRequired,
+  formatDecimal: value => String(value),
+  formatInputNumber,
+  positiveNumber,
+  positiveScale,
+  escapeAttr: value => String(value),
+  escapeHtml: value => String(value)
+});
+const paletteState = {
+  eventModel: { event: { map: { scale: 12500 } } },
+  ui: {
+    background: {
+      widthMeters: 100,
+      heightMeters: 100,
+      calibration: {
+        imagePoints: [{ x: 0.1, y: 0.5 }, { x: 0.9, y: 0.5 }],
+        required: true,
+        completed: false
+      }
+    }
+  }
+};
+const paletteHost = {
+  store: { snapshot: () => paletteState },
+  t: value => value,
+  openCommandDialog(config) { calibrationPalette = config; }
+};
+paletteHost.backgroundCalibrationLineSummary = (...args) => paletteMethods.backgroundCalibrationLineSummary.call(paletteHost, ...args);
+paletteMethods.promptBackgroundCalibrationDistance.call(paletteHost);
+assert.equal(calibrationPalette.required, true);
+assert.equal(calibrationPalette.modal, undefined, "required palette must stay non-modal so map calibration points remain draggable");
+assert.match(calibrationPalette.body, /id="backgroundCalibrationMapScale"[^>]*value="12500"/);
 
 const background = {
   naturalWidth: 2000,

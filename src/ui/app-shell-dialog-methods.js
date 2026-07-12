@@ -407,10 +407,11 @@ export function createAppShellDialogMethods(deps) {
     if (event.target.closest("[data-background-calibrate]")) {
       this.store.updateUi(ui => {
         if (ui.background) {
-          ui.background.calibration = { imagePoints: [] };
+          const distanceMode = ui.background.calibration?.distanceMode === "map" ? "map" : "ground";
+          ui.background.calibration = { imagePoints: [], awaitingDistance: true, distanceMode };
           ui.tool = "background-calibration";
           ui.selection = { type: "background" };
-          ui.status = this.t("Click two points on the map to calibrate the background.");
+          ui.status = this.t("Click the first calibration point on the map.");
         }
       }, "Calibrate map background");
       return;
@@ -516,11 +517,133 @@ export function createAppShellDialogMethods(deps) {
   syncBackgroundMeasurement() {
     const output = this.querySelector("[data-background-measured]");
     const background = this.store.snapshot().ui.background;
-    if (!output || !background) return;
+    if (!background) return;
     const measured = backgroundCalibrationDistance(background);
-    output.textContent = measured
-      ? `${this.t("Selected line")}: ${formatDecimal(measured)} m`
-      : this.t("Click two points on the map, then enter their real distance.");
+    if (output) {
+      const pointCount = background.calibration?.imagePoints?.length || background.calibration?.points?.length || 0;
+      output.textContent = pointCount === 1
+        ? this.t("Point 1 selected. Click point 2.")
+        : measured
+          ? `${this.t("Selected line")}: ${formatDecimal(measured)} m · ${this.t("Drag point 1 or 2 to refine the reference line.")}`
+          : this.t("Click two points on the map, then enter their real distance.");
+    }
+    const dialogOutput = this.querySelector("[data-background-calibration-current]");
+    if (dialogOutput) {
+      dialogOutput.textContent = this.backgroundCalibrationLineSummary(background);
+    }
+  },
+
+  backgroundCalibrationLineSummary(background = this.store.snapshot().ui.background) {
+    const measured = backgroundCalibrationDistance(background);
+    const mapScale = positiveScale(this.store.snapshot().eventModel.event?.map?.scale) || 15000;
+    const printedCm = measured > 0 ? measured / mapScale * 100 : 0;
+    return measured > 0
+      ? this.t("The selected line currently represents {ground} m ({map} cm on a 1:{scale} map).", {
+        ground: formatDecimal(measured),
+        map: formatDecimal(printedCm),
+        scale: Math.round(mapScale).toLocaleString()
+      })
+      : this.t("Select two different points before entering a distance.");
+  },
+
+  promptBackgroundCalibrationDistance() {
+    const state = this.store.snapshot();
+    const background = state.ui.background;
+    if (!background || backgroundCalibrationDistance(background) <= 0) return;
+    const mapScale = positiveScale(state.eventModel.event?.map?.scale) || 15000;
+    const defaultMode = background.calibration?.distanceMode === "map" ? "map" : "ground";
+    const groundValue = positiveNumber(background.calibrationDistanceMeters, 0);
+    const mapValue = positiveNumber(background.calibrationPrintedCm, groundValue > 0 ? groundValue / mapScale * 100 : 0);
+    this.openCommandDialog({
+      title: "Set two-point calibration distance",
+      applyLabel: "Scale background",
+      body: `
+        <div class="calibration-distance-dialog">
+          <p class="muted" data-background-calibration-current>${escapeHtml(this.backgroundCalibrationLineSummary(background))}</p>
+          <fieldset class="choice-group calibration-distance-options">
+            <legend>${escapeHtml(this.t("Known distance type"))}</legend>
+            <div class="calibration-distance-option">
+              <label class="calibration-distance-option-title"><input type="radio" name="backgroundCalibrationDistanceMode" value="map" ${defaultMode === "map" ? "checked" : ""}> ${escapeHtml(this.t("Distance on map (cm)"))}</label>
+              <input id="backgroundCalibrationMapDistance" type="number" min="0.001" step="any" inputmode="decimal" value="${escapeAttr(mapValue > 0 ? formatInputNumber(mapValue) : "")}">
+              <small>${escapeHtml(this.t("Enter the length measured on the printed map."))}</small>
+            </div>
+            <div class="calibration-distance-option">
+              <label class="calibration-distance-option-title"><input type="radio" name="backgroundCalibrationDistanceMode" value="ground" ${defaultMode === "ground" ? "checked" : ""}> ${escapeHtml(this.t("Ground distance (m)"))}</label>
+              <input id="backgroundCalibrationGroundDistance" type="number" min="0.001" step="any" inputmode="decimal" value="${escapeAttr(groundValue > 0 ? formatInputNumber(groundValue) : "")}">
+              <small>${escapeHtml(this.t("Enter the corresponding real-world distance."))}</small>
+            </div>
+          </fieldset>
+        </div>
+      `,
+      onOpen: dialog => {
+        const syncMode = () => {
+          const mode = dialog.querySelector('input[name="backgroundCalibrationDistanceMode"]:checked')?.value || "ground";
+          dialog.querySelectorAll(".calibration-distance-option").forEach(option => {
+            const active = option.querySelector('input[type="radio"]')?.value === mode;
+            option.classList.toggle("active", active);
+            const input = option.querySelector('input[type="number"]');
+            if (input) input.readOnly = !active;
+          });
+        };
+        dialog.querySelectorAll('input[name="backgroundCalibrationDistanceMode"]').forEach(radio => {
+          radio.addEventListener("change", () => {
+            syncMode();
+            radio.closest(".calibration-distance-option")?.querySelector('input[type="number"]')?.focus();
+          });
+        });
+        dialog.querySelectorAll(".calibration-distance-option input[type=number]").forEach(input => {
+          input.addEventListener("pointerdown", () => {
+            const radio = input.closest(".calibration-distance-option")?.querySelector('input[type="radio"]');
+            if (radio && !radio.checked) {
+              radio.checked = true;
+              syncMode();
+            }
+          });
+          input.addEventListener("input", () => {
+            const message = dialog.querySelector("#commandMessage");
+            if (message) message.hidden = true;
+          });
+        });
+        syncMode();
+        setTimeout(() => {
+          const activeInput = dialog.querySelector(".calibration-distance-option.active input[type=number]");
+          activeInput?.focus();
+          activeInput?.select();
+        }, 0);
+      },
+      apply: dialog => {
+        const mode = dialog.querySelector('input[name="backgroundCalibrationDistanceMode"]:checked')?.value === "map" ? "map" : "ground";
+        const input = dialog.querySelector(mode === "map" ? "#backgroundCalibrationMapDistance" : "#backgroundCalibrationGroundDistance");
+        const value = Number(input?.value);
+        const targetGroundDistance = calibrationGroundDistance(value, mode, mapScale);
+        if (!(targetGroundDistance > 0)) {
+          const message = dialog.querySelector("#commandMessage");
+          if (message) {
+            message.textContent = this.t("Enter a distance greater than zero.");
+            message.hidden = false;
+          }
+          input?.focus();
+          return false;
+        }
+        this.store.updateUi(ui => {
+          const currentBackground = ui.background;
+          if (!currentBackground || backgroundCalibrationDistance(currentBackground) <= 0) return;
+          currentBackground.calibration ||= {};
+          currentBackground.calibration.awaitingDistance = false;
+          currentBackground.calibration.distanceMode = mode;
+          currentBackground.calibrationDistanceMeters = targetGroundDistance;
+          currentBackground.calibrationPrintedCm = targetGroundDistance / mapScale * 100;
+          resetBackgroundCalibrationBase(currentBackground);
+          applyBackgroundCalibration(currentBackground, backgroundAspect(currentBackground));
+          ui.tool = "select";
+          ui.selection = { type: "background" };
+          ui.status = this.t("Background scale calibrated.");
+        }, "Calibrate map background");
+        this.syncBackgroundFields();
+        this.syncBackgroundMeasurement();
+        return true;
+      }
+    });
   },
 
   syncBackgroundFields(activeTarget = null) {
@@ -769,4 +892,14 @@ export function createAppShellDialogMethods(deps) {
   }
 
   };
+}
+
+export function calibrationGroundDistance(value, mode, mapScale) {
+  const distanceValue = Number(value);
+  if (!Number.isFinite(distanceValue) || !(distanceValue > 0)) return 0;
+  if (mode === "map") {
+    const scale = Number(mapScale);
+    return Number.isFinite(scale) && scale > 0 ? distanceValue / 100 * scale : 0;
+  }
+  return distanceValue;
 }

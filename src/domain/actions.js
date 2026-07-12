@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260712-8";
-import { cloneDeep } from "./clone.js?v=20260712-8";
+} from "./event-model.js?v=20260712-11";
+import { cloneDeep } from "./clone.js?v=20260712-11";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260712-8";
+} from "./course-service.js?v=20260712-11";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -494,16 +494,6 @@ export function removeCourseControl(eventModel, courseControlId) {
 export function addCourse(eventModel, name, kind = "normal") {
   const course = createCourse(nextId(eventModel.courses), name, kind, eventModel.courses.length + 1);
   course.options.printScale = positiveMapScale(eventModel);
-  const start = eventModel.controls.find(control => control.kind === "start");
-  const finish = eventModel.controls.find(control => control.kind === "finish");
-  if (start) {
-    const startCourseControl = appendCourseControlRaw(eventModel, start.id);
-    course.firstCourseControl = startCourseControl.id;
-    if (finish) {
-      const finishCourseControl = appendCourseControlRaw(eventModel, finish.id);
-      startCourseControl.nextCourseControl = finishCourseControl.id;
-    }
-  }
   eventModel.courses.push(course);
   resequenceCourses(eventModel);
   return { type: "course", id: course.id };
@@ -795,12 +785,6 @@ function collectBranchCourseControlIds(eventModel, startId, stopId) {
 
   visit(startId, stopId);
   return ids;
-}
-
-function appendCourseControlRaw(eventModel, controlId) {
-  const courseControl = createCourseControl(nextId(eventModel.courseControls), controlId, null);
-  eventModel.courseControls.push(courseControl);
-  return courseControl;
 }
 
 function nextAvailableCode(eventModel) {

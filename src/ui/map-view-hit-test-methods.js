@@ -328,7 +328,7 @@ export function createMapViewHitTestMethods(deps) {
     let bestDistance = Infinity;
     for (let index = points.length - 1; index >= 0; index -= 1) {
       const candidateDistance = distance(point, points[index]);
-      if (candidateDistance <= threshold * 1.35 && candidateDistance < bestDistance) {
+      if (candidateDistance <= threshold * 1.6 && candidateDistance < bestDistance) {
         best = { type: "background-calibration-point", pointIndex: index };
         bestDistance = candidateDistance;
       }

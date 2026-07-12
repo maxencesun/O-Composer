@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260712-8";
+import { debugError } from "./debug-log.js?v=20260712-11";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -493,7 +493,7 @@ export function createAppShellVariationMethods(deps) {
     const layout = layoutVariationTopology(topology, branchCodes);
     const nodeRadius = 16;
     const selectedBranch = normalizedVariationBranch(eventModel, courseId, ui.variationBranch);
-    const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui);
+    const selectedAnchor = variationAnchorCourseControl(eventModel, courseId, ui, { selectionOnly: true });
     const branchEdges = topologyBranchEdgeMap(topology);
     const commonJoinPoints = topologyCommonJoinPointMap(topology, layout.positions, nodeRadius);
     const sharedJoinParents = topologySharedJoinParentMap(topology);

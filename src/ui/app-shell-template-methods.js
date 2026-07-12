@@ -675,7 +675,7 @@ export function createAppShellTemplateMethods(deps) {
         }
         o-composer-app .special-visibility-courses {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          grid-template-columns: minmax(0, 1fr);
           gap: 6px 10px;
           max-height: 138px;
           overflow: auto;
@@ -686,14 +686,16 @@ export function createAppShellTemplateMethods(deps) {
           display: inline-flex;
           align-items: center;
           gap: 6px;
+          width: 100%;
           min-width: 0;
           line-height: 1.25;
         }
         o-composer-app .special-visibility-course span {
           min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          overflow: visible;
+          overflow-wrap: anywhere;
+          text-overflow: clip;
+          white-space: normal;
         }
         o-composer-app .special-visibility-course.disabled {
           color: #9ca3af;
@@ -922,12 +924,6 @@ export function createAppShellTemplateMethods(deps) {
             ["toggle-all-controls", "All Controls"],
             ["quality", "Cycle Render Quality"]
           ])}
-          ${this.menu("Measure", [
-            ["tool-measure", "Measure polyline or area"],
-            ["measure-add", "Add measurement"],
-            ["measure-finish", "Finish open polyline"],
-            ["measure-clear", "Clear measurement"]
-          ])}
           ${this.menu("Add", [
             ["tool-start", "Start"],
             ["tool-control", "Control"],
@@ -937,6 +933,7 @@ export function createAppShellTemplateMethods(deps) {
             ["tool-map-issue", "Map Issue"],
             ["add-variation", "Add Variation"],
             ["tool-line-cut", "Cut Line"],
+            ["open-measure", "Measurement"],
             ["tool-description", "Descriptions"],
             ["tool-text", "Text"],
             ["tool-line", "Line"],
@@ -1000,7 +997,6 @@ export function createAppShellTemplateMethods(deps) {
           ${this.toolButton("tool-finish", "Finish", "finish")}
           ${this.toolButton("tool-map-issue", "Map Issue", "map-issue")}
           ${this.toolButton("tool-line-cut", "Cut Line", "cut")}
-          ${this.toolButton("tool-measure", "Measure polyline or area", "measure", "Measure")}
           ${this.toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")}
           ${this.toolGroup("Restricted Areas", "restricted", [
             ["tool-oob", "Out of Bounds", "out-of-bounds"],
@@ -1061,10 +1057,6 @@ export function createAppShellTemplateMethods(deps) {
             <div id="courseBanner" class="course-banner">
               <div id="courseBannerText" class="course-banner-text"></div>
               <div id="courseVariationControls" class="course-variation-controls"></div>
-              <div class="map-view-controls" aria-label="${escapeAttr(this.t("Map view controls"))}">
-                <label class="map-view-control"><span>${escapeHtml(this.t("Zoom"))}</span><input id="zoomSlider" type="range" min="20" max="2400" value="100"></label>
-                <label class="map-view-control"><span>${escapeHtml(this.t("Intensity"))}</span><input id="intensitySlider" type="range" min="10" max="100" value="65"></label>
-              </div>
             </div>
             <canvas id="mapCanvas" class="map-canvas"></canvas>
             <aside id="measurementPanel" class="measurement-panel" aria-live="polite" hidden>
@@ -1237,6 +1229,10 @@ export function createAppShellTemplateMethods(deps) {
           </span>
           <span id="mouseText"></span>
           <span id="dirtyText"></span>
+          <div class="map-view-controls" aria-label="${escapeAttr(this.t("Map view controls"))}">
+            <label class="map-view-control"><span>${escapeHtml(this.t("Zoom"))}</span><input id="zoomSlider" type="range" min="20" max="2400" value="100"></label>
+            <label class="map-view-control"><span>${escapeHtml(this.t("Intensity"))}</span><input id="intensitySlider" type="range" min="10" max="100" value="65"></label>
+          </div>
         </footer>
       </div>
     `;

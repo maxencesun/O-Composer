@@ -1563,6 +1563,63 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   gap: 7px;
 }
 
+.calibration-distance-dialog {
+  display: grid;
+  gap: 10px;
+}
+
+.calibration-distance-dialog > p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.calibration-distance-options {
+  grid-template-columns: 1fr;
+}
+
+.choice-group .calibration-distance-option {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+.choice-group .calibration-distance-option.active {
+  border-color: #88abc9;
+  background: #f0f7fc;
+  color: var(--ink);
+}
+
+.choice-group .calibration-distance-option-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: inherit;
+  font-weight: 700;
+}
+
+.calibration-distance-option input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  background: #fff;
+}
+
+.calibration-distance-option:not(.active) input[type="number"] {
+  opacity: 0.62;
+  background: #f5f7f8;
+}
+
+.calibration-distance-option small {
+  line-height: 1.35;
+}
+
 .print-area-summary {
   min-height: 28px;
   padding: 7px 9px;
@@ -1604,24 +1661,33 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
 }
 
 .statusbar {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(220px, auto) 160px minmax(150px, auto);
+  display: flex;
   gap: 12px;
   align-items: center;
   min-height: 26px;
   padding: 3px 9px;
+  overflow: hidden;
   background: #f6f7f8;
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 12px;
 }
 
+#statusText {
+  flex: 1 1 120px;
+  min-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .map-import-progress {
   display: inline-grid;
   grid-template-columns: minmax(72px, 110px) minmax(110px, auto);
+  flex: 0 1 300px;
   gap: 7px;
   align-items: center;
-  min-width: 0;
+  min-width: 180px;
 }
 
 .map-import-progress[hidden] {
@@ -1641,7 +1707,23 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
 }
 
 #dirtyText {
+  flex: 0 1 260px;
+  min-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: right;
+}
+
+#mouseText {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.statusbar .map-view-controls {
+  flex: 0 1 300px;
+  min-width: 240px;
+  margin-left: 0;
 }
 
 .cookie-banner {
@@ -1877,9 +1959,14 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   .form-grid,
   .description-edit,
   .print-area-grid,
-  .choice-group,
-  .statusbar {
+  .choice-group {
     grid-template-columns: 1fr;
+  }
+
+  .statusbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .selection-panel {

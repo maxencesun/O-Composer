@@ -1,5 +1,5 @@
-import { courseLength, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js?v=20260712-8";
-import { relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js?v=20260712-8";
+import { courseLength, courseLengthRange, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js?v=20260712-11";
+import { courseHasVariations, relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js?v=20260712-11";
 
 export const BUILTIN_CONSTANTS = Object.freeze([
   { name: "\\event", description: "Event name" },
@@ -142,7 +142,14 @@ export function builtinConstantsForView(eventModel, ui = {}) {
   const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
   const selectedCourses = course ? [course] : courses;
   const displayOptions = course ? courseDisplayOptionsForConstants(eventModel, ui) : {};
-  const lengthValues = selectedCourses.map(item => courseLength(eventModel, item.id, course && item.id === course.id ? displayOptions : {})).filter(Number.isFinite);
+  const lengthValues = selectedCourses.flatMap(item => {
+    const options = course && item.id === course.id ? displayOptions : {};
+    if (!options.variationChoices?.length && courseHasVariations(eventModel, item.id)) {
+      const range = courseLengthRange(eventModel, item.id, { ...options, allBranches: true });
+      return range.isRange ? [range.min, range.max] : [range.min];
+    }
+    return [courseLength(eventModel, item.id, options)];
+  }).filter(Number.isFinite);
   const controlCounts = selectedCourses.map(item => courseView(eventModel, item.id, course && item.id === course.id ? displayOptions : {}).length).filter(Number.isFinite);
   const climbs = selectedCourses.map(item => Number(item.options?.climb)).filter(value => Number.isFinite(value) && value >= 0);
   const courseName = course ? course.name : rangeText(courses.map(item => item.name));

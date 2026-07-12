@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260712-8";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260712-8";
-import { findById } from "../domain/event-model.js?v=20260712-8";
+} from "./app-shell-config.js?v=20260712-11";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260712-11";
+import { findById } from "../domain/event-model.js?v=20260712-11";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260712-8";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260712-8";
+} from "../domain/control-descriptions.js?v=20260712-11";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260712-11";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -44,11 +44,11 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260712-8";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-8";
-import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260712-8";
-import { t } from "./i18n.js?v=20260712-8";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260712-8";
+} from "../domain/course-service.js?v=20260712-11";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260712-11";
+import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260712-11";
+import { t } from "./i18n.js?v=20260712-11";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260712-11";
 
 export { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap };
 
@@ -591,34 +591,39 @@ export function selectedLegCourseControlPair(state) {
   };
 }
 
-export function variationAnchorCourseControl(eventModel, courseId, ui = {}) {
+export function variationAnchorCourseControl(eventModel, courseId, ui = {}, options = {}) {
   if (!courseId || courseId === "all") return null;
+  const usable = options.selectionOnly ? variationSelectionAnchorIsUsable : variationAnchorIsUsable;
   const rows = courseView(eventModel, courseId, { allBranches: true });
   const rowCourseControls = new Map(rows.map(row => [Number(row.courseControl?.id), row.courseControl]));
   const anchored = rowCourseControls.get(Number(ui.variationAnchorCourseControl));
-  if (anchored && variationAnchorIsUsable(eventModel, anchored)) return anchored;
+  if (anchored && usable(eventModel, anchored)) return anchored;
   const segmentStart = rowCourseControls.get(Number(ui.variationInsertAfterCourseControl));
-  if (segmentStart && variationAnchorIsUsable(eventModel, segmentStart)) return segmentStart;
+  if (segmentStart && usable(eventModel, segmentStart)) return segmentStart;
   const selection = ui.selection;
   if (selection?.type === "control-number" && selection.courseControl) {
     const candidate = rowCourseControls.get(Number(selection.courseControl)) || null;
-    return variationAnchorIsUsable(eventModel, candidate) ? candidate : null;
+    return usable(eventModel, candidate) ? candidate : null;
   }
   if (selection?.type === "control") {
     const selectedCourseControl = Number(selection.courseControl) || 0;
     const courseControl = rowCourseControls.get(selectedCourseControl) || null;
-    if (variationAnchorIsUsable(eventModel, courseControl)) return courseControl;
+    if (usable(eventModel, courseControl)) return courseControl;
     const candidate = rows.find(row => Number(row.control?.id) === Number(selection.id))?.courseControl || null;
-    return variationAnchorIsUsable(eventModel, candidate) ? candidate : null;
+    return usable(eventModel, candidate) ? candidate : null;
   }
   if (selection?.type === "leg" || selection?.type === "leg-bend") {
     const selectedStartCourseControl = Number(selection.startCourseControl) || 0;
     const selectedStart = rowCourseControls.get(selectedStartCourseControl) || null;
-    if (variationAnchorIsUsable(eventModel, selectedStart)) return selectedStart;
+    if (usable(eventModel, selectedStart)) return selectedStart;
     const candidate = rows.find(row => Number(row.control?.id) === Number(selection.startControl))?.courseControl || null;
-    return variationAnchorIsUsable(eventModel, candidate) ? candidate : null;
+    return usable(eventModel, candidate) ? candidate : null;
   }
   return null;
+}
+
+export function variationSelectionAnchorIsUsable(eventModel, courseControl) {
+  return !!courseControl && !!getControl(eventModel, courseControl.control);
 }
 
 export function variationAnchorIsUsable(eventModel, courseControl) {

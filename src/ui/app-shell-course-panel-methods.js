@@ -1,4 +1,4 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260712-8";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260712-11";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -265,13 +265,36 @@ export function createAppShellCoursePanelMethods(deps) {
   return {
   setSelection(selection) {
     const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId;
+    let synchronizedSelection = selection;
+    let topologyCourseControlId = null;
+    if (selection?.type === "control" && courseId && courseId !== "all") {
+      const matchingNodes = courseTopology(state.eventModel, courseId)
+        .filter(view => Number(view.control?.id) === Number(selection.id))
+        .map(view => Number(topologyNodeCourseControlId(view)) || null)
+        .filter(Boolean);
+      const requestedCourseControl = Number(selection.courseControl) || null;
+      const previousAnchor = Number(state.ui.variationAnchorCourseControl) || null;
+      topologyCourseControlId = matchingNodes.includes(requestedCourseControl)
+        ? requestedCourseControl
+        : matchingNodes.includes(previousAnchor)
+          ? previousAnchor
+          : matchingNodes[0] || null;
+      if (topologyCourseControlId) {
+        synchronizedSelection = { ...selection, courseControl: topologyCourseControlId };
+      }
+    }
     this.store.updateUi(ui => {
-      ui.selection = selection;
-      if (selection) {
+      ui.selection = synchronizedSelection;
+      if (synchronizedSelection) {
         ui.variationBranch = null;
         ui.variationAdjustmentMode = "";
       }
-      const role = teamAddControlRoleFromSelection(state.eventModel, ui, selection);
+      ui.variationAnchorCourseControl = topologyCourseControlId;
+      ui.variationInsertAfterCourseControl = topologyCourseControlId;
+      ui.variationInsertBeforeCourseControl = null;
+      ui.variationSelectedSegment = topologyCourseControlId ? `node:${topologyCourseControlId}` : "";
+      const role = teamAddControlRoleFromSelection(state.eventModel, ui, synchronizedSelection);
       if (role) {
         ui.teamAddControlRole = role;
       }

@@ -1,4 +1,4 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-8";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260712-11";
 
 export function createMapViewPointerMethods(deps) {
   const {
@@ -227,6 +227,9 @@ export function createMapViewPointerMethods(deps) {
     }
     const hit = this.hitTest(mapPoint, state);
     const emptySpacePan = state.ui.tool === "select" && !state.ui.selection && !hit;
+    if (hit?.type === "background-calibration-point") {
+      this.canvas.style.cursor = "grabbing";
+    }
     this.drag = {
       pointerId: event.pointerId,
       startScreen: screen,
@@ -255,6 +258,10 @@ export function createMapViewPointerMethods(deps) {
     this.callbacks.onHover?.(previewPoint);
     this.updateToolPreview(state.ui.tool === "measure" && !state.ui.measurement?.adding ? "select" : state.ui.tool, previewPoint);
     if (!this.drag || this.drag.pointerId !== event.pointerId) {
+      const calibrationHit = state.ui.tool === "select"
+        ? this.hitTestBackgroundCalibrationPoint(mapPoint, state, 16 / this.scale(state.ui))
+        : null;
+      this.canvas.style.cursor = calibrationHit ? "grab" : "";
       return;
     }
     if (this.drag.measurement) {
@@ -424,6 +431,10 @@ export function createMapViewPointerMethods(deps) {
       this.callbacks.onBackgroundCalibrationPointMove?.(this.drag.hit, mapPoint, { transient: false });
       this.drag.hit = null;
     }
+    else if (this.drag.hit?.type === "background-calibration-point" && state.ui.tool === "select") {
+      this.callbacks.onSelect?.({ type: "background" });
+      this.drag.hit = null;
+    }
     else if (this.drag.hit && this.drag.moved && state.ui.tool === "select") {
       this.callbacks.onMoveSelection?.(this.drag.hit, moveTargetForDrag(this.drag, mapPoint));
       this.drag.hit = null;
@@ -556,10 +567,11 @@ export function createMapViewPointerMethods(deps) {
     }
     this.drag = null;
     this._dragRect = null;
+    this.canvas.style.cursor = "";
   },
 
   updateToolPreview(tool, point) {
-    const previewable = typeof tool === "string" && (tool === "measure" || tool.startsWith("control:") || tool.startsWith("special:"));
+    const previewable = typeof tool === "string" && (tool === "measure" || tool === "background-calibration" || tool.startsWith("control:") || tool.startsWith("special:"));
     if (!previewable) {
       this.clearToolPreview();
       this.areaSpecialDraft = null;

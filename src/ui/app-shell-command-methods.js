@@ -352,6 +352,9 @@ export function createAppShellCommandMethods(deps) {
       case "measure-clear":
         this.clearMeasurement();
         break;
+      case "open-measure":
+        this.openMeasurementPanel();
+        break;
       case "fit-course":
       case "fit-map":
         this.mapView.fit();
@@ -659,6 +662,21 @@ export function createAppShellCommandMethods(deps) {
     }, "Add measurement");
   },
 
+  openMeasurementPanel() {
+    this.store.updateUi(ui => {
+      const current = normalizeMeasurementState(ui.measurement);
+      ui.tool = "measure";
+      ui.printAreaEdit = null;
+      ui.measurement = {
+        ...current,
+        adding: false,
+        selectedIndex: null,
+        draft: { ...current.draft, points: [] }
+      };
+      ui.status = this.t("Measurement mode");
+    }, "Measurement mode");
+  },
+
   selectMeasurement(index) {
     this.store.updateUi(ui => {
       if (ui.tool !== "measure" || ui.measurement?.adding) return;
@@ -795,22 +813,35 @@ export function createAppShellCommandMethods(deps) {
     const beforeCourseControl = insertionBeforeCourseControlId(state);
     const variationEndOwnerCourseControl = insertionVariationEndOwnerId(state);
     if (tool === "background-calibration") {
+      let shouldPromptForDistance = false;
       this.store.updateUi(ui => {
         if (!ui.background) return;
         const imagePoint = backgroundImagePointForMap(ui.background, point);
         const imagePoints = [...(ui.background.calibration?.imagePoints || []), imagePoint].slice(-2);
-        ui.background.calibration = { imagePoints };
+        ui.background.calibration = {
+          ...(ui.background.calibration || {}),
+          imagePoints,
+          awaitingDistance: true
+        };
         resetBackgroundCalibrationBase(ui.background);
         ui.selection = { type: "background" };
         if (imagePoints.length >= 2) {
-          applyBackgroundCalibration(ui.background, backgroundAspect(ui.background));
-          ui.tool = "select";
-          ui.status = this.t("Enter the real distance for the selected map line.");
+          if (backgroundCalibrationDistance(ui.background) > 0.0001) {
+            ui.tool = "select";
+            ui.status = this.t("Enter the known distance for the selected map line.");
+            shouldPromptForDistance = true;
+          }
+          else {
+            ui.background.calibration.imagePoints = imagePoints.slice(0, 1);
+            ui.status = this.t("Choose a different second calibration point.");
+          }
         }
         else {
           ui.status = this.t("Click the second point on the map.");
         }
       }, "Calibrate map background");
+      this.syncBackgroundMeasurement();
+      if (shouldPromptForDistance) this.promptBackgroundCalibrationDistance();
       return;
     }
     if (tool.startsWith("control:")) {
@@ -1116,7 +1147,7 @@ export function createAppShellCommandMethods(deps) {
       imagePoints[pointIndex] = backgroundImagePointForMap(background, point);
       background.calibration = { ...(background.calibration || {}), imagePoints };
       ui.selection = { type: "background" };
-      if (!options.transient) {
+      if (!options.transient && !background.calibration.awaitingDistance) {
         resetBackgroundCalibrationBase(background);
         applyBackgroundCalibration(background, backgroundAspect(background));
       }
@@ -1476,12 +1507,21 @@ export function createAppShellCommandMethods(deps) {
       }
       else if (field === "calibrationDistanceMeters") {
         background.calibrationDistanceMeters = positiveNumber(value, 0);
+        background.calibration ||= {};
+        background.calibration.awaitingDistance = false;
+        background.calibration.distanceMode = "ground";
+        background.calibrationPrintedCm = background.calibrationDistanceMeters / (positiveScale(current.eventModel.event?.map?.scale) || 15000) * 100;
+        resetBackgroundCalibrationBase(background);
         applyBackgroundCalibration(background, aspect);
       }
       else if (field === "calibrationPrintedCm") {
         const mapScale = positiveScale(this.store.snapshot().eventModel.event?.map?.scale) || 15000;
         background.calibrationPrintedCm = positiveNumber(value, 0);
         background.calibrationDistanceMeters = background.calibrationPrintedCm / 100 * mapScale;
+        background.calibration ||= {};
+        background.calibration.awaitingDistance = false;
+        background.calibration.distanceMode = "map";
+        resetBackgroundCalibrationBase(background);
         applyBackgroundCalibration(background, aspect);
       }
     }, "Edit map background");

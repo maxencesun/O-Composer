@@ -49,6 +49,9 @@ def verify_app_files() -> None:
     assert (ROOT / "src" / "ui" / "i18n.js").exists()
     assert (ROOT / "src" / "workers" / "omap-render-worker.js").exists()
     assert (ROOT / "tests" / "omap-renderer-smoke.js").exists()
+    assert (ROOT / "tests" / "background-calibration-smoke.js").exists()
+    assert (ROOT / "tests" / "constants-smoke.js").exists()
+    assert (ROOT / "tests" / "course-editing-smoke.js").exists()
     assert (ROOT / "assets" / "iscd-symbols.xml").exists()
 
     app_shell_entry = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
@@ -104,7 +107,7 @@ def verify_app_files() -> None:
         assert token in actions, f"adding controls to an empty selected branch should insert into that branch, not the course end: {token}"
     add_variation_body = actions.split("export function addVariationAtCourseControl", 1)[1].split("export function addForkToLeg", 1)[0]
     assert "createControl(" not in add_variation_body, "adding a fork must not create fake map controls"
-    for token in ["backgroundCalibrationAnchorCenter", "resetBackgroundCalibrationBase(ui.background)", "applyBackgroundCalibration(ui.background, backgroundAspect(ui.background))", "background.centerX"]:
+    for token in ["backgroundCalibrationAnchorCenter", "resetBackgroundCalibrationBase(", "applyBackgroundCalibration(", "background.centerX"]:
         assert token in app_shell, f"missing anchored background calibration support: {token}"
     for token in ["mapCourseDisplayOptions", "variationForCode", "relayVariationForLeg"]:
         assert token in map_view, f"map rendering should honor selected relay variation: {token}"
@@ -121,10 +124,15 @@ def verify_app_files() -> None:
         assert token in i18n, f"missing multilingual support: {token}"
     for token in ["appLanguage", "this.t(", "SUPPORTED_LANGUAGES", "applyApplicationLanguage(event.target.value)", "forceWholePageLanguageReload"]:
         assert token in app_shell, f"missing app i18n hook: {token}"
+    assert '["open-measure", "Measurement"]' in app_shell, "measurement should be opened from the Add menu"
+    assert '${this.menu("Measure"' not in app_shell, "measurement should not remain a standalone top-level menu"
+    assert 'this.toolButton("tool-measure"' not in app_shell, "measurement should not remain a standalone toolbar item"
+    for token in ['case "open-measure":', "this.openMeasurementPanel()", "adding: false"]:
+        assert token in app_shell, f"opening the measurement panel must not start a new measurement: {token}"
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.2"' in app_config, "app version should be centrally maintained at 0.0.2"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CODE_VERSION = "20260712-8"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CODE_VERSION = "20260712-11"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
@@ -143,6 +151,13 @@ def verify_app_files() -> None:
     for token in ["addExistingControlToCourse", "onAddExistingControlToCourse", "drawAddableControls", "addableControlsForTool", "insertionCourseControlId", "snappedControlForPlacement", "CONTROL_SNAP_SCREEN_RADIUS", "ADDABLE_CONTROL_SNAP_PIXELS", "Snapped to existing control."]:
         assert token in app_shell + map_view + (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8"), f"missing add existing control flow: {token}"
     assert "controlsUsedByCourse(state.eventModel, selectedCourseId).has" in app_shell, "snapping must avoid adding duplicate controls already in the selected course"
+    template_methods = (ROOT / "src" / "ui" / "app-shell-template-methods.js").read_text(encoding="utf-8")
+    footer_html = template_methods.split('<footer class="statusbar">', 1)[1].split("</footer>", 1)[0]
+    course_banner_html = template_methods.split('<div id="courseBanner" class="course-banner">', 1)[1].split("</div>\n            <canvas", 1)[0]
+    assert footer_html.index('id="dirtyText"') < footer_html.index('id="zoomSlider"') < footer_html.index('id="intensitySlider"'), "zoom and intensity sliders should sit at the far right of the status bar"
+    assert 'id="zoomSlider"' not in course_banner_html and 'id="intensitySlider"' not in course_banner_html, "map sliders should no longer occupy the course banner"
+    for token in ["grid-template-columns: minmax(0, 1fr)", "overflow-wrap: anywhere", "text-overflow: clip", "white-space: normal"]:
+        assert token in template_methods, f"special visibility course names should remain readable: {token}"
     for field in ["eventTitleChoice", "mapScaleChoice", "addCourseName", "duplicateCourseName", "courseLoadChoice", "textSpecialPreset"]:
         assert f'<input id="{field}"' in app_shell, f"{field} should allow typed input"
         assert f'<select id="{field}"' not in app_shell, f"{field} should not be a fixed select"
@@ -180,7 +195,7 @@ def verify_app_files() -> None:
         assert token in styles, f"mobile quick toolbar should show icons without text labels: {token}"
     for token in ["flex-wrap: wrap", "align-content: flex-start", "overflow-y: auto"]:
         assert token in styles, f"mobile quick toolbar should wrap when icons do not fit one row: {token}"
-    assert ".map-view-controls {\n    display: none;" in styles, "mobile should hide top map view sliders and controls"
+    assert ".map-view-controls {\n    display: none;" in styles, "compact/mobile layouts should hide map view sliders"
     for token in ["@media (pointer: coarse) and (orientation: landscape)", "grid-template-columns: clamp(320px, 38dvw, 390px) minmax(380px, 1fr) clamp(280px, 34dvw, 380px)", "overflow-x: auto", ".description-table {\n    min-width: 320px;", "grid-column: 2", "grid-column: 3"]:
         assert token in styles, f"mobile landscape should put description/selection panels left of the map with a readable description width: {token}"
     for token in ["mobile-side-controls", "mobileCourseSelect", "mobilePanelSelect", "selectCourse", ".course-tabs {\n    display: none;", "display: contents", ".left-panel > .panel-block:not(.selection-panel)"]:
@@ -211,12 +226,16 @@ def verify_app_files() -> None:
         assert token in map_view, f"point specials such as registration marks should have movable/deletable selection bounds: {token}"
     for token in ["backgroundMapBounds", "ui.background", "widthMeters", "heightMeters", "naturalWidth", "naturalHeight", "drawImage(this.backgroundImage, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y)"]:
         assert token in map_view + app_shell, f"bitmap/PDF map backgrounds should preserve their own dimensions and aspect ratio: {token}"
-    for token in ["backgroundCalibrationMapPoints", "imagePoints"]:
+    for token in ["backgroundCalibrationMapPoints", "imagePoints", "drawBackgroundCalibrationGuide", 'ui.tool === "background-calibration"']:
         assert token in map_view, f"map view should render calibration points anchored to the image: {token}"
-    for token in ['if (ui.selection?.type !== "background") return;', "hitTestBackgroundCalibrationPoint", "background-calibration-point", "onBackgroundCalibrationPointMove"]:
+    for token in ['if (ui.selection?.type !== "background") return;', "hitTestBackgroundCalibrationPoint", "background-calibration-point", "onBackgroundCalibrationPointMove", 'this.callbacks.onSelect?.({ type: "background" })']:
         assert token in map_view + app_shell, f"background calibration points should only show in map adjustment and be draggable: {token}"
-    for token in ["mapBackgroundEditor", "data-background-field", "backgroundMetadataForImage", "background-calibration", "applyBackgroundCalibration", "calibrationPrintedCm", "calibrationDistanceMeters", "Calibrate with two points"]:
+    for token in ["mapBackgroundEditor", "data-background-field", "backgroundMetadataForImage", "background-calibration", "applyBackgroundCalibration", "calibrationPrintedCm", "calibrationDistanceMeters", "Calibrate with two points", "promptBackgroundCalibrationDistance", "calibrationGroundDistance", "Distance on map (cm)", "Ground distance (m)", "Enter a distance greater than zero."]:
         assert token in app_shell, f"selection panel should expose map background info and calibration controls: {token}"
+    command_methods = (ROOT / "src" / "ui" / "app-shell-command-methods.js").read_text(encoding="utf-8")
+    calibration_tool_flow = command_methods.split('if (tool === "background-calibration") {', 1)[1].split('if (tool.startsWith("control:")) {', 1)[0]
+    assert "promptBackgroundCalibrationDistance" in calibration_tool_flow, "the second calibration point should open the distance dialog"
+    assert "applyBackgroundCalibration" not in calibration_tool_flow, "choosing the second point must not scale the background before distance confirmation"
     for token in ['["map-info", "Map Info"]', 'ui.selection = { type: "background" }', 'selection.type === "background"']:
         assert token in app_shell, f"map background info should be activated from the Event menu: {token}"
     for token in ["backgroundImagePointForMap", "backgroundCalibrationDistance", "baseDistanceMeters", "resetBackgroundCalibrationBase", "imagePoints"]:
@@ -305,7 +324,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-8", "ocd-convert-worker.js?v=20260712-8", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260712-11", "ocd-convert-worker.js?v=20260712-11", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")
@@ -457,6 +476,13 @@ def verify_omap_support() -> None:
     actions = (ROOT / "src" / "domain" / "actions.js").read_text(encoding="utf-8")
     for token in ["positiveMapScale", "course.options.printScale = positiveMapScale(eventModel)"]:
         assert token in actions, f"new courses must default to map scale: {token}"
+    add_course_body = actions.split("export function addCourse", 1)[1].split("function positiveMapScale", 1)[0]
+    assert "eventModel.controls.find" not in add_course_body and "appendCourseControlRaw" not in add_course_body, "new courses must start empty so users can create or reuse their own start and finish"
+    for token in ["topologyCourseControlId", "variationInsertAfterCourseControl = topologyCourseControlId", "variationSelectedSegment = topologyCourseControlId", "selectionOnly: true", '`${selection.type}:${selection.id}:${selection.courseControl || ""}`']:
+        assert token in app_shell, f"map control selection should synchronize with the variation topology: {token}"
+    constants_source = (ROOT / "src" / "domain" / "constants.js").read_text(encoding="utf-8")
+    for token in ["courseLengthRange", "courseHasVariations", "range.isRange ? [range.min, range.max]"]:
+        assert token in constants_source, f"branched course length constants should use a min/max range: {token}"
     assert "drawControlCenterPoint" in map_view, "selected controls must show their center point"
     for token in ["emptySpacePan", "moveOffsetForHit", "moveTargetForDrag", "ctx.arc(point.x, point.y, 1.75"]:
         assert token in map_view, f"missing map drag/selection refinement: {token}"

@@ -1,5 +1,5 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-8";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-8";
+import { resolveTextConstants } from "../domain/constants.js?v=20260712-11";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-11";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -561,22 +561,8 @@ export function createMapViewRenderMethods(deps) {
     if (ui.selection?.type !== "background") return;
     const points = backgroundCalibrationMapPoints(ui.background, this.backgroundImage);
     if (!points.length) return;
-    ctx.save();
-    ctx.strokeStyle = "#2477c9";
-    ctx.fillStyle = "#2477c9";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
     const screen = points.map(point => this.toScreen(point, ui));
-    if (screen.length >= 2) {
-      line(ctx, screen[0].x, screen[0].y, screen[1].x, screen[1].y);
-    }
-    ctx.setLineDash([]);
-    for (const point of screen) {
-      ctx.beginPath();
-      ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
+    drawBackgroundCalibrationGuide(ctx, screen);
   },
 
   drawSpecialHandles(ctx, eventModel, ui) {
@@ -760,7 +746,14 @@ export function createMapViewRenderMethods(deps) {
 
     ctx.save();
     ctx.globalAlpha = 0.62;
-    if (ui.tool.startsWith("control:")) {
+    if (ui.tool === "background-calibration") {
+      const selectedPoints = backgroundCalibrationMapPoints(ui.background, this.backgroundImage);
+      const previewPoints = selectedPoints.length
+        ? [this.toScreen(selectedPoints[0], ui), point]
+        : [point];
+      drawBackgroundCalibrationGuide(ctx, previewPoints);
+    }
+    else if (ui.tool.startsWith("control:")) {
       const kind = ui.tool.slice("control:".length);
       drawCourseControl(ctx, {
         kind,
@@ -839,6 +832,46 @@ export function createMapViewRenderMethods(deps) {
   }
 
   };
+}
+
+export function drawBackgroundCalibrationGuide(ctx, points) {
+  if (!Array.isArray(points) || !points.length) return;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (points.length >= 2) {
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.94)";
+    ctx.lineWidth = 5;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    ctx.lineTo(points[1].x, points[1].y);
+    ctx.stroke();
+    ctx.strokeStyle = "#2477c9";
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([7, 5]);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    ctx.lineTo(points[1].x, points[1].y);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.font = "700 10px Roboto, Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let index = 0; index < Math.min(points.length, 2); index += 1) {
+    const point = points[index];
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#2477c9";
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.fillText(String(index + 1), point.x, point.y + 0.5);
+  }
+  ctx.restore();
 }
 
 function drawGroundDistanceLabel(ctx, distanceM, point, color, selected, zoomScale) {

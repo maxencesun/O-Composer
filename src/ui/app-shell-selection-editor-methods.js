@@ -438,6 +438,12 @@ export function createAppShellSelectionEditorMethods(deps) {
     const aspect = backgroundAspect(background);
     const printedWidth = width ? width / mapScale * 100 : 0;
     const measured = backgroundCalibrationDistance(background);
+    const calibrationPointCount = background.calibration?.imagePoints?.length || background.calibration?.points?.length || 0;
+    const calibrationHint = calibrationPointCount === 1
+      ? this.t("Point 1 selected. Click point 2.")
+      : measured
+        ? `${this.t("Selected line")}: ${formatDecimal(measured)} m · ${this.t("Drag point 1 or 2 to refine the reference line.")}`
+        : this.t("Click two points on the map, then enter their real distance.");
     return `
       <div class="map-info-panel">
         <h2>${escapeHtml(this.t("Map"))}</h2>
@@ -455,7 +461,7 @@ export function createAppShellSelectionEditorMethods(deps) {
           <label class="span-2">${escapeHtml(this.t("Calibration printed length (cm)"))} <input data-background-field="calibrationPrintedCm" type="number" min="0.01" step="0.01" value="${formatInputNumber(background.calibrationPrintedCm || "")}"></label>
         </div>
         <button type="button" class="secondary" data-background-calibrate>${escapeHtml(this.t("Calibrate with two points"))}</button>
-        <p class="muted" data-background-measured>${measured ? `${escapeHtml(this.t("Selected line"))}: ${formatDecimal(measured)} m` : escapeHtml(this.t("Click two points on the map, then enter their real distance."))}</p>
+        <p class="muted" data-background-measured>${escapeHtml(calibrationHint)}</p>
       </div>
     `;
   },
@@ -796,7 +802,7 @@ export function createAppShellSelectionEditorMethods(deps) {
               value="${course.id}"
               ${!allCourses && selected.has(Number(course.id)) ? "checked" : ""}
               ${disabled}>
-            <span>${escapeHtml(course.name || `${this.t("Course")} ${course.id}`)}</span>
+            <span title="${escapeAttr(course.name || `${this.t("Course")} ${course.id}`)}">${escapeHtml(course.name || `${this.t("Course")} ${course.id}`)}</span>
           </label>
         `).join("")
       : `<p class="muted special-visibility-empty">${escapeHtml(this.t("No courses have been created yet."))}</p>`;

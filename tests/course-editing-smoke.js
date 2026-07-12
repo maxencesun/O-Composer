@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { addControlAt, addCourse, addExistingControlToCourse } from "../src/domain/actions.js";
+import { addControlAt, addCourse, addExistingControlToCourse, addVariationAtCourseControl } from "../src/domain/actions.js";
 import { courseTopology, courseView } from "../src/domain/course-service.js";
 import { createAppShellCoursePanelMethods } from "../src/ui/app-shell-course-panel-methods.js";
 import { createAppShellDialogMethods } from "../src/ui/app-shell-dialog-methods.js";
@@ -66,8 +66,41 @@ const terminalUi = {
   variationInsertBeforeCourseControl: null,
   variationSelectedSegment: "node:4"
 };
-assert.equal(variationAnchorCourseControl(branchModel, 1, terminalUi), null, "a terminal node must not become a fork anchor without a following join");
+assert.equal(variationAnchorCourseControl(branchModel, 1, terminalUi)?.id, 4, "a terminal non-finish node must support an open-ended fork");
 assert.equal(variationAnchorCourseControl(branchModel, 1, terminalUi, { selectionOnly: true })?.id, 4, "a terminal node must still be selectable in the topology");
+
+const startOnlyModel = {
+  event: { map: { scale: 10000 }, numbering: { start: 31, disallowInvertible: false } },
+  controls: [{ id: 20, kind: "start", code: "", location: { x: 0, y: 0 } }],
+  courses: [{ id: 2, name: "Start only", kind: "normal", firstCourseControl: 20, options: {}, relay: {} }],
+  courseControls: [{ id: 20, control: 20, nextCourseControl: null, variation: "", variationEnd: null, variationCourseControls: [] }],
+  legs: [],
+  specials: []
+};
+const startOnlyUi = {
+  selectedCourseId: 2,
+  selection: { type: "control", id: 20, courseControl: 20 },
+  variationAnchorCourseControl: 20,
+  variationInsertAfterCourseControl: 20
+};
+assert.equal(variationAnchorCourseControl(startOnlyModel, 2, startOnlyUi)?.id, 20, "a terminal start must be a valid fork anchor");
+const openFork = addVariationAtCourseControl(startOnlyModel, 2, 20, { branches: 2 });
+assert.ok(openFork?.branchCourseControl, "a fork must be creatable after a lone start");
+assert.equal(startOnlyModel.courseControls.find(item => item.id === 20).variationEnd, null, "an open fork must not create a fake join control");
+const openTopology = courseTopology(startOnlyModel, 2);
+assert.equal(openTopology[0].legTo.length, 2, "empty open branches must remain visible and selectable in the topology");
+assert.equal(openTopology.filter(view => view.virtualBranchEnd).length, 2, "each empty open branch must get a topology-only tail");
+const firstOpenBranchControl = addControlAt(startOnlyModel, "normal", { x: 50, y: 0 }, 2, {
+  afterCourseControl: openFork.branchCourseControl
+});
+assert.equal(
+  startOnlyModel.courseControls.find(item => item.id === openFork.branchCourseControl)?.nextCourseControl,
+  firstOpenBranchControl.courseControl,
+  "the first real checkpoint must be inserted after the selected open branch marker"
+);
+const populatedOpenTopology = courseTopology(startOnlyModel, 2);
+assert.equal(populatedOpenTopology[0].legTo.length, 2);
+assert.equal(populatedOpenTopology.filter(view => view.virtualBranchEnd).length, 1, "a real checkpoint must replace only its branch placeholder");
 
 const state = {
   eventModel: branchModel,

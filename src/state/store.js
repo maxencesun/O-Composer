@@ -1,4 +1,4 @@
-import { cloneEvent, createBlankEvent } from "../domain/event-model.js?v=20260712-19";
+import { cloneEvent, createBlankEvent } from "../domain/event-model.js?v=20260713-20";
 
 export class Store {
   constructor() {

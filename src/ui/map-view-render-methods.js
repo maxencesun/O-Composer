@@ -1,5 +1,5 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260712-19";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260712-19";
+import { resolveTextConstants } from "../domain/constants.js?v=20260713-20";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260713-20";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));

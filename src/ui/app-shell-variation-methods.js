@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260712-19";
+import { debugError } from "./debug-log.js?v=20260713-20";
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -763,7 +763,7 @@ export function createAppShellVariationMethods(deps) {
     for (let index = 0; index < topology.length; index += 1) {
       const view = topology[index];
       const position = layout.positions[index];
-      if (!position) continue;
+      if (!position || view.virtualBranchEnd) continue;
       const courseControlId = topologyNodeCourseControlId(view);
       const selected = Number(selectedAnchor?.id) === Number(courseControlId);
       includeCenteredTextBounds(position.x, position.y, view.control?.code || "", 26, 14);

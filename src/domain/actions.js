@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260712-19";
-import { cloneDeep } from "./clone.js?v=20260712-19";
+} from "./event-model.js?v=20260713-20";
+import { cloneDeep } from "./clone.js?v=20260713-20";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,7 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260712-19";
+} from "./course-service.js?v=20260713-20";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const coursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -608,15 +608,19 @@ export function addVariationAtCourseControl(eventModel, courseId, courseControlI
   const course = getCourse(eventModel, courseId);
   const forkCourseControl = getCourseControl(eventModel, courseControlId);
   const joinCourseControl = getCourseControl(eventModel, forkCourseControl?.nextCourseControl);
-  if (!course || course.kind === "score" || course.kind === "team" || !forkCourseControl || !joinCourseControl || forkCourseControl.variation) return null;
+  if (!course || course.kind === "score" || course.kind === "team" || !forkCourseControl || forkCourseControl.variation) return null;
+  // A fork may be created at the current end of a course. Its branches remain
+  // open until real controls are added; no synthetic map control is needed.
+  // If nextCourseControl is set, however, it must still resolve to a valid join.
+  if (forkCourseControl.nextCourseControl && !joinCourseControl) return null;
 
   const forkControl = getControl(eventModel, forkCourseControl.control);
-  const joinControl = getControl(eventModel, joinCourseControl.control);
-  if (!forkControl || !joinControl || forkControl.kind === "finish") return null;
+  const joinControl = getControl(eventModel, joinCourseControl?.control);
+  if (!forkControl || (joinCourseControl && !joinControl) || forkControl.kind === "finish") return null;
 
   const branchCount = Math.max(2, Math.min(6, Math.round(Number(options.branches) || 2)));
   const variation = "fork";
-  const joinCourseControlId = joinCourseControl.id;
+  const joinCourseControlId = joinCourseControl?.id || null;
 
   // Relay variations are stored as a proper fork/join graph. The visible fork
   // course-control owns the variation metadata. Each branch gets its own hidden

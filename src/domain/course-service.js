@@ -1,5 +1,5 @@
-import { findById } from "./event-model.js?v=20260712-19";
-import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260712-19";
+import { findById } from "./event-model.js?v=20260713-20";
+import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260713-20";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -198,8 +198,7 @@ export function courseTopology(eventModel, courseId) {
       const loop = courseControl.variation === "loop";
       const loopExitCourseControlId = loop ? Number(courseControl.nextCourseControl) || null : null;
       const branchStartIds = realBranchCourseControls
-        .map(branch => branchDisplayStart(courseControl, branch, joinCourseControlId))
-        .filter(Boolean);
+        .map(branch => branchDisplayStart(courseControl, branch, joinCourseControlId));
 
       // A .ppen loop is not a fork followed by a synthetic join. The split
       // control is also the join control: leg 0 is the fall-through edge that
@@ -226,6 +225,7 @@ export function courseTopology(eventModel, courseId) {
         joinCourseControlId,
         loopExitCourseControlId,
         legToCourseControlIds,
+        virtualBranchEndIndices: [],
         legTo: [],
         joinIndex: -1
       };
@@ -234,6 +234,35 @@ export function courseTopology(eventModel, courseId) {
       views.push(view);
       handledSplitOwners.add(ownerId);
       viewByCourseControlId.set(ownerId, index);
+
+      // An end-of-course fork has no join yet. Give each empty branch a
+      // topology-only tail so the ordering diagram can draw and select it.
+      // These placeholders never enter the event model or exported files and
+      // disappear as soon as a real control is inserted on the branch.
+      if (!loop && !joinCourseControlId) {
+        view.virtualBranchEndIndices = branchStartIds.map((startId, branchIndex) => {
+          if (startId) return null;
+          const placeholderIndex = views.length;
+          views.push({
+            course,
+            control: null,
+            courseControlIds: [],
+            courseControls: [],
+            ownerCourseControlId: null,
+            branchCourseControlIds: [],
+            branchCourseControls: [],
+            variation: "",
+            joinCourseControlId: null,
+            legToCourseControlIds: [],
+            virtualBranchEnd: true,
+            virtualBranchCourseControlId: realBranchCourseControlIds[branchIndex] || null,
+            virtualBranchEndIndices: [],
+            legTo: [],
+            joinIndex: -1
+          });
+          return placeholderIndex;
+        });
+      }
       for (const branch of realBranchCourseControls) {
         if (branchIsHiddenMarker(courseControl, branch)) {
           viewByCourseControlId.set(Number(branch.id), index);
@@ -299,7 +328,12 @@ export function courseTopology(eventModel, courseId) {
 
   for (const view of views) {
     view.legTo = view.legToCourseControlIds
-      .map(id => resolveTopologyTarget(id))
+      .map((id, legIndex) => {
+        const resolved = resolveTopologyTarget(id);
+        return Number.isInteger(resolved)
+          ? resolved
+          : view.virtualBranchEndIndices?.[legIndex];
+      })
       .filter(index => Number.isInteger(index));
     view.joinIndex = view.variation === "loop"
       ? views.indexOf(view)

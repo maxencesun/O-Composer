@@ -1,5 +1,5 @@
-import { findById } from "./event-model.js?v=20260713-20";
-import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260713-20";
+import { findById } from "./event-model.js?v=20260713-21";
+import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260713-21";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -225,7 +225,8 @@ export function courseTopology(eventModel, courseId) {
         joinCourseControlId,
         loopExitCourseControlId,
         legToCourseControlIds,
-        virtualBranchEndIndices: [],
+        virtualBranchTargetIndices: [],
+        virtualJoinIndex: null,
         legTo: [],
         joinIndex: -1
       };
@@ -235,32 +236,30 @@ export function courseTopology(eventModel, courseId) {
       handledSplitOwners.add(ownerId);
       viewByCourseControlId.set(ownerId, index);
 
-      // An end-of-course fork has no join yet. Give each empty branch a
-      // topology-only tail so the ordering diagram can draw and select it.
-      // These placeholders never enter the event model or exported files and
-      // disappear as soon as a real control is inserted on the branch.
+      // An end-of-course fork has no real join yet. Give all branches one
+      // shared topology-only join so the ordering diagram remains closed and
+      // selectable. This placeholder never enters the event model or exports.
       if (!loop && !joinCourseControlId) {
-        view.virtualBranchEndIndices = branchStartIds.map((startId, branchIndex) => {
-          if (startId) return null;
-          const placeholderIndex = views.length;
-          views.push({
-            course,
-            control: null,
-            courseControlIds: [],
-            courseControls: [],
-            ownerCourseControlId: null,
-            branchCourseControlIds: [],
-            branchCourseControls: [],
-            variation: "",
-            joinCourseControlId: null,
-            legToCourseControlIds: [],
-            virtualBranchEnd: true,
-            virtualBranchCourseControlId: realBranchCourseControlIds[branchIndex] || null,
-            virtualBranchEndIndices: [],
-            legTo: [],
-            joinIndex: -1
-          });
-          return placeholderIndex;
+        const virtualJoinIndex = views.length;
+        view.virtualJoinIndex = virtualJoinIndex;
+        view.virtualBranchTargetIndices = branchStartIds.map(startId => startId ? null : virtualJoinIndex);
+        views.push({
+          course,
+          control: null,
+          courseControlIds: [],
+          courseControls: [],
+          ownerCourseControlId: null,
+          branchCourseControlIds: [],
+          branchCourseControls: [],
+          variation: "",
+          joinCourseControlId: null,
+          legToCourseControlIds: [],
+          virtualVariationJoin: true,
+          virtualBranchTargetIndices: [],
+          virtualJoinIndex: null,
+          virtualTerminalTargetIndex: null,
+          legTo: [],
+          joinIndex: -1
         });
       }
       for (const branch of realBranchCourseControls) {
@@ -287,6 +286,9 @@ export function courseTopology(eventModel, courseId) {
       variation: "",
       joinCourseControlId: null,
       legToCourseControlIds: Number(courseControl.nextCourseControl) ? [Number(courseControl.nextCourseControl)] : [],
+      virtualBranchTargetIndices: [],
+      virtualJoinIndex: null,
+      virtualTerminalTargetIndex: null,
       legTo: [],
       joinIndex: -1
     };
@@ -296,7 +298,7 @@ export function courseTopology(eventModel, courseId) {
     return index;
   }
 
-  function visit(startId, joinId = null) {
+  function visit(startId, joinId = null, terminalTargetIndex = null) {
     let currentId = Number(startId) || 0;
     while (currentId && currentId !== Number(joinId) && steps++ < maxSteps) {
       const courseControl = getCourseControl(eventModel, currentId);
@@ -308,12 +310,24 @@ export function courseTopology(eventModel, courseId) {
         const isLoop = courseControl.variation === "loop";
         for (const branchId of courseControl.variationCourseControls || []) {
           const branch = getCourseControl(eventModel, branchId);
-          visit(branchDisplayStart(courseControl, branch, courseControl.variationEnd), courseControl.variationEnd);
+          visit(
+            branchDisplayStart(courseControl, branch, courseControl.variationEnd),
+            courseControl.variationEnd,
+            Number.isInteger(view.virtualJoinIndex) ? view.virtualJoinIndex : terminalTargetIndex
+          );
+        }
+        if (Number.isInteger(view.virtualJoinIndex)
+          && Number.isInteger(terminalTargetIndex)
+          && view.virtualJoinIndex !== terminalTargetIndex) {
+          views[view.virtualJoinIndex].virtualTerminalTargetIndex = terminalTargetIndex;
         }
         currentId = Number(isLoop ? courseControl.nextCourseControl : courseControl.variationEnd) || 0;
       }
       else {
         currentId = Number(courseControl.nextCourseControl) || 0;
+        if (!currentId && Number.isInteger(terminalTargetIndex)) {
+          view.virtualTerminalTargetIndex = terminalTargetIndex;
+        }
       }
     }
   }
@@ -327,17 +341,22 @@ export function courseTopology(eventModel, courseId) {
   }
 
   for (const view of views) {
-    view.legTo = view.legToCourseControlIds
+    const resolvedLegs = view.legToCourseControlIds
       .map((id, legIndex) => {
         const resolved = resolveTopologyTarget(id);
         return Number.isInteger(resolved)
           ? resolved
-          : view.virtualBranchEndIndices?.[legIndex];
+          : view.virtualBranchTargetIndices?.[legIndex];
       })
       .filter(index => Number.isInteger(index));
+    view.legTo = resolvedLegs.length
+      ? resolvedLegs
+      : (Number.isInteger(view.virtualTerminalTargetIndex) ? [view.virtualTerminalTargetIndex] : []);
     view.joinIndex = view.variation === "loop"
       ? views.indexOf(view)
-      : (view.joinCourseControlId ? viewByCourseControlId.get(Number(view.joinCourseControlId)) ?? -1 : -1);
+      : (view.joinCourseControlId
+        ? viewByCourseControlId.get(Number(view.joinCourseControlId)) ?? -1
+        : (Number.isInteger(view.virtualJoinIndex) ? view.virtualJoinIndex : -1));
   }
 
   return views;

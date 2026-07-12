@@ -89,7 +89,10 @@ assert.ok(openFork?.branchCourseControl, "a fork must be creatable after a lone 
 assert.equal(startOnlyModel.courseControls.find(item => item.id === 20).variationEnd, null, "an open fork must not create a fake join control");
 const openTopology = courseTopology(startOnlyModel, 2);
 assert.equal(openTopology[0].legTo.length, 2, "empty open branches must remain visible and selectable in the topology");
-assert.equal(openTopology.filter(view => view.virtualBranchEnd).length, 2, "each empty open branch must get a topology-only tail");
+const openVirtualJoinIndex = openTopology.findIndex(view => view.virtualVariationJoin);
+assert.ok(openVirtualJoinIndex > 0, "an open fork must get one shared topology-only join");
+assert.equal(openTopology[0].joinIndex, openVirtualJoinIndex);
+assert.deepEqual(openTopology[0].legTo, [openVirtualJoinIndex, openVirtualJoinIndex], "all empty branches must close at the shared virtual join");
 const firstOpenBranchControl = addControlAt(startOnlyModel, "normal", { x: 50, y: 0 }, 2, {
   afterCourseControl: openFork.branchCourseControl
 });
@@ -100,7 +103,11 @@ assert.equal(
 );
 const populatedOpenTopology = courseTopology(startOnlyModel, 2);
 assert.equal(populatedOpenTopology[0].legTo.length, 2);
-assert.equal(populatedOpenTopology.filter(view => view.virtualBranchEnd).length, 1, "a real checkpoint must replace only its branch placeholder");
+const populatedVirtualJoinIndex = populatedOpenTopology.findIndex(view => view.virtualVariationJoin);
+assert.equal(populatedOpenTopology.filter(view => view.virtualVariationJoin).length, 1, "an open fork must keep exactly one shared virtual join");
+const populatedBranchStart = populatedOpenTopology[0].legTo.find(index => index !== populatedVirtualJoinIndex);
+assert.ok(Number.isInteger(populatedBranchStart), "the populated branch must start at its real checkpoint");
+assert.deepEqual(populatedOpenTopology[populatedBranchStart].legTo, [populatedVirtualJoinIndex], "the real branch tail must close at the shared virtual join");
 
 const state = {
   eventModel: branchModel,

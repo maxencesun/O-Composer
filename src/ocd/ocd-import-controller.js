@@ -4,12 +4,12 @@ import {
   status as officialMapperStatus,
   subscribe as subscribeOfficialMapperStatus,
   MAPPER_BUNDLE_TOTAL_BYTES,
-} from './official-mapper-adapter.js?v=20260713-20';
+} from './official-mapper-adapter.js?v=20260713-21';
 
 export const LARGE_OCD_FILE_BYTES = 64 * 1024 * 1024;
 export const MAX_OCD_FILE_BYTES = 512 * 1024 * 1024;
 
-const FALLBACK_WORKER_URL = new URL('../workers/ocd-convert-worker.js?v=20260713-20', import.meta.url);
+const FALLBACK_WORKER_URL = new URL('../workers/ocd-convert-worker.js?v=20260713-21', import.meta.url);
 const WORKER_PRELOAD_TIMEOUT_MS = 30_000;
 const INITIAL_STATE = Object.freeze({
   phase: 'idle',

@@ -1,4 +1,4 @@
-import { debugLog } from "./debug-log.js?v=20260713-24";
+import { debugLog } from "./debug-log.js?v=20260714-25";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -995,7 +995,8 @@ export function createAppShellFileExportMethods(deps) {
     return {
       sourceDataUrl,
       pageNumber: background.pdf.pageNumber || 1,
-      canvasBox
+      canvasBox,
+      canvasClipBox: this.mapView.exportAreaCanvasRect(area, size)
     };
   },
 

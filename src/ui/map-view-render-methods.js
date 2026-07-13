@@ -1,5 +1,5 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260713-24";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260713-24";
+import { resolveTextConstants } from "../domain/constants.js?v=20260714-25";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260714-25";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -10,6 +10,22 @@ export function measurementLineDash(lineStyle, zoom) {
   if (lineStyle === "dashed") return [zoomScreenSize(8, zoom), zoomScreenSize(5, zoom)];
   if (lineStyle === "dotted") return [zoomScreenSize(0.1, zoom), zoomScreenSize(5, zoom)];
   return [];
+}
+
+export function exportAreaCanvasRect(area, size) {
+  const width = Math.max(1, Math.round(size?.width || 1200));
+  const height = Math.max(1, Math.round(size?.height || 1600));
+  const areaWidth = Math.max(0.1, Math.abs(Number(area?.right) - Number(area?.left)) || 0.1);
+  const areaHeight = Math.max(0.1, Math.abs(Number(area?.top) - Number(area?.bottom)) || 0.1);
+  const scale = Math.min(width / areaWidth, height / areaHeight);
+  const drawWidth = areaWidth * scale;
+  const drawHeight = areaHeight * scale;
+  return {
+    x: (width - drawWidth) / 2,
+    y: (height - drawHeight) / 2,
+    width: drawWidth,
+    height: drawHeight
+  };
 }
 
 export function createMapViewRenderMethods(deps) {
@@ -193,12 +209,19 @@ export function createMapViewRenderMethods(deps) {
       highQuality: true,
       __viewport: { width, height }
     };
+    let exportClipSaved = false;
     try {
       this.bounds = exportBounds;
       if (options.includePageBackground !== false) {
         ctx.fillStyle = options.pageBackgroundColor || "#f8f7f2";
         ctx.fillRect(0, 0, width, height);
       }
+      const clipRect = exportAreaCanvasRect(area, { width, height });
+      ctx.save();
+      exportClipSaved = true;
+      ctx.beginPath();
+      ctx.rect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+      ctx.clip();
       if (options.includeBitmapBackground) {
         this.drawBackground(ctx, width, height, exportUi);
       }
@@ -213,6 +236,7 @@ export function createMapViewRenderMethods(deps) {
       }
     }
     finally {
+      if (exportClipSaved) ctx.restore();
       this.bounds = previousBounds;
     }
   },
@@ -334,6 +358,10 @@ export function createMapViewRenderMethods(deps) {
     finally {
       this.bounds = previousBounds;
     }
+  },
+
+  exportAreaCanvasRect(area, size) {
+    return exportAreaCanvasRect(area, size);
   },
 
   drawPrintArea(ctx, eventModel, ui) {

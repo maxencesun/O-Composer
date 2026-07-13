@@ -54,6 +54,7 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
       pageWidthPt: layout.pageWidthPt,
       pageHeightPt: layout.pageHeightPt,
       canvasBox: backgroundPdf.canvasBox,
+      canvasClipBox: backgroundPdf.canvasClipBox,
       canvasWidth,
       canvasHeight,
       contentBox: layout.box,
@@ -92,9 +93,9 @@ function pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, c
   };
 }
 
-async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHeightPt, canvasBox, canvasWidth, canvasHeight, contentBox, sourceDataUrl, pageNumber, losslessCompression = true, onProgress = async () => {} }) {
+async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHeightPt, canvasBox, canvasClipBox, canvasWidth, canvasHeight, contentBox, sourceDataUrl, pageNumber, losslessCompression = true, onProgress = async () => {} }) {
   await onProgress("loading-pdf-lib");
-  const { PDFDocument } = await loadPdfLib();
+  const { PDFDocument, clip, endPath, popGraphicsState, pushGraphicsState, rectangle } = await loadPdfLib();
   await onProgress("reading-base-map");
   const sourceBytes = dataUrlBytes(sourceDataUrl);
   if (!bytesLookLikePdf(sourceBytes)) {
@@ -107,40 +108,35 @@ async function mergeVectorPdfWithPdfBasemap({ overlayBytes, pageWidthPt, pageHei
   const overlayDocument = await PDFDocument.load(overlayBytes, { ignoreEncryption: true });
   const sourcePageIndex = clamp(Math.floor(Number(pageNumber) || 1), 1, Math.max(1, sourceDocument.getPageCount())) - 1;
   const document = await PDFDocument.create();
-  const [page] = await document.copyPages(sourceDocument, [sourcePageIndex]);
+  const [sourcePage] = await document.embedPdf(sourceBytes, [sourcePageIndex]);
   const [overlayPage] = await document.embedPdf(overlayBytes, [0]);
-  document.addPage(page);
+  const page = document.addPage([pageWidthPt, pageHeightPt]);
   const box = pdfBoxForCanvasRect(canvasBox, canvasWidth, canvasHeight, contentBox);
-  const sourceSize = page.getSize();
-  const overlayBox = overlayBoxForCopiedPdfPage({
-    pageWidthPt,
-    pageHeightPt,
-    baseBox: box,
-    sourceWidthPt: sourceSize.width,
-    sourceHeightPt: sourceSize.height
+  const clipBox = pdfBoxForCanvasRect(
+    canvasClipBox || { x: 0, y: 0, width: canvasWidth, height: canvasHeight },
+    canvasWidth,
+    canvasHeight,
+    contentBox
+  );
+  page.pushOperators(
+    pushGraphicsState(),
+    rectangle(clipBox.x, clipBox.y, clipBox.width, clipBox.height),
+    clip(),
+    endPath()
+  );
+  page.drawPage(sourcePage, {
+    x: box.x,
+    y: box.y,
+    width: box.width,
+    height: box.height
   });
-  page.drawPage(overlayPage, {
-    x: overlayBox.x,
-    y: overlayBox.y,
-    width: overlayBox.width,
-    height: overlayBox.height
-  });
+  page.pushOperators(popGraphicsState());
+  page.drawPage(overlayPage, { x: 0, y: 0, width: pageWidthPt, height: pageHeightPt });
   await onProgress("saving");
   const output = await document.save({ useObjectStreams: losslessCompression !== false });
   sourceDocument?.destroy?.();
   overlayDocument?.destroy?.();
   return new Blob([output], { type: "application/pdf" });
-}
-
-function overlayBoxForCopiedPdfPage({ pageWidthPt, pageHeightPt, baseBox, sourceWidthPt, sourceHeightPt }) {
-  const scaleX = sourceWidthPt / Math.max(0.01, baseBox.width);
-  const scaleY = sourceHeightPt / Math.max(0.01, baseBox.height);
-  return {
-    x: -baseBox.x * scaleX,
-    y: -baseBox.y * scaleY,
-    width: pageWidthPt * scaleX,
-    height: pageHeightPt * scaleY
-  };
 }
 
 function pdfBoxForCanvasRect(rect, canvasWidth, canvasHeight, contentBox) {
@@ -1057,6 +1053,16 @@ function bytesLookLikePdf(bytes) {
 }
 
 async function canvasJpegBytes(canvas) {
+  // JPEG has no alpha channel. Composite transparent letterbox/cropped regions
+  // onto white explicitly so browsers do not encode them as black.
+  const context = canvas?.getContext?.("2d");
+  if (context) {
+    context.save();
+    context.globalCompositeOperation = "destination-over";
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, canvas.width || 1, canvas.height || 1);
+    context.restore();
+  }
   if (canvas?.toBlob) {
     const blob = await new Promise((resolve, reject) => {
       canvas.toBlob(result => {

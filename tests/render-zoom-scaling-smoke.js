@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { screenSize } from "../src/ui/course-symbols.js";
 import { constrainPointToOctants, crossingOrientationForPoint, crossingRotationHandle, drawFallbackSpecialPoint, drawSquareHandle, mapScreenSize, specialLineWidth, textMetrics } from "../src/ui/map-view-helpers.js";
-import { measurementLineDash, zoomScreenSize } from "../src/ui/map-view-render-methods.js";
+import { exportAreaCanvasRect, measurementLineDash, zoomScreenSize } from "../src/ui/map-view-render-methods.js";
 import { omapScreenSize } from "../src/ui/omap-renderer.js";
 
 const quarter = 0.25;
@@ -15,6 +15,17 @@ assert.deepEqual(measurementLineDash("dashed", 1), [8, 5]);
 assert.deepEqual(measurementLineDash("dotted", 1), [0.1, 5]);
 assert.equal(specialLineWidth({ lineWidth: 2 }, quarter), specialLineWidth({ lineWidth: 2 }, 1) * quarter);
 assert.equal(textMetrics({ text: "A", font: { height: 8 } }, quarter).fontPx, textMetrics({ text: "A", font: { height: 8 } }, 1).fontPx * quarter);
+
+assert.deepEqual(
+  exportAreaCanvasRect({ left: 0, right: 200, top: 50, bottom: 0 }, { width: 400, height: 400 }),
+  { x: 0, y: 150, width: 400, height: 100 },
+  "a wide custom export area must be letterboxed and clipped vertically"
+);
+assert.deepEqual(
+  exportAreaCanvasRect({ left: 0, right: 50, top: 200, bottom: 0 }, { width: 400, height: 400 }),
+  { x: 150, y: 0, width: 100, height: 400 },
+  "a tall custom export area must be letterboxed and clipped horizontally"
+);
 
 const handleRects = [];
 const handleContext = {

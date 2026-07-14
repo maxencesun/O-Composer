@@ -422,6 +422,52 @@ export function createAppShellDialogMethods(deps) {
       this.handleEventAdjustmentAction(eventAction);
       return;
     }
+    const pageActionToggle = event.target.closest("[data-course-page-add-toggle]");
+    if (pageActionToggle) {
+      event.preventDefault();
+      if (pageActionToggle.disabled) return;
+      const manager = pageActionToggle.closest(".course-page-action-manager");
+      const form = manager?.querySelector("[data-course-page-add-form]");
+      if (!form) return;
+      const expanded = form.hidden;
+      form.hidden = !expanded;
+      pageActionToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      if (expanded) form.querySelector("[data-course-page-add-point]")?.focus();
+      return;
+    }
+    const pageActionCancel = event.target.closest("[data-course-page-add-cancel]");
+    if (pageActionCancel) {
+      event.preventDefault();
+      const manager = pageActionCancel.closest(".course-page-action-manager");
+      const form = manager?.querySelector("[data-course-page-add-form]");
+      const toggle = manager?.querySelector("[data-course-page-add-toggle]");
+      if (form) form.hidden = true;
+      toggle?.setAttribute("aria-expanded", "false");
+      toggle?.focus();
+      return;
+    }
+    const pageActionAdd = event.target.closest("[data-course-page-add]");
+    if (pageActionAdd) {
+      event.preventDefault();
+      this.addCoursePageAction(pageActionAdd);
+      return;
+    }
+    const standalonePageActionRemove = event.target.closest("[data-course-page-remove-standalone]");
+    if (standalonePageActionRemove) {
+      event.preventDefault();
+      this.removeStandaloneCoursePageAction(standalonePageActionRemove.dataset.coursePageRemoveStandalone);
+      return;
+    }
+    const pageActionRemove = event.target.closest("[data-course-page-remove]");
+    if (pageActionRemove) {
+      event.preventDefault();
+      this.changeFixedCoursePageAction({
+        sourceId: pageActionRemove.dataset.coursePageRemove,
+        targetId: 0,
+        kind: ""
+      });
+      return;
+    }
     const symbolButton = event.target.closest("[data-iscd-symbol]");
     if (symbolButton) {
       event.preventDefault();

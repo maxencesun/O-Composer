@@ -1,4 +1,4 @@
-import { cloneEvent, createBlankEvent } from "../domain/event-model.js?v=20260714-26";
+import { cloneEvent, createBlankEvent } from "../domain/event-model.js?v=20260715-36";
 
 export class Store {
   constructor() {
@@ -15,6 +15,7 @@ export class Store {
         renderQuality: "balanced",
         showPrintArea: false,
         showAllControls: true,
+        coursePage: "global",
         variationMode: "default",
         variationCode: "",
         variationAdjustmentMode: "",

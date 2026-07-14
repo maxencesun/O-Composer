@@ -1,6 +1,10 @@
 O-Composer
 Copyright (C) 2026 Maxence_Sun
 
+This distribution includes pdf-lib 1.17.1, copyright (c) 2019 Andrew
+Dillon, licensed under the MIT License. The complete license text is in
+assets/vendor/pdf-lib/LICENSE.md.
+
 This project is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published
 by the Free Software Foundation, version 3 of the License.

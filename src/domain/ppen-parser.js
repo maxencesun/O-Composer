@@ -3,7 +3,11 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260714-26";
+} from "./event-model.js?v=20260715-36";
+import {
+  courseControlMapChangeKind,
+  setCourseControlMapChange
+} from "./course-pages.js?v=20260715-36";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
@@ -318,6 +322,7 @@ function parseCourse(node) {
     labelKind: kind === "score" ? "code-and-score" : "sequence",
     firstCourseControl: null,
     firstControlOrdinal: 1,
+    pageBreakFormula: "",
     printArea: null,
     partPrintAreas: [],
     options: {
@@ -354,6 +359,12 @@ function parseCourse(node) {
         break;
       case "labels":
         course.labelKind = attr(child, "label-kind", course.labelKind);
+        break;
+      case "page-breaks":
+        // O-Composer-only extension. A conditional break cannot be represented
+        // by Purple Pen's shared course-control exchange flag without changing
+        // the behavior of other variation paths.
+        course.pageBreakFormula = attr(child, "formula", "") || text(child).trim();
         break;
       case "print-area": {
         const part = intAttr(child, "part", -1);
@@ -407,6 +418,8 @@ function parseCourse(node) {
 
 function parseCourseControl(node) {
   const variation = attr(node, "variation", "");
+  const mapExchange = boolAttr(node, "map-exchange", false);
+  const mapFlip = boolAttr(node, "map-flip", false);
   const courseControl = {
     id: intAttr(node, "id", 0),
     control: intAttr(node, "control", 0),
@@ -414,14 +427,17 @@ function parseCourseControl(node) {
     variation,
     variationEnd: variation ? intAttr(node, "variation-end", null) : null,
     variationCourseControls: [],
-    mapExchange: boolAttr(node, "map-exchange", false),
-    mapFlip: boolAttr(node, "map-flip", false),
+    mapExchange: false,
+    mapFlip: false,
     points: intAttr(node, "points", 0),
     teamRole: attr(node, "team-role", "mandatory") === "free" ? "free" : "mandatory",
     numberLocation: null,
     descTextBefore: "",
     descTextAfter: ""
   };
+  // Recover old files containing an orphan map-flip flag by treating the
+  // author's intent as a flip, while normalizing to Purple Pen's legal pair.
+  setCourseControlMapChange(courseControl, mapFlip ? "flip" : mapExchange ? "exchange" : "");
 
   for (const child of elements(node)) {
     switch (child.nodeName) {
@@ -795,6 +811,13 @@ function writeCourse(lines, course, level, saveOptions = {}) {
   if (course.secondaryTitle) {
     node(lines, level + 1, "secondary-title", course.secondaryTitle);
   }
+  if (!saveOptions.nativePpen && String(course.pageBreakFormula || "").trim()) {
+    // XML normalizes literal newlines inside attributes to spaces. Newlines are
+    // OR separators in the page formula language, so preserve their meaning as
+    // semicolons before placing the expression in the extension attribute.
+    const formula = String(course.pageBreakFormula).trim().replace(/\r\n?|\n/g, "; ");
+    empty(lines, level + 1, "page-breaks", { formula });
+  }
   empty(lines, level + 1, "labels", { "label-kind": courseLabelKindForSave(course.labelKind, saveOptions) });
   if (course.firstCourseControl) {
     empty(lines, level + 1, "first", {
@@ -909,6 +932,7 @@ function scoreColumnForSave(scoreColumn) {
 }
 
 function writeCourseControl(lines, courseControl, level, options = {}) {
+  const mapChangeKind = courseControlMapChangeKind(courseControl);
   const attrs = {
     id: courseControl.id,
     control: courseControl.control
@@ -917,8 +941,8 @@ function writeCourseControl(lines, courseControl, level, options = {}) {
     attrs.variation = courseControl.variation;
     attrs["variation-end"] = courseControl.variationEnd;
   }
-  if (courseControl.mapExchange) attrs["map-exchange"] = true;
-  if (courseControl.mapFlip) attrs["map-flip"] = true;
+  if (mapChangeKind) attrs["map-exchange"] = true;
+  if (mapChangeKind === "flip") attrs["map-flip"] = true;
   if (courseControl.points && courseControl.teamRole !== "free") attrs.points = courseControl.points;
   if (!options.nativePpen && courseControl.teamRole === "free") attrs["team-role"] = "free";
 

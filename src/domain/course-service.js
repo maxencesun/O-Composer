@@ -1,5 +1,6 @@
-import { findById } from "./event-model.js?v=20260714-26";
-import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260714-26";
+import { findById } from "./event-model.js?v=20260715-36";
+import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260715-36";
+import { coursePageLayout, rowsForCoursePage } from "./course-pages.js?v=20260715-36";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -126,7 +127,7 @@ export function courseView(eventModel, courseId, options = {}) {
   const allBranchOrdinals = options.allBranches
     ? allBranchOrdinalMap(eventModel, course)
     : null;
-  return enumerateCourseControlIds(eventModel, courseId, options)
+  const rows = enumerateCourseControlIds(eventModel, courseId, options)
     .map(courseControlId => {
       const courseControl = getCourseControl(eventModel, courseControlId);
       const control = getControl(eventModel, courseControl?.control);
@@ -147,6 +148,29 @@ export function courseView(eventModel, courseId, options = {}) {
       };
     })
     .filter(Boolean);
+  // An all-branches topology has no single traversal order, hence no unique
+  // page sequence. Page selection is enabled once a concrete variation (or
+  // relay leg) is selected. Paging is deliberately limited to normal courses;
+  // score and team courses retain their existing single-map behavior.
+  return options.allBranches || course.kind !== "normal"
+    ? rows
+    : rowsForCoursePage(rows, course, options);
+}
+
+export function coursePageCount(eventModel, courseId, options = {}) {
+  const course = getCourse(eventModel, courseId);
+  if (!course || course.kind !== "normal" || options.allBranches) return 1;
+  const rows = courseView(eventModel, courseId, { ...options, page: "global" });
+  return coursePageLayout(rows, course, options).pageCount;
+}
+
+export function coursePageDetails(eventModel, courseId, options = {}) {
+  const course = getCourse(eventModel, courseId);
+  if (!course || course.kind !== "normal" || options.allBranches) {
+    return { pageCount: 1, breakIndexes: [], pages: [], formulaError: "" };
+  }
+  const rows = courseView(eventModel, courseId, { ...options, page: "global" });
+  return coursePageLayout(rows, course, options);
 }
 
 export function courseTopology(eventModel, courseId) {
@@ -651,10 +675,15 @@ export function courseLength(eventModel, courseId, options = {}) {
   if (!course) {
     return 0;
   }
-  if (!options.variationChoices?.length && !options.allBranches && course.options?.courseLength) {
+  // A map page is a presentation slice, not a shorter course. Lengths in
+  // headers, constants and exports always describe the complete concrete route.
+  const routeOptions = Number.isFinite(Number(options.page)) && Number(options.page) > 0
+    ? { ...options, page: "global" }
+    : options;
+  if (!routeOptions.variationChoices?.length && !routeOptions.allBranches && course.options?.courseLength) {
     return course.options.courseLength;
   }
-  return courseLegs(eventModel, courseId, options).reduce((sum, leg) => sum + leg.length, 0);
+  return courseLegs(eventModel, courseId, routeOptions).reduce((sum, leg) => sum + leg.length, 0);
 }
 
 export function courseLengthRange(eventModel, courseId, options = {}) {

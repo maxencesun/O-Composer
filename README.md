@@ -1,6 +1,6 @@
 # O-Composer
 
-Current version: **0.0.2**
+Current version: **0.0.3**
 
 O-Composer is a browser-based orienteering course setting tool. It runs as a static web app, keeps event editing local to the browser, and focuses on `.ocp` and compatible `.ppen` course planning workflows: controls, courses, score events, relay variations, control descriptions, printable export areas, and downloadable event/export files.
 
@@ -18,6 +18,7 @@ User guide: [USER_GUIDE.md](USER_GUIDE.md)
 - Import and export compatible `.ppen` files.
 - Add, move, delete, duplicate, order, and edit courses and controls.
 - Support normal courses, score courses with per-control points, team/free-control courses, map exchanges, map issue markers, flagged legs, manual leg cuts, and bend points.
+- Split normal courses into map pages by adding point-specific map-exchange/map-flip actions; safe typed formulas support concrete variation paths, and all pages for one concrete course are combined into one PDF.
 - Design relay/forked courses with a visual variation tree, branch selection, and automatic relay team assignment tables.
 - Edit IOF control descriptions, including symbols, text, score values, multi-column description tables, and black or upper-purple description-table rendering.
 - Import OpenOrienteering Mapper `.omap`/`.xmap` XML maps for direct browser rendering.
@@ -36,6 +37,7 @@ PDF export is vector-first and does **not** fall back to full-page raster PDF ge
 - Image basemaps are embedded as image resources while courses, symbols, descriptions, and text remain vector overlay content.
 - PDF text is embedded with local bundled fonts: Latin text uses Roboto, and CJK text uses Heiti bold.
 - Course-line gaps, control-circle gaps, flagged legs, and print-area placement are handled in the vector export path.
+- Map-page boundaries follow Purple Pen/IOF conventions: the boundary control is present on both pages, the continuation page uses a circle with an inscribed start triangle, and the preceding description distinguishes map exchange from map flip.
 
 ## Interface Highlights
 

@@ -1183,6 +1183,113 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   font-size: 12px;
 }
 
+.course-page-action-manager {
+  margin: 6px 0;
+}
+
+.course-page-action-list {
+  display: grid;
+  max-height: 220px;
+  margin-bottom: 8px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft, rgba(127, 127, 127, 0.04));
+}
+
+.course-page-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(82px, 100px) 28px;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.course-page-action-row:last-child {
+  border-bottom: 0;
+}
+
+.course-page-action-row:hover,
+.course-page-action-row:focus-within {
+  background: rgba(111, 45, 145, 0.07);
+}
+
+.course-page-action-row select {
+  width: 100%;
+  min-width: 0;
+}
+
+.course-page-action-remove {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  color: #b42318;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.course-page-action-empty {
+  margin: 4px 0 8px;
+}
+
+.course-page-action-add-toggle {
+  width: 100%;
+}
+
+.course-page-action-add-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(92px, 0.7fr);
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft, rgba(127, 127, 127, 0.04));
+}
+
+.course-page-action-add-form[hidden] {
+  display: none;
+}
+
+.course-page-action-add-form label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.course-page-action-add-form select {
+  width: 100%;
+  min-width: 0;
+}
+
+.course-page-action-add-buttons {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.page-formula-error,
+.page-formula-warning {
+  margin: 6px 0;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.page-formula-preview {
+  margin: 6px 0;
+  color: #285d4f;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .map-canvas {
   width: 100%;
   height: 100%;

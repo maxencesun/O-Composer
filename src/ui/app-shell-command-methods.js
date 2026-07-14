@@ -1,3 +1,8 @@
+import {
+  courseControlMapChangeKind,
+  setCourseControlMapChange
+} from "../domain/course-pages.js?v=20260715-36";
+
 export function createAppShellCommandMethods(deps) {
   const {
     Store,
@@ -559,6 +564,9 @@ export function createAppShellCommandMethods(deps) {
         };
       }
       if (mapped === "measure") ui.status = this.t("Measurement mode");
+      if (mapped === "control:map-exchange") {
+        ui.status = this.t("Click the map to place a standalone map exchange. Select a course leg first to insert it on that leg.");
+      }
     }, "Add mode");
   },
 
@@ -1201,6 +1209,130 @@ export function createAppShellCommandMethods(deps) {
     }, "Select leg");
   },
 
+  changeFixedCoursePageAction({ sourceId = 0, targetId = 0, kind = null, addOnly = false } = {}) {
+    const state = this.store.snapshot();
+    const selection = state.ui.selection;
+    if (selection?.type !== "course") return false;
+    if (kind !== null && kind !== "" && kind !== "exchange" && kind !== "flip") return false;
+
+    const sourceCourseControlId = Number(sourceId) || 0;
+    const targetCourseControlId = Number(targetId) || 0;
+    const resolveChange = model => {
+      const course = getCourse(model, selection.id);
+      if (!course || course.kind !== "normal" || courseHasVariations(model, course.id)) return null;
+      const rows = courseView(model, course.id, { page: "global" });
+      const normalRows = rows.map((row, rowIndex) => ({ row, rowIndex }))
+        .filter(item => item.row.control?.kind === "normal" && item.row.courseControl);
+      const source = sourceCourseControlId
+        ? normalRows.find(item => Number(item.row.courseControl.id) === sourceCourseControlId)
+        : null;
+      const target = targetCourseControlId
+        ? normalRows.find(item => Number(item.row.courseControl.id) === targetCourseControlId)
+        : null;
+      if (sourceCourseControlId && !source) return null;
+      const sourceKind = courseControlMapChangeKind(source?.row.courseControl);
+      const finalKind = kind === null ? sourceKind : kind;
+      if (!finalKind && !sourceKind) return null;
+      const editsExistingTerminalAction = sourceCourseControlId === targetCourseControlId && !!sourceKind;
+      if (finalKind && (!target || (target.rowIndex >= rows.length - 1 && !editsExistingTerminalAction))) return null;
+      const targetKind = courseControlMapChangeKind(target?.row.courseControl);
+      if ((addOnly || sourceCourseControlId !== targetCourseControlId) && targetKind) return null;
+      const changesFlags = sourceCourseControlId !== targetCourseControlId
+        || (target ? targetKind !== finalKind : !!sourceKind);
+      if (!changesFlags && !String(course.pageBreakFormula || "").trim()) return null;
+      return { course, source, target, finalKind };
+    };
+
+    if (!resolveChange(state.eventModel)) return false;
+    let updated = false;
+    this.store.updateEvent(model => {
+      const change = resolveChange(model);
+      if (!change) return;
+      const { course, source, target, finalKind } = change;
+
+      if (source && sourceCourseControlId !== targetCourseControlId) {
+        setCourseControlMapChange(source.row.courseControl, "");
+      }
+      if (target) {
+        setCourseControlMapChange(target.row.courseControl, finalKind);
+      }
+      else if (source) {
+        setCourseControlMapChange(source.row.courseControl, "");
+      }
+      course.pageBreakFormula = "";
+      updated = true;
+    }, "Change course page action");
+    if (updated) {
+      this.store.updateUi(ui => { ui.coursePage = "global"; }, "Show global course page");
+    }
+    return updated;
+  },
+
+  addCoursePageAction(button) {
+    const form = button?.closest?.("[data-course-page-add-form]");
+    const pointInput = form?.querySelector?.("[data-course-page-add-point]");
+    const kindInput = form?.querySelector?.("[data-course-page-add-kind]");
+    if (kindInput?.value === "standalone-exchange") {
+      return this.convertFixedCoursePointToStandaloneMapExchange(Number(pointInput?.value) || 0);
+    }
+    return this.changeFixedCoursePageAction({
+      targetId: Number(pointInput?.value) || 0,
+      kind: kindInput?.value,
+      addOnly: true
+    });
+  },
+
+  convertFixedCoursePointToStandaloneMapExchange(courseControlId) {
+    const state = this.store.snapshot();
+    const selection = state.ui.selection;
+    if (selection?.type !== "course") return false;
+    const course = getCourse(state.eventModel, selection.id);
+    if (!course || course.kind !== "normal" || courseHasVariations(state.eventModel, course.id)) return false;
+    const rows = courseView(state.eventModel, course.id, { page: "global" });
+    const rowIndex = rows.findIndex(row => Number(row.courseControl?.id) === Number(courseControlId));
+    const row = rows[rowIndex];
+    if (!row?.courseControl || row.control?.kind !== "normal" || rowIndex >= rows.length - 1) return false;
+    if (courseControlMapChangeKind(row.courseControl)) return false;
+
+    this.store.updateEvent(model => {
+      const targetCourse = getCourse(model, selection.id);
+      const targetCourseControl = getCourseControl(model, courseControlId);
+      const control = getControl(model, targetCourseControl?.control);
+      if (!targetCourse || !targetCourseControl || control?.kind !== "normal") return;
+      control.kind = "map-exchange";
+      control.code = "";
+      control.mapIssueLocation = "";
+      control.descriptions = [];
+      control.descriptionText = "";
+      control.punchPattern = null;
+      for (const occurrence of model.courseControls || []) {
+        if (Number(occurrence.control) === Number(control.id)) {
+          setCourseControlMapChange(occurrence, "exchange");
+        }
+      }
+      targetCourse.pageBreakFormula = "";
+    }, "Convert control to standalone map exchange");
+    this.store.updateUi(ui => { ui.coursePage = "global"; }, "Show global course page");
+    return true;
+  },
+
+  removeStandaloneCoursePageAction(courseControlId) {
+    const state = this.store.snapshot();
+    const selection = state.ui.selection;
+    if (selection?.type !== "course") return false;
+    const course = getCourse(state.eventModel, selection.id);
+    if (!course || course.kind !== "normal" || courseHasVariations(state.eventModel, course.id)) return false;
+    const row = courseView(state.eventModel, course.id, { page: "global" })
+      .find(item => Number(item.courseControl?.id) === Number(courseControlId));
+    if (row?.control?.kind !== "map-exchange") return false;
+
+    this.store.updateEvent(model => {
+      deleteSelection(model, { type: "course-control", id: Number(courseControlId) });
+    }, "Remove standalone map exchange");
+    this.store.updateUi(ui => { ui.coursePage = "global"; }, "Show global course page");
+    return true;
+  },
+
   updateSelectionField(event) {
     const target = event.target;
     const state = this.store.snapshot();
@@ -1303,6 +1435,24 @@ export function createAppShellCommandMethods(deps) {
         }
       }, "Change team role");
       this.renderKeys = null;
+      return;
+    }
+
+    if (target.dataset.coursePageMove !== undefined && selection.type === "course") {
+      this.changeFixedCoursePageAction({
+        sourceId: target.dataset.coursePageMove,
+        targetId: target.value,
+        kind: null
+      });
+      return;
+    }
+
+    if (target.dataset.coursePageBreak !== undefined && selection.type === "course") {
+      this.changeFixedCoursePageAction({
+        sourceId: target.dataset.coursePageBreak,
+        targetId: target.dataset.coursePageBreak,
+        kind: target.value
+      });
       return;
     }
 
@@ -1409,11 +1559,35 @@ export function createAppShellCommandMethods(deps) {
         setPath(object, field.split(".").slice(1), valueFromInput(target));
         return;
       }
+      const previousControlKind = field === "control.kind" ? object.kind : null;
       setPath(object, field.split(".").slice(1), valueFromInput(target));
+      if (field === "control.kind" && (previousControlKind === "map-exchange" || object.kind === "map-exchange")) {
+        for (const courseControl of model.courseControls || []) {
+          if (Number(courseControl.control) !== Number(object.id)) continue;
+          const standaloneExchange = object.kind === "map-exchange";
+          courseControl.mapExchange = standaloneExchange;
+          courseControl.mapFlip = false;
+        }
+      }
+      if (field === "course.pageBreakFormula"
+        && object.kind === "normal"
+        && !courseHasVariations(model, object.id)
+        && String(object.pageBreakFormula || "").trim()) {
+        // On a fixed course, advanced and point-by-point paging are two editing
+        // modes for the same boundaries. A non-empty formula is authoritative.
+        for (const row of courseView(model, object.id, { allBranches: true, page: "global" })) {
+          if (row.control?.kind !== "normal" || !row.courseControl) continue;
+          row.courseControl.mapExchange = false;
+          row.courseControl.mapFlip = false;
+        }
+      }
       if (field === "course.kind") {
         applyCourseKindDefaults(object);
       }
     }, "Edit selection");
+    if (field === "course.pageBreakFormula") {
+      this.store.updateUi(ui => { ui.coursePage = "global"; }, "Show global course page");
+    }
     // Re-render selection panel when kind or lineKind changes to show/hide relevant fields
     if (field === "special.lineKind" || field === "control.kind" || field === "course.kind" || field.startsWith("course.relay.") || field === "course.hideVariationsOnMap") {
       this.renderKeys = null;

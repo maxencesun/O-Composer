@@ -108,8 +108,18 @@ export function drawCourseLeg(ctx, screenPoints, fromControl, toControl, metrics
 export function drawCourseControl(ctx, control, center, metrics, options = {}) {
   switch (control?.kind) {
     case "start":
-    case "map-exchange":
       drawStartTriangle(ctx, center, metrics, options.directionAngle ?? Math.PI / 2);
+      break;
+    case "map-exchange":
+      // On the continuation map a standalone exchange uses IOF 7.15, just
+      // like an exchange/flip attached to a normal control. Keep the plain
+      // triangle only for legacy/all-controls contexts without a page start.
+      if (options.exchangeStart && metrics.mapStandard !== "2000") {
+        drawExchangeStart(ctx, center, metrics, control, options.directionAngle ?? Math.PI / 2, options.circleGaps || []);
+      }
+      else {
+        drawStartTriangle(ctx, center, metrics, options.directionAngle ?? Math.PI / 2);
+      }
       break;
     case "finish":
       drawFinish(ctx, center, metrics, options.circleGaps || []);
@@ -121,7 +131,12 @@ export function drawCourseControl(ctx, control, center, metrics, options = {}) {
       drawMapIssue(ctx, center, metrics, (options.directionAngle ?? 0) + Math.PI / 2);
       break;
     default:
-      drawControlCircle(ctx, center, metrics, control, options.circleGaps || []);
+      if (control?.kind === "normal" && options.exchangeStart && metrics.mapStandard !== "2000") {
+        drawExchangeStart(ctx, center, metrics, control, options.directionAngle ?? Math.PI / 2, options.circleGaps || []);
+      }
+      else {
+        drawControlCircle(ctx, center, metrics, control, options.circleGaps || []);
+      }
       break;
   }
 }
@@ -212,6 +227,34 @@ function drawControlCircle(ctx, center, metrics, control, automaticGaps = []) {
     ctx.arc(center.x, center.y, (metrics.appearance.centerDotDiameter * metrics.unit) / 2, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
+}
+
+// IOF continuing point after a map exchange/flip: a normal control circle
+// with an inscribed equilateral triangle pointing along the outgoing leg.
+// Circle gaps stay map-oriented; only the triangle rotates.
+function drawExchangeStart(ctx, center, metrics, control, direction, automaticGaps = []) {
+  drawControlCircle(ctx, center, metrics, control, automaticGaps);
+  const lw = lineWidth(metrics);
+  const radius = screenSize((controlOutsideDiameter(metrics) * metrics.unit - lw) / 2);
+  const points = Array.from({ length: 3 }, (_, index) => {
+    const angle = direction + index * Math.PI * 2 / 3;
+    return {
+      x: center.x + Math.cos(angle) * radius,
+      y: center.y - Math.sin(angle) * radius
+    };
+  });
+  ctx.save();
+  ctx.strokeStyle = metrics.color;
+  ctx.lineWidth = lw;
+  ctx.lineCap = "butt";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  ctx.lineTo(points[1].x, points[1].y);
+  ctx.lineTo(points[2].x, points[2].y);
+  ctx.closePath();
+  ctx.stroke();
   ctx.restore();
 }
 

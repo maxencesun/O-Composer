@@ -1,5 +1,5 @@
-import { defaultPrintArea } from "./event-model.js?v=20260714-26";
-import { getCourse } from "./course-service.js?v=20260714-26";
+import { defaultPrintArea } from "./event-model.js?v=20260715-36";
+import { getCourse } from "./course-service.js?v=20260715-36";
 
 export const PRINT_AREA_SCOPES = Object.freeze({
   ALL: "all",
@@ -26,9 +26,13 @@ export function normalizePrintArea(area = defaultPrintArea()) {
   return normalized;
 }
 
-export function effectivePrintArea(eventModel, selectedCourseId = "all") {
+export function effectivePrintArea(eventModel, selectedCourseId = "all", coursePage = "global") {
   const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
-  return normalizePrintArea(course?.printArea || eventModel.event.printArea || defaultPrintArea());
+  const page = Number(coursePage);
+  const partArea = course && Number.isFinite(page) && page > 0
+    ? (course.partPrintAreas || []).find(candidate => Number(candidate?.part) === page - 1)?.area
+    : null;
+  return normalizePrintArea(partArea || course?.printArea || eventModel.event.printArea || defaultPrintArea());
 }
 
 export function printAreaFromPoints(start, end, baseArea = defaultPrintArea()) {
@@ -90,7 +94,18 @@ export function setPrintArea(eventModel, target, area) {
   if (scope === PRINT_AREA_SCOPES.COURSE) {
     const course = getCourse(eventModel, target.courseId);
     if (course) {
-      course.printArea = clonePrintArea(normalized);
+      const page = Math.floor(Number(target.coursePage));
+      if (Number.isFinite(page) && page > 0) {
+        const part = page - 1;
+        if (!Array.isArray(course.partPrintAreas)) course.partPrintAreas = [];
+        const existing = course.partPrintAreas.find(candidate => Number(candidate?.part) === part);
+        if (existing) existing.area = clonePrintArea(normalized);
+        else course.partPrintAreas.push({ part, area: clonePrintArea(normalized) });
+        course.partPrintAreas.sort((a, b) => Number(a.part) - Number(b.part));
+      }
+      else {
+        course.printArea = clonePrintArea(normalized);
+      }
     }
     return;
   }
@@ -109,7 +124,9 @@ export function setPrintArea(eventModel, target, area) {
 
 export function printAreaTargetLabel(eventModel, target) {
   if (target?.scope === PRINT_AREA_SCOPES.COURSE) {
-    return getCourse(eventModel, target.courseId)?.name || "current course";
+    const label = getCourse(eventModel, target.courseId)?.name || "current course";
+    const page = Math.floor(Number(target.coursePage));
+    return Number.isFinite(page) && page > 0 ? `${label} · P${page}` : label;
   }
   if (target?.scope === PRINT_AREA_SCOPES.ALL_CONTROLS) {
     return "All Controls";

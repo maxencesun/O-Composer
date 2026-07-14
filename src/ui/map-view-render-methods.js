@@ -1,5 +1,5 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260714-26";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260714-26";
+import { resolveTextConstants } from "../domain/constants.js?v=20260715-36";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260715-36";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -365,7 +365,8 @@ export function createMapViewRenderMethods(deps) {
   },
 
   drawPrintArea(ctx, eventModel, ui) {
-    const current = ui.printAreaEdit?.area || effectivePrintArea(eventModel, ui.selectedCourseId);
+    const coursePage = mapCourseDisplayOptions(eventModel, ui).page || "global";
+    const current = ui.printAreaEdit?.area || effectivePrintArea(eventModel, ui.selectedCourseId, coursePage);
     if (current) {
       this.drawPrintAreaRect(ctx, current, ui, "#2b6d62", 0.85);
     }
@@ -398,8 +399,9 @@ export function createMapViewRenderMethods(deps) {
   drawSpecials(ctx, eventModel, ui) {
     const selectedCourse = ui.selectedCourseId === "all" ? null : getCourse(eventModel, ui.selectedCourseId);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), false);
+    const coursePage = mapCourseDisplayOptions(eventModel, ui).page || "global";
     for (const special of eventModel.specials) {
-      if (!specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) {
+      if (!specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls, coursePage)) {
         continue;
       }
       const rotationPreview = ui.crossingRotationPreview?.selection?.type === "special"
@@ -487,10 +489,13 @@ export function createMapViewRenderMethods(deps) {
         ? ui.crossingRotationPreview.orientation
         : null;
       const renderedControl = rotationPreview === null ? row.control : { ...row.control, orientation: rotationPreview };
-      drawCourseControl(ctx, renderedControl, point, metrics, {
-        directionAngle: outgoingDirection(row, legs),
-        circleGaps: autoCircleGaps.get(String(row.control.id)) || []
-      });
+      if (!row.suppressControlSymbol) {
+        drawCourseControl(ctx, renderedControl, point, metrics, {
+          directionAngle: outgoingDirection(row, legs),
+          exchangeStart: !!row.exchangeStart,
+          circleGaps: autoCircleGaps.get(String(row.control.id)) || []
+        });
+      }
     }
 
     for (const row of labelRows) {
@@ -597,7 +602,8 @@ export function createMapViewRenderMethods(deps) {
     }
     else if (ui.selection.type === "special") {
       const special = eventModel.specials.find(item => item.id === ui.selection.id);
-      if (special?.locations?.length && specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) {
+      const coursePage = mapCourseDisplayOptions(eventModel, ui).page || "global";
+      if (special?.locations?.length && specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls, coursePage)) {
         const sourcePoints = special.kind === "descriptions"
           ? descriptionCornerPoints(eventModel, special, ui.selectedCourseId, mapCourseDisplayOptions(eventModel, ui)).map(point => this.toScreen(point, ui))
           : specialSelectionPoints(special, ui, this.scale(ui), eventModel).map(point => this.toScreen(point, ui));
@@ -621,7 +627,8 @@ export function createMapViewRenderMethods(deps) {
   drawSpecialHandles(ctx, eventModel, ui) {
     if (ui.selection?.type !== "special") return;
     const special = eventModel.specials.find(item => Number(item.id) === Number(ui.selection.id));
-    if (!special || !specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls)) return;
+    const coursePage = mapCourseDisplayOptions(eventModel, ui).page || "global";
+    if (!special || !specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls, coursePage)) return;
     const scale = this.scale(ui);
     ctx.save();
     const rotationPreview = ui.crossingRotationPreview?.selection?.type === "special"

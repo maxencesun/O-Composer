@@ -375,10 +375,15 @@ export function createAppShellPrintCourseDialogMethods(deps) {
   populatePrintAreaScopeOptions(state) {
     const select = this.querySelector("#printAreaScope");
     const currentCourse = state.ui.selectedCourseId === "all" ? null : getCourse(state.eventModel, state.ui.selectedCourseId);
+    const displayPage = currentCourse ? courseDisplayOptions(state.eventModel, state.ui).page : "global";
+    const currentPage = displayPage === "global" || displayPage === undefined ? 0 : Math.max(1, Number(displayPage) || 1);
+    const currentCourseLabel = currentPage
+      ? this.t("Current course, page {page}", { page: currentPage })
+      : this.t("Current course");
     select.innerHTML = [
       `<option value="${PRINT_AREA_SCOPES.ALL}">${escapeHtml(this.t("All courses"))}</option>`,
       currentCourse
-        ? `<option value="course:${currentCourse.id}">${escapeHtml(this.t("Current course"))}: ${escapeHtml(currentCourse.name)}</option>`
+        ? `<option value="course:${currentCourse.id}">${escapeHtml(currentCourseLabel)}: ${escapeHtml(currentCourse.name)}</option>`
         : `<option value="course" disabled>${escapeHtml(this.t("Current course"))}</option>`,
       `<option value="${PRINT_AREA_SCOPES.ALL_CONTROLS}">${escapeHtml(this.t("All Controls"))}</option>`
     ].join("");
@@ -558,7 +563,13 @@ export function createAppShellPrintCourseDialogMethods(deps) {
   printAreaTargetFromDialog() {
     const value = this.querySelector("#printAreaScope")?.value || PRINT_AREA_SCOPES.ALL;
     if (value.startsWith("course:")) {
-      return { scope: PRINT_AREA_SCOPES.COURSE, courseId: Number(value.split(":")[1]) };
+      const state = this.store.snapshot();
+      const coursePage = courseDisplayOptions(state.eventModel, state.ui).page || "global";
+      return {
+        scope: PRINT_AREA_SCOPES.COURSE,
+        courseId: Number(value.split(":")[1]),
+        coursePage: coursePage === "global" ? "global" : Math.max(1, Number(coursePage) || 1)
+      };
     }
     if (value === PRINT_AREA_SCOPES.ALL_CONTROLS) {
       return { scope: PRINT_AREA_SCOPES.ALL_CONTROLS };

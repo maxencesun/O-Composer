@@ -1,4 +1,4 @@
-import { cloneDeep } from "./clone.js?v=20260714-26";
+import { cloneDeep } from "./clone.js?v=20260715-36";
 
 const DEFAULT_PRINT_AREA = Object.freeze({
   automatic: true,
@@ -152,6 +152,9 @@ export function createCourse(id, name = `Course ${id}`, kind = "normal", order =
     labelKind: kind === "score" ? "code-and-score" : "sequence",
     firstCourseControl: null,
     firstControlOrdinal: 1,
+    // O-Composer extension for conditional map exchanges/flips on concrete
+    // paths. Direct point actions use Purple Pen-compatible flags instead.
+    pageBreakFormula: "",
     printArea: null,
     partPrintAreas: [],
     options: {

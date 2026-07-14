@@ -1,5 +1,5 @@
-import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260714-26";
-import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260714-26";
+import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260715-36";
+import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260715-36";
 import {
   alignTopologySharedJoinPoints,
   layoutVariationTopology,
@@ -12,7 +12,7 @@ import {
   topologyCommonJoinPointMap,
   topologyEdgeKey,
   topologySharedJoinParentMap
-} from "./variation-topology-layout.js?v=20260714-26";
+} from "./variation-topology-layout.js?v=20260715-36";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -417,19 +417,44 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
     return buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language, options);
   }
   const normalControls = view.filter(row => row.control.kind === "normal");
+  const summaryOptions = Number(options.page) > 0 ? { ...options, page: "global" } : options;
+  const summaryView = course && Number(options.page) > 0
+    ? courseView(eventModel, selectedCourseId, summaryOptions)
+    : view;
+  const summaryNormalControlCount = summaryView.filter(row => row.control.kind === "normal").length;
+  const pageCount = view[0]?.coursePageCount || summaryView[0]?.coursePageCount || 1;
+  const headerOptions = { ...summaryOptions, page: Number(options.page) || null, pageCount };
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
   if (displayOptions.relayLabel) rows.push(...titleRows("subtitle", displayOptions.relayLabel));
   else if (course?.secondaryTitle) rows.push(...titleRows("subtitle", course.secondaryTitle));
-  rows.push(course ? courseHeaderRow(eventModel, course, normalControls.length, language, options) : allControlsHeaderRow(normalControls.length, language));
+  rows.push(course ? courseHeaderRow(eventModel, course, summaryNormalControlCount, language, headerOptions) : allControlsHeaderRow(normalControls.length, language));
   for (let index = 0; index < view.length; index += 1) {
     const row = view[index];
-    if (row.control.kind === "finish" || row.control.kind === "crossing-point" || row.control.kind === "map-issue") {
+    const globalStandaloneExchange = row.control.kind === "map-exchange"
+      && row.pageBreakAfter
+      && row.coursePage == null;
+    if (globalStandaloneExchange) {
+      // Global contains both halves of a standalone map exchange: any marked
+      // incoming segment first, then the new-map continuing-point row.
+      const directive = standaloneMapExchangeDirectiveRow(eventModel, view, index, language);
+      if (directive) rows.push(directive);
+      rows.push(iscdRow(row, descriptionKind, language));
+    }
+    else if (row.control.kind === "map-exchange" && row.pageEndsAtExchange) {
+      const directive = standaloneMapExchangeDirectiveRow(eventModel, view, index, language);
+      if (directive) rows.push(directive);
+    }
+    else if (row.control.kind === "finish"
+      || row.control.kind === "crossing-point"
+      || row.control.kind === "map-issue") {
       rows.push(directiveRow(eventModel, view, index, selectedCourseId, language));
     }
     else {
       rows.push(iscdRow(row, descriptionKind, language));
     }
+    const pageBreak = pageBreakDirectiveRow(eventModel, row, language);
+    if (pageBreak) rows.push(pageBreak);
     if (selectedCourseId !== "all" && index < view.length - 1) {
       const marked = markedRouteRow(eventModel, view[index], view[index + 1], language);
       if (marked) rows.push(marked);
@@ -518,20 +543,38 @@ export function descriptionCoursesTarget(special, selectedCourseId = "all") {
   return special?.courses?.[0]?.course || selectedCourseId || "all";
 }
 
-export function specialVisibleForCourse(special, selectedCourseId = "all", showAllControls = false) {
+export function specialVisibleForCourse(special, selectedCourseId = "all", showAllControls = false, coursePage = "global") {
   if (!special) return false;
   const courseId = selectedCourseId === undefined || selectedCourseId === null ? "all" : selectedCourseId;
   if (special.kind === "descriptions") {
     if (courseId === "all" || showAllControls) {
       return !!special.allCourses;
     }
-    return !special.allCourses && (special.courses || []).some(course => Number(course.course) === Number(courseId));
+    return !special.allCourses && (special.courses || []).some(course => descriptionCoursePartMatches(course, courseId, coursePage));
   }
   if (courseId === "all" || showAllControls) {
     return !!special.allCourses;
   }
   if (special.allCourses) return true;
-  return (special.courses || []).some(course => Number(course.course) === Number(courseId));
+  return (special.courses || []).some(course => specialCoursePartMatches(course, courseId, coursePage));
+}
+
+function specialCoursePartMatches(course, courseId, coursePage) {
+  if (Number(course?.course) !== Number(courseId)) return false;
+  const page = Number(coursePage);
+  if (!Number.isFinite(page) || page <= 0) return true;
+  const part = Number(course?.part);
+  return !Number.isFinite(part) || part < 0 || part === page - 1;
+}
+
+function descriptionCoursePartMatches(course, courseId, coursePage) {
+  if (Number(course?.course) !== Number(courseId)) return false;
+  const page = Number(coursePage);
+  const part = Number(course?.part);
+  // Purple Pen's AllParts view shows only an AllParts description block;
+  // otherwise every per-part block would repeat the whole-course description.
+  if (!Number.isFinite(page) || page <= 0) return !Number.isFinite(part) || part < 0;
+  return !Number.isFinite(part) || part < 0 || part === page - 1;
 }
 
 export function descriptionMetrics(eventModel, special, selectedCourseId = "all", displayOptions = {}) {
@@ -1053,12 +1096,32 @@ function courseHeaderRow(eventModel, course, normalControlCount, language, displ
       ]
     };
   }
-  const length = formatDescriptionCourseLength(eventModel, course, displayOptions);
+  const length = formatDescriptionCourseLength(eventModel, course, { ...displayOptions, page: "global" });
   const climb = formatCourseClimb(course.options?.climb);
+  const page = Number(displayOptions.page) || 0;
+  const pageCount = Math.max(1, Number(displayOptions.pageCount) || 1);
+  const courseName = page > 0 && pageCount > 1 ? `${course.name || ""}-${page}` : course.name || "";
   return {
     kind: "header3",
-    boxes: [course.name || "", length, climb],
+    boxes: [courseName, length, climb],
     text: climb ? formatSymbolText("course_length_climb", [length, climb], `${length}, ${climb}`, language) : formatSymbolText("course_length", length, `Length ${length}`, language)
+  };
+}
+
+function pageBreakDirectiveRow(eventModel, row, language) {
+  if (!row?.pageBreakDirective || row.control?.kind !== "normal") return null;
+  // ISCD 2004 has no map-flip symbol. Purple Pen represents the same action
+  // with the map-exchange-at-control directive and a zero-metre distance.
+  const flip = row.pageBreakKind === "flip"
+    && eventModel?.event?.standards?.description !== "2004";
+  const symbol = flip ? "15.6" : "13.5control";
+  const distance = flip ? "" : "0 m";
+  return {
+    kind: "directive",
+    symbol,
+    distance,
+    text: directiveText(symbol, distance, language),
+    pageBreak: true
   };
 }
 
@@ -1111,7 +1174,30 @@ function directiveRow(eventModel, view, index, selectedCourseId, language) {
   return {
     kind: "directive",
     symbol,
-    distance: (control.kind === "finish" || control.kind === "map-issue") ? distance : "",
+    distance: (control.kind === "finish" || control.kind === "map-issue" || control.kind === "map-exchange") ? distance : "",
+    text: directiveText(symbol, distance, language)
+  };
+}
+
+function standaloneMapExchangeDirectiveRow(eventModel, view, index, language) {
+  const row = view[index];
+  const previous = index > 0 ? view[index - 1] : null;
+  if (!previous?.control || row?.control?.kind !== "map-exchange") return null;
+  const leg = findLeg(eventModel, previous.control.id, row.control.id);
+  const flagging = normalizeLegFlaggingKind(leg?.flagging?.kind);
+  if (!leg || flagging === "none") return null;
+
+  // 13.5 explicitly means following tapes *to* the exchange, so it is valid
+  // only when the marked portion reaches that endpoint. Marked portions at
+  // the beginning or middle retain their normal 13.1/13.2 instructions.
+  const symbol = flagging === "begin" ? "13.1"
+    : flagging === "middle" ? "13.2"
+      : "13.5";
+  const distance = formatDirectiveDistance(flaggedLegLength(eventModel, leg, flagging));
+  return {
+    kind: "directive",
+    symbol,
+    distance,
     text: directiveText(symbol, distance, language)
   };
 }
@@ -1203,7 +1289,10 @@ function normalizeLegFlaggingKind(kind) {
 function iscdRow(row, descriptionKind, language) {
   const HScore = scoreDescriptionValue(row);
   if (row.control.kind === "start" || row.control.kind === "map-exchange") {
-    const D = descriptionValue(row.control, "D") || (row.control.kind === "start" ? "" : defaultFeatureForControl(row.control.kind));
+    // A standalone map exchange is a start row on the new map. IOF 13.5 is
+    // emitted as the incoming directive on the old map, never as column D of
+    // this row; otherwise its wide taped-route pictogram overlaps the grid.
+    const D = descriptionValue(row.control, "D");
     const text = row.control.descriptionText || iscdSymbolLabel("D", D, language) || controlKindText(row.control.kind, language);
     return {
       kind: "control",
@@ -1551,6 +1640,7 @@ function directiveSymbol(control) {
   if (control.kind === "finish") return "14.3";
   if (control.kind === "crossing-point") return "13.3";
   if (control.kind === "map-issue") return "13.6";
+  if (control.kind === "map-exchange") return "13.5";
   return "";
 }
 

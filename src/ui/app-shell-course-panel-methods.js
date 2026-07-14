@@ -1,4 +1,5 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260714-26";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260715-36";
+import { coursePageCount } from "../domain/course-service.js?v=20260715-36";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -320,6 +321,7 @@ export function createAppShellCoursePanelMethods(deps) {
       || this.renderKeys.eventModel !== keys.eventModel
       || this.renderKeys.selectedCourseId !== keys.selectedCourseId
       || this.renderKeys.showAllControls !== keys.showAllControls
+      || this.renderKeys.coursePage !== keys.coursePage
       || this.renderKeys.variationMode !== keys.variationMode
       || this.renderKeys.variationCode !== keys.variationCode
       || this.renderKeys.relayTeam !== keys.relayTeam
@@ -412,13 +414,16 @@ export function createAppShellCoursePanelMethods(deps) {
   renderBanner({ eventModel, ui }) {
     const course = ui.selectedCourseId === "all" ? null : getCourse(eventModel, ui.selectedCourseId);
     const displayOptions = courseDisplayOptions(eventModel, ui);
+    // The banner describes the whole concrete route; changing the visible map
+    // page must not change the official course length or control count.
+    const routeOptions = { ...displayOptions, page: "global" };
     const title = course ? course.name : this.t("All Controls");
-    const view = course ? courseView(eventModel, course.id, displayOptions) : [];
+    const view = course ? courseView(eventModel, course.id, routeOptions) : [];
     const displayLabel = course ? variationDisplayLabel(eventModel, course.id, ui) : "";
     const lengthText = course
-      ? (displayOptions.allBranches
-        ? formatLengthRange(courseLengthRange(eventModel, course.id, displayOptions))
-        : formatLength(courseLength(eventModel, course.id, displayOptions)))
+      ? (routeOptions.allBranches
+        ? formatLengthRange(courseLengthRange(eventModel, course.id, routeOptions))
+        : formatLength(courseLength(eventModel, course.id, routeOptions)))
       : "";
     const details = course
       ? `${optionLabel(course.kind)}${displayLabel ? ` | ${this.t(displayLabel)}` : ""} | ${lengthText} | ${view.length} ${this.t("controls")}`
@@ -428,14 +433,14 @@ export function createAppShellCoursePanelMethods(deps) {
   },
 
   courseVariationControls(eventModel, course, ui) {
-    if (!courseHasVariations(eventModel, course.id)) return "";
+    const hasVariations = courseHasVariations(eventModel, course.id);
     const variations = allCourseVariations(eventModel, course.id);
     const relay = relayAssignments(eventModel, course.id);
     const mode = ui.variationMode || "default";
     const variationCode = ui.variationCode || variations[0]?.code || "";
     const team = Number(ui.relayTeam) || course.relay?.firstTeam || 1;
     const leg = Number(ui.relayLeg) || 1;
-    return `
+    const variationControls = hasVariations ? `
       <label>${escapeHtml(this.t("Course branch"))}
         <select data-course-variation-mode>
           <option value="default" ${mode === "default" ? "selected" : ""}>${escapeHtml(this.t("Default"))}</option>
@@ -455,6 +460,26 @@ export function createAppShellCoursePanelMethods(deps) {
         <label>${escapeHtml(this.t("Team"))}<input data-relay-team type="number" min="${relay.firstTeam}" max="${Math.max(relay.firstTeam, relay.firstTeam + Math.max(0, relay.teams - 1))}" value="${team}"></label>
         <label>${escapeHtml(this.t("Leg"))}<input data-relay-leg type="number" min="1" max="${Math.max(1, relay.legs)}" value="${leg}"></label>
       ` : ""}
+    ` : "";
+    return `${variationControls}${this.coursePageControls(eventModel, course, ui, hasVariations)}`;
+  },
+
+  coursePageControls(eventModel, course, ui, hasVariations = courseHasVariations(eventModel, course.id)) {
+    if (course.kind !== "normal") return "";
+    const concretePath = !hasVariations || ui.variationMode !== "all";
+    const routeOptions = { ...courseDisplayOptions(eventModel, ui), page: "global" };
+    const pageCount = concretePath ? coursePageCount(eventModel, course.id, routeOptions) : 1;
+    const requestedPage = ui.coursePage === "global" ? "global" : String(Math.min(pageCount, Math.max(1, Number(ui.coursePage) || 1)));
+    return `
+      <label>${escapeHtml(this.t("Map page"))}
+        <select data-course-page ${concretePath ? "" : "disabled"} title="${escapeAttr(concretePath ? this.t("Show the whole course or one map page") : this.t("Select one variation or relay leg to view its pages."))}">
+          <option value="global" ${requestedPage === "global" ? "selected" : ""}>${escapeHtml(this.t("Global"))}</option>
+          ${concretePath ? Array.from({ length: pageCount }, (_, index) => {
+            const page = index + 1;
+            return `<option value="${page}" ${requestedPage === String(page) ? "selected" : ""}>${escapeHtml(this.t("Page {page} of {count}", { page, count: pageCount }))}</option>`;
+          }).join("") : ""}
+        </select>
+      </label>
     `;
   },
 
@@ -463,7 +488,8 @@ export function createAppShellCoursePanelMethods(deps) {
     if (target.dataset.courseVariationMode === undefined
       && target.dataset.courseVariationCode === undefined
       && target.dataset.relayTeam === undefined
-      && target.dataset.relayLeg === undefined) {
+      && target.dataset.relayLeg === undefined
+      && target.dataset.coursePage === undefined) {
       return;
     }
     const state = this.store.snapshot();
@@ -474,15 +500,22 @@ export function createAppShellCoursePanelMethods(deps) {
     this.store.updateUi(ui => {
       if (target.dataset.courseVariationMode !== undefined) {
         ui.variationMode = target.value || "default";
+        ui.coursePage = "global";
       }
       if (target.dataset.courseVariationCode !== undefined) {
         ui.variationCode = target.value || "";
+        ui.coursePage = "global";
       }
       if (target.dataset.relayTeam !== undefined) {
         ui.relayTeam = clamp(Number(target.value) || course?.relay?.firstTeam || 1, course?.relay?.firstTeam || 1, (course?.relay?.firstTeam || 1) + Math.max(0, (course?.relay?.teams || 1) - 1));
+        ui.coursePage = "global";
       }
       if (target.dataset.relayLeg !== undefined) {
         ui.relayLeg = clamp(Number(target.value) || 1, 1, Math.max(1, course?.relay?.legs || 1));
+        ui.coursePage = "global";
+      }
+      if (target.dataset.coursePage !== undefined) {
+        ui.coursePage = target.value === "global" ? "global" : Math.max(1, Number(target.value) || 1);
       }
       if (!ui.variationCode && variations.length) {
         ui.variationCode = variations[0].code;

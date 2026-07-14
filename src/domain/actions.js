@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260714-26";
-import { cloneDeep } from "./clone.js?v=20260714-26";
+} from "./event-model.js?v=20260715-36";
+import { cloneDeep } from "./clone.js?v=20260715-36";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,7 +15,12 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260714-26";
+} from "./course-service.js?v=20260715-36";
+import {
+  courseControlMapChangeKind,
+  remapPageBreakFormulaCourseControls,
+  setCourseControlMapChange
+} from "./course-pages.js?v=20260715-36";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const automaticCoursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -140,9 +145,11 @@ export function appendControlToCourse(eventModel, courseId, controlId, options =
     return null;
   }
   const newCourseControl = createCourseControl(nextId(eventModel.courseControls), controlId, null);
-  newCourseControl.mapExchange = !!options.mapExchange;
-  newCourseControl.mapFlip = !!options.mapFlip;
   const control = getControl(eventModel, controlId);
+  setCourseControlMapChange(
+    newCourseControl,
+    options.mapFlip ? "flip" : (options.mapExchange || control?.kind === "map-exchange") ? "exchange" : ""
+  );
   newCourseControl.teamRole = course.kind === "team" && control?.kind === "normal" && options.teamRole === "free" ? "free" : "mandatory";
   eventModel.courseControls.push(newCourseControl);
 
@@ -399,6 +406,10 @@ export function controlCoursePlacement(kind, eventModel, selectedCourseId) {
   if (!selectedCourseId || selectedCourseId === "all") {
     return null;
   }
+  const course = getCourse(eventModel, selectedCourseId);
+  if (kind === "map-exchange" && course?.kind === "score") {
+    throw new Error("Standalone map exchanges cannot be added to score courses.");
+  }
   if (kind === "start" || kind === "finish") {
     if (courseHasControlKind(eventModel, selectedCourseId, kind)) {
       throw new Error(`This course already has a ${kind === "start" ? "start" : "finish"}.`);
@@ -554,6 +565,10 @@ export function duplicateCourse(eventModel, courseId, name) {
     copied.variationCourseControls = copied.variationCourseControls.map(id => idMap.get(id)?.id).filter(Boolean);
     eventModel.courseControls.push(copied);
   }
+  clone.pageBreakFormula = remapPageBreakFormulaCourseControls(
+    clone.pageBreakFormula,
+    new Map([...idMap].map(([sourceId, copied]) => [Number(sourceId), Number(copied.id)]))
+  );
   clone.firstCourseControl = source.firstCourseControl ? idMap.get(source.firstCourseControl)?.id || null : null;
   eventModel.courses.push(clone);
   resequenceCourses(eventModel);
@@ -648,6 +663,26 @@ export function addVariationAtCourseControl(eventModel, courseId, courseControlI
   const branchCount = Math.max(2, Math.min(6, Math.round(Number(options.branches) || 2)));
   const variation = "fork";
   const joinCourseControlId = joinCourseControl?.id || null;
+
+  // Once a fixed course gains branches, migrate its point-by-point actions to
+  // typed formulas so both map exchanges and flips remain visible and editable
+  // in the advanced branch-aware editor.
+  const migratedPageRules = courseGraphCourseControlIds(eventModel, course.id)
+    .map(id => getCourseControl(eventModel, id))
+    .filter(courseControl => {
+      const control = getControl(eventModel, courseControl?.control);
+      return control?.kind === "normal" && !!courseControlMapChangeKind(courseControl);
+    })
+    .map(courseControl => {
+      const kind = courseControlMapChangeKind(courseControl);
+      setCourseControlMapChange(courseControl, "");
+      return `${kind}: courseControl == ${courseControl.id}`;
+    });
+  if (migratedPageRules.length) {
+    course.pageBreakFormula = [String(course.pageBreakFormula || "").trim(), ...migratedPageRules]
+      .filter(Boolean)
+      .join("\n");
+  }
 
   // Relay variations are stored as a proper fork/join graph. The visible fork
   // course-control owns the variation metadata. Each branch gets its own hidden

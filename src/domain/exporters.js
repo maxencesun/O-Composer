@@ -8,8 +8,8 @@ import {
   formatLength,
   isTeamFreeCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260714-26";
-import { allCourseVariations } from "./relay-variations.js?v=20260714-26";
+} from "./course-service.js?v=20260715-36";
+import { allCourseVariations } from "./relay-variations.js?v=20260715-36";
 
 export function exportIofXml(eventModel, version = 3) {
   return version === 2 ? exportIofXml2(eventModel) : exportIofXml3(eventModel);

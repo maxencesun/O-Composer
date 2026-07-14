@@ -1,4 +1,4 @@
-import { cloneDeep } from "../domain/clone.js?v=20260714-26";
+import { cloneDeep } from "../domain/clone.js?v=20260715-36";
 import {
   PAPER_SIZES,
   PAPER_MARGINS,
@@ -24,31 +24,32 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260714-26";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260714-26";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260714-26";
-import { findById } from "../domain/event-model.js?v=20260714-26";
+} from "./app-shell-config.js?v=20260715-36";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260715-36";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260715-36";
+import { findById } from "../domain/event-model.js?v=20260715-36";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260714-26";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260714-26";
+} from "../domain/control-descriptions.js?v=20260715-36";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260715-36";
 import {
   controlKindLabel,
   controlsUsedByCourse,
+  coursePageCount,
   courseView,
   findLeg,
   getControl,
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260714-26";
-import { courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260714-26";
-import { t } from "./i18n.js?v=20260714-26";
-import { safeFilePart } from "./app-shell-pdf-helpers.js?v=20260714-26";
-import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=20260714-26";
+} from "../domain/course-service.js?v=20260715-36";
+import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260715-36";
+import { t } from "./i18n.js?v=20260715-36";
+import { safeFilePart } from "./app-shell-pdf-helpers.js?v=20260715-36";
+import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=20260715-36";
 
 export function teamAddControlRoleFromSelection(eventModel, ui, selection) {
   const courseId = ui?.selectedCourseId;
@@ -107,19 +108,35 @@ export function courseDisplayOptions(eventModel, ui = {}) {
   const courseId = ui.selectedCourseId;
   if (!courseId || courseId === "all") return {};
   if (ui.variationMode === "all") return { allBranches: true };
+  let routeOptions = {};
   if (ui.variationMode === "variation") {
     const variation = variationForCode(eventModel, courseId, ui.variationCode);
-    return variation ? { variationChoices: variation.choices } : {};
+    if (variation) routeOptions = { variationChoices: variation.choices, variationCode: variation.code };
   }
-  if (ui.variationMode === "relay") {
+  else if (ui.variationMode === "relay") {
     const variation = relayVariationForLeg(eventModel, courseId, ui.relayTeam, ui.relayLeg);
     const course = getCourse(eventModel, courseId);
-    return variation ? {
+    if (variation) routeOptions = {
       variationChoices: variation.choices,
+      variationCode: variation.code,
+      relayTeam: ui.relayTeam,
+      relayLeg: ui.relayLeg,
       relayLabel: relayEntryLabel(course?.relay || {}, ui.relayTeam, ui.relayLeg)
-    } : {};
+    };
   }
-  return {};
+  else if (courseHasVariations(eventModel, courseId)) {
+    const variation = allCourseVariations(eventModel, courseId)[0];
+    if (variation) routeOptions = { variationChoices: variation.choices, variationCode: variation.code };
+  }
+  return withResolvedCoursePage(eventModel, courseId, ui.coursePage, routeOptions);
+}
+
+function withResolvedCoursePage(eventModel, courseId, requestedPage, routeOptions) {
+  if (requestedPage === "global" || requestedPage === undefined || requestedPage === null) {
+    return { ...routeOptions, page: "global" };
+  }
+  const pageCount = coursePageCount(eventModel, courseId, { ...routeOptions, page: "global" });
+  return { ...routeOptions, page: Math.min(pageCount, Math.max(1, Number(requestedPage) || 1)) };
 }
 
 export function applyCourseSelectionUi(eventModel, ui, courseId, options = {}) {
@@ -138,6 +155,7 @@ export function applyCourseSelectionUi(eventModel, ui, courseId, options = {}) {
   const hasVariations = selectedCourseId !== "all" && courseHasVariations(eventModel, selectedCourseId);
   ui.variationMode = hasVariations ? "all" : "default";
   ui.variationCode = "";
+  ui.coursePage = "global";
   ui.variationAdjustmentMode = "";
   ui.variationBranch = null;
   ui.variationAnchorCourseControl = null;
@@ -162,6 +180,7 @@ export function safeCachedUi(ui = {}) {
     highQuality: ui.highQuality !== false,
     showPrintArea: !!ui.showPrintArea,
     showAllControls: (ui.selectedCourseId || "all") === "all",
+    coursePage: ui.coursePage === "global" ? "global" : Math.max(1, Number(ui.coursePage) || 1),
     variationMode: ui.variationMode || "default",
     variationCode: ui.variationCode || "",
     variationAdjustmentMode: ui.variationAdjustmentMode || "",

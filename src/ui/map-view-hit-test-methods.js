@@ -170,8 +170,9 @@ export function createMapViewHitTestMethods(deps) {
       }
     }
 
+    const coursePage = mapCourseDisplayOptions(state.eventModel, state.ui).page || "global";
     for (const special of state.eventModel.specials) {
-      if (!specialVisibleForCourse(special, state.ui.selectedCourseId, state.ui.showAllControls)) {
+      if (!specialVisibleForCourse(special, state.ui.selectedCourseId, state.ui.showAllControls, coursePage)) {
         continue;
       }
       if (special.kind === "descriptions") {
@@ -265,7 +266,8 @@ export function createMapViewHitTestMethods(deps) {
     let best = null;
     let bestDistance = Infinity;
     const special = state.eventModel.specials.find(item => Number(item.id) === Number(state.ui.selection.id));
-    if (!special || !specialVisibleForCourse(special, state.ui.selectedCourseId, state.ui.showAllControls)) return null;
+    const coursePage = mapCourseDisplayOptions(state.eventModel, state.ui).page || "global";
+    if (!special || !specialVisibleForCourse(special, state.ui.selectedCourseId, state.ui.showAllControls, coursePage)) return null;
     for (const handle of specialResizeHandles(special, state.ui, scale, state.eventModel)) {
       const candidateDistance = distance(point, handle.point);
       if (candidateDistance <= threshold * 0.9 && candidateDistance < bestDistance) {

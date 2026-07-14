@@ -1,4 +1,4 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260714-26";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260715-36";
 
 export function createMapViewPointerMethods(deps) {
   const {
@@ -161,7 +161,8 @@ export function createMapViewPointerMethods(deps) {
       return;
     }
     if (state.ui.tool === "print-area-frame") {
-      const frameCenter = printAreaCenter(state.ui.printAreaEdit?.preview || state.ui.printAreaEdit?.area || effectivePrintArea(state.eventModel, state.ui.selectedCourseId));
+      const coursePage = mapCourseDisplayOptions(state.eventModel, state.ui).page || "global";
+      const frameCenter = printAreaCenter(state.ui.printAreaEdit?.preview || state.ui.printAreaEdit?.area || effectivePrintArea(state.eventModel, state.ui.selectedCourseId, coursePage));
       this.drag = {
         pointerId: event.pointerId,
         startScreen: screen,

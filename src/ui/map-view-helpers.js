@@ -1,20 +1,21 @@
 import {
   courseLegs,
+  coursePageCount,
   courseView,
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260714-26";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260714-26";
-import { resolveTextConstants } from "../domain/constants.js?v=20260714-26";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260714-26";
+} from "../domain/course-service.js?v=20260715-36";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260715-36";
+import { resolveTextConstants } from "../domain/constants.js?v=20260715-36";
+import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260715-36";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260714-26";
+} from "./course-symbols.js?v=20260715-36";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
@@ -88,7 +89,7 @@ export function positiveNumber(value, fallback) {
 
 export function currentCourseLegs(state) {
   const selectedCourseId = state.ui.selectedCourseId || "all";
-  return selectedCourseId === "all" ? [] : courseLegs(state.eventModel, selectedCourseId);
+  return selectedCourseId === "all" ? [] : courseLegs(state.eventModel, selectedCourseId, mapCourseDisplayOptions(state.eventModel, state.ui));
 }
 
 export function moveOffsetForHit(eventModel, hit, mapPoint) {
@@ -446,19 +447,31 @@ export function mapCourseDisplayOptions(eventModel, ui = {}) {
   const courseId = ui.selectedCourseId;
   if (!courseId || courseId === "all") return {};
   if (ui.variationMode === "all") return { allBranches: true };
+  let routeOptions = {};
   if (ui.variationMode === "variation") {
     const variation = variationForCode(eventModel, courseId, ui.variationCode);
-    return variation ? { variationChoices: variation.choices } : {};
+    if (variation) routeOptions = { variationChoices: variation.choices, variationCode: variation.code };
   }
-  if (ui.variationMode === "relay") {
+  else if (ui.variationMode === "relay") {
     const variation = relayVariationForLeg(eventModel, courseId, ui.relayTeam, ui.relayLeg);
     const course = getCourse(eventModel, courseId);
-    return variation ? {
+    if (variation) routeOptions = {
       variationChoices: variation.choices,
+      variationCode: variation.code,
+      relayTeam: ui.relayTeam,
+      relayLeg: ui.relayLeg,
       relayLabel: relayEntryLabel(course?.relay || {}, ui.relayTeam, ui.relayLeg)
-    } : {};
+    };
   }
-  return {};
+  else if (courseHasVariations(eventModel, courseId)) {
+    const variation = allCourseVariations(eventModel, courseId)[0];
+    if (variation) routeOptions = { variationChoices: variation.choices, variationCode: variation.code };
+  }
+  if (ui.coursePage === "global" || ui.coursePage === undefined || ui.coursePage === null) {
+    return { ...routeOptions, page: "global" };
+  }
+  const pageCount = coursePageCount(eventModel, courseId, { ...routeOptions, page: "global" });
+  return { ...routeOptions, page: Math.min(pageCount, Math.max(1, Number(ui.coursePage) || 1)) };
 }
 
 export function legSelection(leg) {
@@ -798,11 +811,11 @@ export function legFlagRange(leg) {
 }
 
 export function isEntireLegFlagged(leg) {
-  return normalizeLegFlaggingKind(leg.leg?.flagging?.kind) === "all";
+  return normalizeLegFlaggingKind(leg?.leg?.flagging?.kind) === "all";
 }
 
 export function flaggedEndpointGapSuppression(leg) {
-  const flagging = normalizeLegFlaggingKind(leg.leg?.flagging?.kind);
+  const flagging = normalizeLegFlaggingKind(leg?.leg?.flagging?.kind);
   return {
     start: flagging === "all" || flagging === "begin",
     end: flagging === "all" || flagging === "end"
@@ -1143,7 +1156,10 @@ export function releaseOmapLayer(layer) {
 }
 
 export function outgoingDirection(row, legs) {
-  const leg = legs.find(candidate => candidate.from.courseControl?.id === row.courseControl?.id);
+  // Repeated loop visits may share one course-control id. Prefer the exact row
+  // instance so a continuation triangle points down this visit's outgoing leg.
+  const leg = legs.find(candidate => candidate.from === row)
+    || legs.find(candidate => candidate.from.courseControl?.id === row.courseControl?.id);
   if (!leg) {
     return Math.PI / 2;
   }

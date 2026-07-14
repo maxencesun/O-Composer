@@ -1,4 +1,7 @@
-import { debugLog } from "./debug-log.js?v=20260714-26";
+import { debugLog } from "./debug-log.js?v=20260715-36";
+import { coursePageCount } from "../domain/course-service.js?v=20260715-36";
+import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260715-36";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-36";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -495,6 +498,12 @@ export function createAppShellFileExportMethods(deps) {
 
   downloadNativePpen() {
     const model = cloneEvent(this.store.snapshot().eventModel);
+    const formulaCourses = model.courses
+      .filter(course => course.kind === "normal" && String(course.pageBreakFormula || "").trim())
+      .map(course => course.name || `Course ${course.id}`);
+    if (formulaCourses.length && !confirm(this.t("Native .ppen cannot store advanced page-turn formulas for: {courses}. Export anyway? Use .ocp to preserve them.", {
+      courses: formulaCourses.join(", ")
+    }))) return;
     syncDescriptionLanguageWithApp(model);
     const fileName = `${baseName(model.sourceName || "Untitled")}.ppen`;
     download(fileName, serializeNativePpen(model), "application/xml");
@@ -611,7 +620,8 @@ export function createAppShellFileExportMethods(deps) {
 
   populatePdfExportDialog() {
     const state = this.store.snapshot();
-    const settings = readPdfExportSettings(effectivePrintArea(state.eventModel, state.ui.selectedCourseId));
+    const currentPage = courseDisplayOptions(state.eventModel, state.ui).page || "global";
+    const settings = readPdfExportSettings(effectivePrintArea(state.eventModel, state.ui.selectedCourseId, currentPage));
     this.populatePdfCourseOptions(state, settings.courseScope);
     this.querySelector("#pdfIncludeBaseMap").checked = settings.includeBaseMap !== false;
     this.querySelector("#pdfIncludeDescriptions").checked = settings.includeDescriptions !== false;
@@ -663,9 +673,11 @@ export function createAppShellFileExportMethods(deps) {
     if (!summary) return;
     const settings = this.pdfSettingsFromDialog();
     const targets = this.pdfExportTargets(state, settings);
+    const totalPages = targets.reduce((sum, target) => sum + this.pdfTargetPageCount(state, target), 0);
     const renderingLabel = "Vector PDF.";
     const parts = [
       this.t(targets.length === 1 ? "1 PDF will be created." : "{count} PDFs will be created.", { count: targets.length }),
+      this.t(totalPages === 1 ? "1 map page." : "{count} map pages.", { count: totalPages }),
       this.t(settings.includeBaseMap ? "Base map included." : "Course overlay only."),
       this.t(renderingLabel),
       this.t(settings.losslessCompression !== false ? "Lossless PDF compression enabled." : "Lossless PDF compression disabled.")
@@ -837,7 +849,13 @@ export function createAppShellFileExportMethods(deps) {
       return [baseTarget];
     }
 
-    const exportsCurrentAllBranches = (settings.courseScope || PDF_COURSE_SCOPES.CURRENT) === PDF_COURSE_SCOPES.CURRENT
+    const hasConfiguredPages = course.kind === "normal" && (
+      !!String(course.pageBreakFormula || "").trim()
+      || courseView(state.eventModel, course.id, { allBranches: true })
+        .some(row => row.courseControl?.mapExchange || row.courseControl?.mapFlip)
+    );
+    const exportsCurrentAllBranches = !hasConfiguredPages
+      && (settings.courseScope || PDF_COURSE_SCOPES.CURRENT) === PDF_COURSE_SCOPES.CURRENT
       && Number(state.ui.selectedCourseId) === Number(course.id)
       && state.ui.variationMode === "all";
     if (exportsCurrentAllBranches) {
@@ -905,25 +923,71 @@ export function createAppShellFileExportMethods(deps) {
     };
   },
 
-  sourcePrintAreaForPdfTarget(state, target) {
+  sourcePrintAreaForPdfTarget(state, target, coursePage = "global") {
     return target.type === "course"
-      ? effectivePrintArea(state.eventModel, target.courseId)
+      ? effectivePrintArea(state.eventModel, target.courseId, coursePage)
       : effectivePrintArea(state.eventModel, "all");
   },
 
-  pdfAreaForTarget(state, target, settings) {
-    const sourceArea = normalizePrintArea(this.sourcePrintAreaForPdfTarget(state, target));
+  pdfAreaForTarget(state, target, settings, coursePage = "global", exportUi = state.ui) {
+    const sourceArea = normalizePrintArea(this.sourcePrintAreaForPdfTarget(state, target, coursePage));
     if (!sourceArea.automatic) {
       return sourceArea;
     }
-    return printAreaFromBounds(this.mapView.currentViewBounds(state.ui), sourceArea);
+    return printAreaFromBounds(this.mapView.currentViewBounds(exportUi), sourceArea);
   },
 
   async createPdfBlobForTarget(state, target, settings, onProgress = async () => {}) {
-    const area = this.pdfAreaForTarget(state, target, settings);
-    const page = pageSizeMm(area);
-    const marginMm = pageMarginMm(area);
-    const size = pdfPixelSize(page, marginMm);
+    const course = target.type === "course" ? getCourse(state.eventModel, target.courseId) : null;
+    const formulaError = course?.kind === "normal"
+      ? validatePageBreakFormula(course.pageBreakFormula || "")
+      : "";
+    if (formulaError) {
+      throw new Error(this.t("Cannot export {course}: page-turn formula is invalid ({message}).", {
+        course: course?.name || target.name,
+        message: formulaError
+      }));
+    }
+    const pageCount = this.pdfTargetPageCount(state, target);
+    const pageBlobs = [];
+    for (let page = 1; page <= pageCount; page += 1) {
+      const mappedProgress = async (phase, message) => {
+        const numericPhase = Math.max(0, Math.min(7, Number(phase) || 0));
+        // Reserve the tail of this target's progress range for assembling the
+        // individual page documents, so progress never moves backwards.
+        const overall = ((page - 1) * 7 + numericPhase) / Math.max(1, pageCount * 7) * 6.5;
+        await onProgress(overall, pageCount > 1
+          ? `${this.t("Page {page} of {count}", { page, count: pageCount })}: ${message}`
+          : message);
+      };
+      pageBlobs.push(await this.createPdfPageBlobForTarget(state, target, settings, pageCount > 1 ? page : "global", mappedProgress));
+    }
+    if (pageBlobs.length > 1) {
+      await onProgress(6.7, this.t("Combining {count} map pages…", { count: pageBlobs.length }));
+    }
+    const blob = await mergePdfBlobs(pageBlobs);
+    await onProgress(7, this.t("Finalizing {name}…", { name: target.name }));
+    return blob;
+  },
+
+  pdfTargetPageCount(state, target) {
+    if (target.type !== "course") return 1;
+    const course = getCourse(state.eventModel, target.courseId);
+    if (course?.kind !== "normal") return 1;
+    const exportUi = {
+      ...state.ui,
+      selectedCourseId: target.uiCourseId,
+      showAllControls: false,
+      coursePage: "global",
+      ...(target.exportUi || {})
+    };
+    return coursePageCount(state.eventModel, target.courseId, {
+      ...courseDisplayOptions(state.eventModel, exportUi),
+      page: "global"
+    });
+  },
+
+  async createPdfPageBlobForTarget(state, target, settings, coursePage = "global", onProgress = async () => {}) {
     const eventModel = settings.includeDescriptions
       ? state.eventModel
       : { ...cloneEvent(state.eventModel), specials: (state.eventModel.specials || []).filter(special => special.kind !== "descriptions") };
@@ -938,8 +1002,13 @@ export function createAppShellFileExportMethods(deps) {
       mapIntensity: 1,
       selectedCourseId: target.uiCourseId,
       showAllControls: target.type === "all-controls",
-      ...(target.exportUi || {})
+      ...(target.exportUi || {}),
+      coursePage
     };
+    const area = this.pdfAreaForTarget(state, target, settings, coursePage, exportUi);
+    const page = pageSizeMm(area);
+    const marginMm = pageMarginMm(area);
+    const size = pdfPixelSize(page, marginMm);
     const pdfBackground = await this.vectorPdfBackgroundForExport(state, area, size, settings);
     await onProgress(1, this.t("Preparing {name} page…", { name: target.name }));
     const bitmapBackground = settings.includeBaseMap && this.mapView.hasBitmapBackground() && !this.mapView.omapMap && !pdfBackground

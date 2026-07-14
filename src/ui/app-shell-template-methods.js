@@ -939,7 +939,7 @@ export function createAppShellTemplateMethods(deps) {
             ["tool-start", "Start"],
             ["tool-control", "Control"],
             ["tool-finish", "Finish"],
-            ["tool-map-exchange", "Map Exchange"],
+            ["tool-map-exchange", "Standalone Map Exchange"],
             ["tool-crossing", "Mandatory Crossing"],
             ["tool-map-issue", "Map Issue"],
             ["add-variation", "Add Variation"],

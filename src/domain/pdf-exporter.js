@@ -10,10 +10,9 @@ const PDF_CJK_FONT_SOURCES = Object.freeze([
   { key: "heiti-bold", resource: "F6", name: "Heiti-Bold", url: "./assets/fonts/Heiti.ttf", cjk: true }
 ]);
 
-const PDF_LIB_CANDIDATES = Object.freeze([
-  "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/+esm",
-  "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.esm.min.js"
-]);
+// Keep multi-page export and PDF-basemap composition fully local. This pinned
+// browser ESM build is vendored under assets together with its MIT license.
+const PDF_LIB_MODULE_URL = new URL("../../assets/vendor/pdf-lib/pdf-lib.esm.min.js?v=20260715-36", import.meta.url).href;
 
 const pdfFontPromises = new Map();
 let pdfLatinFontSetPromise = null;
@@ -67,6 +66,23 @@ export async function createVectorMapPdfBlob({ pageWidthMm, pageHeightMm, margin
 
   await onProgress("done");
   return new Blob([overlayBytes], { type: "application/pdf" });
+}
+
+export async function mergePdfBlobs(blobs) {
+  const pages = (blobs || []).filter(Boolean);
+  if (!pages.length) throw new Error("No PDF pages were generated.");
+  if (pages.length === 1) return pages[0];
+  const { PDFDocument } = await loadPdfLib();
+  const output = await PDFDocument.create();
+  for (const blob of pages) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (!bytesLookLikePdf(bytes)) throw new Error("A generated map page is not a valid PDF.");
+    const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const copiedPages = await output.copyPages(source, source.getPageIndices());
+    for (const page of copiedPages) output.addPage(page);
+  }
+  const bytes = await output.save({ useObjectStreams: false });
+  return new Blob([bytes], { type: "application/pdf" });
 }
 
 function pdfPageLayout({ pageWidthMm, pageHeightMm, marginMm = 3, canvasWidth, canvasHeight }) {
@@ -151,18 +167,11 @@ function pdfBoxForCanvasRect(rect, canvasWidth, canvasHeight, contentBox) {
 
 async function loadPdfLib() {
   if (pdfLibPromise) return pdfLibPromise;
-  pdfLibPromise = (async () => {
-    let lastError = null;
-    for (const url of PDF_LIB_CANDIDATES) {
-      try {
-        return await import(/* @vite-ignore */ url);
-      }
-      catch (error) {
-        lastError = error;
-      }
-    }
-    throw new Error(`Could not load the PDF vector embedding library. ${lastError?.message || ""}`.trim());
-  })();
+  pdfLibPromise = import(/* @vite-ignore */ PDF_LIB_MODULE_URL)
+    .catch(error => {
+      pdfLibPromise = null;
+      throw new Error(`Could not load the bundled PDF vector library. ${error?.message || ""}`.trim());
+    });
   return pdfLibPromise;
 }
 

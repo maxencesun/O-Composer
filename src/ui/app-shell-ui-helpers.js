@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260714-26";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260714-26";
-import { findById } from "../domain/event-model.js?v=20260714-26";
+} from "./app-shell-config.js?v=20260715-36";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260715-36";
+import { findById } from "../domain/event-model.js?v=20260715-36";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260714-26";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260714-26";
+} from "../domain/control-descriptions.js?v=20260715-36";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260715-36";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -42,9 +42,9 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260714-26";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260714-26";
-import { t } from "./i18n.js?v=20260714-26";
+} from "../domain/course-service.js?v=20260715-36";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260715-36";
+import { t } from "./i18n.js?v=20260715-36";
 
 export function isAppleTouchDevice() {
   const nav = window.navigator || {};
@@ -101,7 +101,7 @@ export function isFloatingDialogOpen(dialog) {
 
 export function currentPrintAreaForTarget(eventModel, ui, target) {
   if (target.scope === PRINT_AREA_SCOPES.COURSE) {
-    return effectivePrintArea(eventModel, target.courseId);
+    return effectivePrintArea(eventModel, target.courseId, target.coursePage ?? ui?.coursePage ?? "global");
   }
   return normalizePrintArea(eventModel.event.printArea);
 }
@@ -250,6 +250,7 @@ export function renderKeysFor({ eventModel, ui }) {
     eventModel,
     selectedCourseId: ui.selectedCourseId,
     showAllControls: ui.showAllControls,
+    coursePage: ui.coursePage || "global",
     variationMode: ui.variationMode || "default",
     variationCode: ui.variationCode || "",
     variationAdjustmentMode: ui.variationAdjustmentMode || "",

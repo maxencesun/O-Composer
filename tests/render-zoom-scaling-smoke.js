@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { screenSize } from "../src/ui/course-symbols.js";
+import { drawCourseControl, screenSize } from "../src/ui/course-symbols.js";
 import { constrainPointToOctants, crossingOrientationForPoint, crossingRotationHandle, drawFallbackSpecialPoint, drawSquareHandle, mapScreenSize, specialLineWidth, textMetrics } from "../src/ui/map-view-helpers.js";
 import { exportAreaCanvasRect, measurementLineDash, zoomScreenSize } from "../src/ui/map-view-render-methods.js";
 import { omapScreenSize } from "../src/ui/omap-renderer.js";
@@ -65,6 +65,32 @@ const optionalHandle = crossingRotationHandle(optionalCrossing, 1);
 assert.equal(optionalHandle.x, -24);
 assert.ok(Math.abs(optionalHandle.y - 20) < 1e-9);
 assert.equal(crossingOrientationForPoint(optionalCrossing, { x: 10, y: -20 }), 180);
+
+const exchangeArcs = [];
+const exchangeLines = [];
+const exchangeContext = {
+  save() {},
+  restore() {},
+  beginPath() {},
+  closePath() {},
+  stroke() {},
+  arc(x, y, radius) { exchangeArcs.push({ x, y, radius }); },
+  moveTo(x, y) { exchangeLines.push({ x, y }); },
+  lineTo(x, y) { exchangeLines.push({ x, y }); }
+};
+const exchangeMetrics = {
+  unit: 1,
+  color: "#b000b5",
+  mapStandard: "2017",
+  appearance: { controlCircleSizeRatio: 1, lineWidthRatio: 1, centerDotDiameter: 0 }
+};
+drawCourseControl(exchangeContext, { kind: "map-exchange" }, { x: 10, y: 20 }, exchangeMetrics, {
+  exchangeStart: true,
+  directionAngle: 0
+});
+assert.equal(exchangeArcs.length, 1, "a standalone exchange starts its new map with the IOF 7.15 control circle");
+assert.ok(exchangeLines.some(point => point.x > 10 && Math.abs(point.y - 20) < 1e-9),
+  "the IOF 7.15 triangle points along the outgoing course leg");
 
 const horizontal = constrainPointToOctants({ x: 0, y: 0 }, { x: 10, y: 2 });
 assert.equal(horizontal.y, 0);

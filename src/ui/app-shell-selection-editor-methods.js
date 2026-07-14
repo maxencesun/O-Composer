@@ -1,3 +1,6 @@
+import { coursePageCount } from "../domain/course-service.js?v=20260715-36";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-36";
+
 export function createAppShellSelectionEditorMethods(deps) {
   const {
     Store,
@@ -593,6 +596,7 @@ export function createAppShellSelectionEditorMethods(deps) {
         </label>
         <label class="check"><input data-field="course.options.hideFromReports" type="checkbox" ${course.options.hideFromReports ? "checked" : ""}> ${escapeHtml(this.t("Hide from reports"))}</label>
       </div>
+      ${this.coursePageEditor(eventModel, course)}
       ${course.kind === "team" ? "" : `
         <h3>${escapeHtml(this.t("Relay"))}</h3>
         <div class="form-grid">
@@ -611,6 +615,160 @@ export function createAppShellSelectionEditorMethods(deps) {
           ${this.relayAssignmentTable(assignments)}
         ` : ""}
       `}
+    `;
+  },
+
+  coursePageEditor(eventModel, course) {
+    if (course.kind !== "normal") return "";
+    const hasVariations = courseHasVariations(eventModel, course.id);
+    if (!hasVariations) {
+      const rows = courseView(eventModel, course.id, { page: "global" });
+      let point = 0;
+      const pointRows = [];
+      const configuredActions = [];
+      let previousPoint = null;
+      rows.forEach((row, rowIndex) => {
+        if (row.control?.kind === "normal" && row.courseControl) {
+          point += 1;
+          const item = {
+            row,
+            point,
+            canStartNextPage: rowIndex < rows.length - 1,
+            action: row.courseControl.mapFlip ? "flip" : row.courseControl.mapExchange ? "exchange" : "",
+            standaloneAfter: false,
+            standalone: false
+          };
+          pointRows.push(item);
+          if (item.action) configuredActions.push(item);
+          previousPoint = item;
+          return;
+        }
+        if (row.control?.kind === "map-exchange" && row.courseControl) {
+          if (previousPoint) previousPoint.standaloneAfter = true;
+          configuredActions.push({
+            row,
+            point: previousPoint?.point || 0,
+            anchor: previousPoint,
+            action: "standalone-exchange",
+            standalone: true
+          });
+        }
+      });
+      const availablePoints = pointRows.filter(item => !item.action && !item.standaloneAfter && item.canStartNextPage);
+      const formula = String(course.pageBreakFormula || "").trim();
+      const addFormId = `course-page-action-add-${course.id}`;
+      return `
+        <h3>${escapeHtml(this.t("Map pages"))}</h3>
+        <div class="course-page-action-manager">
+          ${configuredActions.length ? `
+            <div class="course-page-action-list" role="group" aria-label="${escapeAttr(this.t("Configured map actions"))}">
+              ${configuredActions.map(({ row, point, action, standalone, anchor }) => {
+                const pointLabel = this.t("Point {point}: {code}", {
+                  point,
+                  code: (anchor?.row || row).control.code || (anchor?.row || row).ordinal || point
+                });
+                if (standalone) {
+                  return `
+                    <div class="course-page-action-row">
+                      <select disabled aria-label="${escapeAttr(this.t("Control for map action"))}"><option>${escapeHtml(this.t("Standalone map exchange"))}</option></select>
+                      <select disabled aria-label="${escapeAttr(this.t("Map action type"))}"><option>${escapeHtml(this.t("Standalone map exchange"))}</option></select>
+                      <button type="button" class="course-page-action-remove" data-course-page-remove-standalone="${row.courseControl.id}" title="${escapeAttr(this.t("Remove standalone map exchange"))}" aria-label="${escapeAttr(this.t("Remove standalone map exchange"))}">×</button>
+                    </div>
+                  `;
+                }
+                const pointOptions = pointRows.filter(item =>
+                  Number(item.row.courseControl.id) === Number(row.courseControl.id)
+                  || (!item.action && !item.standaloneAfter && item.canStartNextPage));
+                return `
+                  <div class="course-page-action-row">
+                    <select data-course-page-move="${row.courseControl.id}" aria-label="${escapeAttr(this.t("Control for map action"))}" ${pointOptions.length > 1 ? "" : "disabled"}>
+                      ${pointOptions.map(item => {
+                        const label = this.t("Point {point}: {code}", {
+                          point: item.point,
+                          code: item.row.control.code || item.row.ordinal || item.point
+                        });
+                        return `<option value="${item.row.courseControl.id}" ${Number(item.row.courseControl.id) === Number(row.courseControl.id) ? "selected" : ""}>${escapeHtml(label)}</option>`;
+                      }).join("")}
+                    </select>
+                    <select data-course-page-break="${row.courseControl.id}" aria-label="${escapeAttr(this.t("Page action after {point}", { point: pointLabel }))}">
+                      <option value="exchange" ${action === "exchange" ? "selected" : ""}>${escapeHtml(this.t("Map exchange"))}</option>
+                      <option value="flip" ${action === "flip" ? "selected" : ""}>${escapeHtml(this.t("Map flip"))}</option>
+                    </select>
+                    <button type="button" class="course-page-action-remove" data-course-page-remove="${row.courseControl.id}" title="${escapeAttr(this.t("Remove map action"))}" aria-label="${escapeAttr(this.t("Remove map action after {point}", { point: pointLabel }))}">×</button>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          ` : `<p class="muted course-page-action-empty">${escapeHtml(this.t("No map actions configured."))}</p>`}
+          <button type="button" class="course-page-action-add-toggle" data-course-page-add-toggle aria-expanded="false" aria-controls="${escapeAttr(addFormId)}" ${availablePoints.length ? "" : "disabled"}>${escapeHtml(this.t("Add map action"))}</button>
+          ${availablePoints.length ? `
+            <div id="${escapeAttr(addFormId)}" class="course-page-action-add-form" data-course-page-add-form hidden>
+              <label>${escapeHtml(this.t("Control"))}
+                <select data-course-page-add-point>
+                  ${availablePoints.map(({ row, point }) => {
+                    const pointLabel = this.t("Point {point}: {code}", {
+                      point,
+                      code: row.control.code || row.ordinal || point
+                    });
+                    return `<option value="${row.courseControl.id}">${escapeHtml(pointLabel)}</option>`;
+                  }).join("")}
+                </select>
+              </label>
+              <label>${escapeHtml(this.t("Type"))}
+                <select data-course-page-add-kind>
+                  <option value="exchange">${escapeHtml(this.t("Map exchange"))}</option>
+                  <option value="flip">${escapeHtml(this.t("Map flip"))}</option>
+                  <option value="standalone-exchange">${escapeHtml(this.t("Standalone map exchange"))}</option>
+                </select>
+              </label>
+              <div class="course-page-action-add-buttons">
+                <button type="button" data-course-page-add>${escapeHtml(this.t("Add"))}</button>
+                <button type="button" class="secondary" data-course-page-add-cancel>${escapeHtml(this.t("Cancel"))}</button>
+              </div>
+            </div>
+          ` : ""}
+        </div>
+        <p class="muted">${escapeHtml(this.t("Map exchange and map flip happen at the selected control. Standalone map exchange converts the selected control at its current location and does not add another course point."))}</p>
+        <p class="muted">${escapeHtml(this.t("The boundary point appears on both pages. The next page starts with the IOF continuing-point symbol."))}</p>
+        ${formula ? `<p class="page-formula-warning">${escapeHtml(this.t("An advanced formula is active. Adding, changing, moving, or removing a point action clears the formula."))}</p>` : ""}
+        ${this.advancedCoursePageEditor(eventModel, course, { hasVariations: false })}
+      `;
+    }
+
+    return this.advancedCoursePageEditor(eventModel, course, { hasVariations: true });
+  },
+
+  advancedCoursePageEditor(eventModel, course, { hasVariations = courseHasVariations(eventModel, course.id) } = {}) {
+    const formula = String(course.pageBreakFormula || "");
+    const error = validatePageBreakFormula(formula);
+    const variations = hasVariations ? allCourseVariations(eventModel, course.id) : [];
+    const fixedBreakCount = new Set(courseView(eventModel, course.id, { allBranches: true })
+      .filter(row => row.control?.kind === "normal" && (row.courseControl?.mapExchange || row.courseControl?.mapFlip))
+      .map(row => Number(row.courseControl.id)))
+      .size;
+    const preview = !error && formula.trim()
+      ? (hasVariations ? variations.slice(0, 12).map(variation => {
+          const count = coursePageCount(eventModel, course.id, {
+            variationChoices: variation.choices,
+            variationCode: variation.code,
+            page: "global"
+          });
+          return `${variation.code}: ${this.t("{count} pages", { count })}`;
+        }).join(" · ") : this.t("{count} pages", { count: coursePageCount(eventModel, course.id, { page: "global" }) }))
+      : "";
+    return `
+      <h3>${escapeHtml(this.t("Advanced map pages"))}</h3>
+      <div class="form-grid">
+        <label class="span-2">${escapeHtml(this.t("Page-turn formula"))}
+          <textarea data-field="course.pageBreakFormula" rows="4" spellcheck="false" placeholder='flip: point == 8&#10;exchange: variation == "AC" &amp;&amp; code == "54"'>${escapeHtml(formula)}</textarea>
+        </label>
+      </div>
+      <p class="muted">${escapeHtml(this.t("The formula is evaluated after every normal control on each concrete route. Prefix a rule with exchange: or flip:; an unprefixed rule remains a map flip. If both match, map flip wins. Variables: point, ordinal, code, courseControl, variation, team, leg. Use ==, !=, <, <=, >, >=, &&, ||, ! and parentheses; semicolons or new lines separate rules."))}</p>
+      <p class="muted">${escapeHtml(this.t("Advanced formulas support only map exchange and map flip at controls. Standalone map exchanges must be added with the simple settings or the Add menu."))}</p>
+      ${!hasVariations ? `<p class="muted">${escapeHtml(this.t("A non-empty formula replaces the point-by-point actions above."))}</p>` : ""}
+      ${fixedBreakCount && hasVariations ? `<p class="page-formula-warning">${escapeHtml(this.t("This imported course also has {count} fixed page actions that apply to every matching variation.", { count: fixedBreakCount }))}</p>` : ""}
+      ${error ? `<p class="page-formula-error">${escapeHtml(this.t("Formula error: {message}", { message: error }))}</p>` : ""}
+      ${preview ? `<p class="page-formula-preview">${escapeHtml(this.t("Preview"))}: ${escapeHtml(preview)}${variations.length > 12 ? " …" : ""}</p>` : ""}
     `;
   },
 

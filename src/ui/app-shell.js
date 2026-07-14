@@ -1,4 +1,4 @@
-import { Store } from "../state/store.js?v=20260714-25";
+import { Store } from "../state/store.js?v=20260714-26";
 import {
   acceptCookieConsent,
   hasCookieConsent,
@@ -6,15 +6,15 @@ import {
   loadCachedSession,
   saveCachedPdfBasemap,
   saveCachedSession
-} from "../state/cookie-cache.js?v=20260714-25";
-import { parseOmap } from "../domain/omap-parser.js?v=20260714-25";
-import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260714-25";
+} from "../state/cookie-cache.js?v=20260714-26";
+import { parseOmap } from "../domain/omap-parser.js?v=20260714-26";
+import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260714-26";
 import {
   CONTROL_KINDS,
   cloneEvent,
   createBlankEvent,
   findById
-} from "../domain/event-model.js?v=20260714-25";
+} from "../domain/event-model.js?v=20260714-26";
 import {
   addControlAt,
   addExistingControlToCourse,
@@ -32,7 +32,7 @@ import {
   removeUnusedControls,
   setCourseOrder,
   updateControlDescription
-} from "../domain/actions.js?v=20260714-25";
+} from "../domain/actions.js?v=20260714-26";
 import {
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
@@ -52,7 +52,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=20260714-25";
+} from "../domain/control-descriptions.js?v=20260714-26";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -63,16 +63,16 @@ import {
   printAreaFromPoints,
   printAreaTargetLabel,
   setPrintArea
-} from "../domain/print-area.js?v=20260714-25";
-import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260714-25";
-import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260714-25";
+} from "../domain/print-area.js?v=20260714-26";
+import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260714-26";
+import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260714-26";
 import {
   measurementMetrics,
   formatGroundLength,
   formatPaperLength,
   formatGroundArea,
   formatPaperArea
-} from "../domain/measurement.js?v=20260714-25";
+} from "../domain/measurement.js?v=20260714-26";
 import {
   allControlsView,
   controlKindLabel,
@@ -95,18 +95,18 @@ import {
   getCourseControl,
   isTeamFreeCourseControl,
   sortedCourses
-} from "../domain/course-service.js?v=20260714-25";
+} from "../domain/course-service.js?v=20260714-26";
 import {
   exportCourseSvg,
   exportGpx,
   exportIofXml,
   exportKml,
   exportRouteGadgetXml
-} from "../domain/exporters.js?v=20260714-25";
+} from "../domain/exporters.js?v=20260714-26";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance
-} from "./course-symbols.js?v=20260714-25";
+} from "./course-symbols.js?v=20260714-26";
 import {
   allCourseVariations,
   courseHasVariations,
@@ -126,29 +126,29 @@ import {
   variationBranchCodeMap,
   variationDisplayLabel,
   variationForCode
-} from "../domain/relay-variations.js?v=20260714-25";
-import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260714-25";
-import { iconSvg } from "./icons.js?v=20260714-25";
-import { MapView } from "./map-view.js?v=20260714-25";
-import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260714-25";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260714-25";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260714-25";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260714-25";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260714-25";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260714-25";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260714-25";
-import { createAppShellMapImportMethods } from "./app-shell-map-import-methods.js?v=20260714-25";
-import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260714-25";
-import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260714-25";
+} from "../domain/relay-variations.js?v=20260714-26";
+import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260714-26";
+import { iconSvg } from "./icons.js?v=20260714-26";
+import { MapView } from "./map-view.js?v=20260714-26";
+import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260714-26";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260714-26";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260714-26";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260714-26";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260714-26";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260714-26";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260714-26";
+import { createAppShellMapImportMethods } from "./app-shell-map-import-methods.js?v=20260714-26";
+import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260714-26";
+import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260714-26";
 import {
   RENDER_QUALITIES,
   isRenderQualityId,
   readRenderQualityPreference,
   setRenderQualityPreference,
   renderQualityHighQuality
-} from "./render-quality.js?v=20260714-25";
-import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260714-25";
-import { debugWarn } from "./debug-log.js?v=20260714-25";
+} from "./render-quality.js?v=20260714-26";
+import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260714-26";
+import { debugWarn } from "./debug-log.js?v=20260714-26";
 
 import {
   PAPER_SIZES,
@@ -176,7 +176,7 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260714-25";
+} from "./app-shell-config.js?v=20260714-26";
 import {
   teamAddControlRoleFromSelection,
   objectForSelection,
@@ -320,10 +320,15 @@ import {
   formatBytes,
   escapeHtml,
   escapeAttr
-} from "./app-shell-helpers.js?v=20260714-25";
+} from "./app-shell-helpers.js?v=20260714-26";
 
 function updateBootLoadingProgress(percent, detail) {
-  globalThis.__oComposerBootLoading?.update?.({ percent, detail, indeterminate: false });
+  const determinate = percent !== null && percent !== undefined && Number.isFinite(Number(percent));
+  globalThis.__oComposerBootLoading?.update?.({
+    ...(determinate ? { percent: Number(percent) } : {}),
+    detail,
+    indeterminate: !determinate
+  });
 }
 
 export class OComposerApp extends HTMLElement {
@@ -331,19 +336,20 @@ export class OComposerApp extends HTMLElement {
     consumeLanguageRefreshParam();
     this.language = getLanguage();
     this.installViewportMetricSync();
-    updateBootLoadingProgress(58, this.t("Building editor UI…"));
+    updateBootLoadingProgress(null, this.t("Building editor UI…"));
     this.store = new Store();
     const initialRenderQuality = readRenderQualityPreference();
     this.store.state.ui.renderQuality = initialRenderQuality;
     this.store.state.ui.highQuality = renderQualityHighQuality(initialRenderQuality);
     this.innerHTML = this.template();
-    this.updateInitialLoadingProgress(60, this.t("Building editor UI…"));
+    this.updateInitialLoadingProgress(null, this.t("Building editor UI…"));
     this.syncResponsiveUiClass();
     this.syncApplicationLanguageControl();
     this.syncRenderQualityControl();
     this.renderKeys = null;
     this.cacheReady = false;
-    this.updateInitialLoadingProgress(68, this.t("Preparing map view…"));
+    this.initialLoadingTasks = new Set();
+    this.updateInitialLoadingProgress(null, this.t("Preparing map view…"));
     this.mapView = new MapView(this.querySelector("#mapCanvas"), this.store, {
       onSelect: selection => this.setSelection(selection),
       onToolPoint: (tool, point, options) => this.applyTool(tool, point, options),
@@ -374,16 +380,12 @@ export class OComposerApp extends HTMLElement {
       onHover: point => this.updateMouseStatus(point)
     });
     this.bindEvents();
-    this.initializeMapImporter();
-    this.updateInitialLoadingProgress(74, this.t("Restoring cached session…"));
+    this.updateInitialLoadingProgress(null, this.t("Restoring cached session…"));
     installAppResourceFetchCache(APP_RESOURCE_CACHE_NAME, APP_RESOURCE_URLS);
-    this.startResourcePrecache();
+    this.completeInitialLoadingTask("editor", this.t("Restoring cached session…"));
     this.deferMapLayoutRefresh();
     const cachedSessionReady = Promise.resolve(this.restoreInitialEvent())
-      .then(result => {
-        this.updateInitialLoadingProgress(84, this.t("Loading control symbols…"));
-        return result;
-      });
+      .finally(() => this.completeInitialLoadingTask("session", this.t("Finalizing…")));
     this.store.subscribe(state => this.render(state));
     this.store.subscribe(state => this.scheduleSessionCache(state));
     this.refreshAfterFontLoad();
@@ -391,13 +393,15 @@ export class OComposerApp extends HTMLElement {
       .then(() => {
         this.renderKeys = null;
         this.render(this.store.snapshot());
-        this.updateInitialLoadingProgress(94, this.t("Finalizing…"));
       })
       .catch(error => {
         debugWarn("control-symbols.load.failed", { message: error?.message || String(error), stack: error?.stack || "" });
-        this.updateInitialLoadingProgress(94, this.t("Finalizing…"));
-      });
-    this.hideInitialLoadingWhenReady([cachedSessionReady, symbolsReady]);
+      })
+      .finally(() => this.completeInitialLoadingTask("symbols", this.t("Finalizing…")));
+    this.hideInitialLoadingWhenReady([cachedSessionReady, symbolsReady], () => {
+      this.initializeMapImporter();
+      this.startResourcePrecache();
+    });
     // The synchronous application shell is now usable. Background resource,
     // converter, or worker failures must not be mislabeled as a fatal startup
     // error by the small bootstrap guard in index.html.
@@ -458,7 +462,8 @@ export class OComposerApp extends HTMLElement {
   }
 
   updateInitialLoadingProgress(percent, detail) {
-    const safePercent = clamp(Math.round(Number(percent) || 0), 0, 100);
+    const determinate = percent !== null && percent !== undefined && Number.isFinite(Number(percent));
+    const safePercent = determinate ? clamp(Math.round(Number(percent)), 0, 100) : 0;
     const title = this.querySelector("#appInitLoadingTitle");
     const detailEl = this.querySelector("#appInitLoadingDetail");
     const bar = this.querySelector("#appInitProgressBar");
@@ -466,20 +471,35 @@ export class OComposerApp extends HTMLElement {
     if (title) title.textContent = this.t("Loading O-Composer…");
     if (detailEl && detail) detailEl.textContent = detail;
     if (bar) {
-      bar.value = safePercent;
-      bar.setAttribute("aria-valuenow", String(safePercent));
+      if (determinate) {
+        bar.value = safePercent;
+        bar.setAttribute("aria-valuenow", String(safePercent));
+      }
+      else {
+        bar.removeAttribute("value");
+        bar.removeAttribute("aria-valuenow");
+      }
     }
-    if (value) value.textContent = `${safePercent}%`;
-    updateBootLoadingProgress(safePercent, detail);
+    if (value) value.textContent = determinate ? `${safePercent}%` : "";
+    updateBootLoadingProgress(determinate ? safePercent : null, detail);
   }
 
-  hideInitialLoadingWhenReady(promises = []) {
+  completeInitialLoadingTask(task, detail) {
+    this.initialLoadingTasks ||= new Set();
+    this.initialLoadingTasks.add(task);
+    const totalTasks = 3;
+    const percent = clamp(Math.floor(this.initialLoadingTasks.size / totalTasks * 100), 0, 100);
+    this.updateInitialLoadingProgress(percent, detail);
+  }
+
+  hideInitialLoadingWhenReady(promises = [], afterReady = null) {
     void Promise.allSettled(promises)
       .then(() => {
         this.updateInitialLoadingProgress(100, this.t("Ready."));
         return new Promise(resolve => requestAnimationFrame(resolve));
       })
       .then(() => this.hideInitialLoading())
+      .then(() => afterReady?.())
       .then(() => this.showMetaSetupIfNeeded());
   }
 

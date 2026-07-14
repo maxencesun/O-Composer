@@ -2,10 +2,10 @@ const BOOT_LOADING_ID = "oComposerBootLoading";
 const BOOT_LOADING_STYLE_ID = "oComposerBootLoadingStyle";
 const LANGUAGE_KEY = "oComposerLanguage";
 const bootProgressState = {
-  percent: 4,
+  percent: 0,
   title: "",
   detail: "",
-  indeterminate: false
+  indeterminate: true
 };
 
 
@@ -138,8 +138,14 @@ function applyBootLoadingProgress() {
   if (title && bootProgressState.title) title.textContent = bootProgressState.title;
   if (detail && bootProgressState.detail) detail.textContent = bootProgressState.detail;
   if (bar) {
-    bar.setAttribute("aria-valuenow", String(percent));
-    bar.setAttribute("aria-valuetext", `${percent}%`);
+    if (bootProgressState.indeterminate) {
+      bar.removeAttribute("aria-valuenow");
+      bar.removeAttribute("aria-valuetext");
+    }
+    else {
+      bar.setAttribute("aria-valuenow", String(percent));
+      bar.setAttribute("aria-valuetext", `${percent}%`);
+    }
   }
   if (value) value.textContent = `${percent}%`;
 }
@@ -171,7 +177,7 @@ function ensureBootLoadingStyle() {
   style.id = BOOT_LOADING_STYLE_ID;
   style.textContent = `
     #${BOOT_LOADING_ID} {
-      --app-boot-progress: 4%;
+      --app-boot-progress: 0%;
       position: fixed;
       inset: 0;
       z-index: 2147483647;
@@ -293,10 +299,10 @@ function ensureBootLoading() {
         <strong data-boot-title>${text.title}</strong>
         <span data-boot-detail>${text.detail}</span>
         <div class="app-boot-progress-row">
-          <div class="app-boot-progress-track" data-boot-progress role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="4" aria-valuetext="4%">
+          <div class="app-boot-progress-track" data-boot-progress role="progressbar" aria-valuemin="0" aria-valuemax="100">
             <div class="app-boot-progress-fill"></div>
           </div>
-          <span class="app-boot-progress-value" data-boot-progress-value>4%</span>
+          <span class="app-boot-progress-value" data-boot-progress-value></span>
         </div>
       </div>
     </div>
@@ -333,15 +339,15 @@ globalThis.__oComposerBootLoading = {
 
 installRootViewportMetrics();
 ensureBootLoading();
-updateBootLoadingProgress({ percent: 8, detail: text.detail });
+updateBootLoadingProgress({ detail: text.detail, indeterminate: true });
 
 requestAnimationFrame(() => {
-  updateBootLoadingProgress({ percent: 18, detail: text.moduleDetail, indeterminate: true });
+  updateBootLoadingProgress({ detail: text.moduleDetail, indeterminate: true });
 });
 
-import("./ui/app-shell.js?v=20260714-25")
+import("./ui/app-shell.js?v=20260714-26")
   .then(({ OComposerApp }) => {
-    updateBootLoadingProgress({ percent: 52, detail: text.initializeDetail, indeterminate: false });
+    updateBootLoadingProgress({ detail: text.initializeDetail, indeterminate: true });
     customElements.define("o-composer-app", OComposerApp);
   })
   .catch(error => {

@@ -855,8 +855,8 @@ export function createAppShellTemplateMethods(deps) {
               <strong id="appInitLoadingTitle">${escapeHtml(this.t("Loading O-Composer…"))}</strong>
               <span id="appInitLoadingDetail">${escapeHtml(this.t("Preparing the editor…"))}</span>
               <div class="app-init-progress-row">
-                <progress id="appInitProgressBar" max="100" value="55" aria-label="${escapeAttr(this.t("Startup progress"))}"></progress>
-                <span id="appInitProgressValue" class="app-init-progress-value">55%</span>
+                <progress id="appInitProgressBar" max="100" aria-label="${escapeAttr(this.t("Startup progress"))}"></progress>
+                <span id="appInitProgressValue" class="app-init-progress-value"></span>
               </div>
             </div>
           </div>

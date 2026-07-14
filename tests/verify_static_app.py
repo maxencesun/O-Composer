@@ -150,7 +150,7 @@ def verify_app_files() -> None:
         assert token in app_shell + map_view, f"mandatory and optional crossing points must support interactive rotation: {token}"
     assert "ctx.ellipse(center.x, center.y - rim.y * u" in (ROOT / "src" / "ui" / "course-symbols.js").read_text(encoding="utf-8"), "water symbol must include the complete cup-rim ellipse"
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
-    assert 'export const APP_VERSION = "0.0.2"' in app_config, "app version should be centrally maintained at 0.0.2"
+    assert 'export const APP_VERSION = "0.0.3"' in app_config, "app version should be centrally maintained at 0.0.3"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
     assert 'export const APP_CODE_VERSION = "20260715-36"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"

@@ -32,7 +32,7 @@ import { buildControlDescriptionRows, specialVisibleForCourse } from "../src/dom
 import { effectivePrintArea, setPrintArea } from "../src/domain/print-area.js";
 import { serializeNativePpen, serializeOcp } from "../src/domain/ppen-parser.js";
 import { addControlAt, addExistingControlToCourse, addVariationAtCourseControl, deleteSelection, duplicateCourse } from "../src/domain/actions.js";
-import { allCourseVariations } from "../src/domain/relay-variations.js";
+import { allCourseVariations, relayBranchEffectiveLegs, relayBranchGroups } from "../src/domain/relay-variations.js";
 import { createAppShellSelectionEditorMethods } from "../src/ui/app-shell-selection-editor-methods.js";
 import { createAppShellCommandMethods } from "../src/ui/app-shell-command-methods.js";
 import { createAppShellDialogMethods } from "../src/ui/app-shell-dialog-methods.js";
@@ -266,6 +266,10 @@ forkModel.controls = [
 const forkCourse = createCourse(1, "Fork", "normal", 1);
 forkCourse.firstCourseControl = 1;
 forkCourse.pageBreakFormula = 'exchange: variation == "A" && code == "32"';
+forkCourse.relay = { ...forkCourse.relay, legs: 3, branches: [
+  { branch: "A", legs: [1, 3] },
+  { branch: "B", legs: [2] }
+] };
 forkModel.courses = [forkCourse];
 forkModel.courseControls = [
   createCourseControl(1, 1, 2),
@@ -282,8 +286,63 @@ const routeB = { variationChoices: [5], variationCode: "B" };
 const pythonRouteA = buildPythonPageCourse(courseView(forkModel, 1, { ...routeA, page: "global" }), forkCourse, routeA);
 assert.equal(pythonRouteA.branch_name, "A");
 assert.deepEqual(pythonRouteA.control_number, ["31", "32", "34"]);
+assert.deepEqual(pythonRouteA.point_branch, ["", "A", ""],
+  "Python receives the immediate branch containing each normal control");
+assert.deepEqual(pythonRouteA.point_allowed_legs, [[], [1, 3], []],
+  "Python receives the allowed relay legs for every point's branch");
+assert.deepEqual(pythonRouteA.allowed_legs, [1, 3],
+  "Python receives the allowed legs for the complete concrete route");
 assert.deepEqual(pythonRouteA.point, [1, 2, 3]);
 assert.equal(pythonRouteA.course_name, "Fork");
+
+const nestedBranchModel = createBlankEvent();
+nestedBranchModel.controls = [
+  createControl(1, "start", { x: 0, y: 0 }),
+  createControl(2, "normal", { x: 10, y: 0 }, "31"),
+  createControl(3, "normal", { x: 20, y: 0 }, "32"),
+  createControl(4, "normal", { x: 30, y: -5 }, "33"),
+  createControl(5, "normal", { x: 30, y: 5 }, "34"),
+  createControl(6, "normal", { x: 40, y: 0 }, "35"),
+  createControl(7, "normal", { x: 25, y: 10 }, "36"),
+  createControl(8, "normal", { x: 50, y: 0 }, "37"),
+  createControl(9, "finish", { x: 60, y: 0 })
+];
+const nestedBranchCourse = createCourse(1, "Nested", "normal", 1);
+nestedBranchCourse.firstCourseControl = 1;
+nestedBranchCourse.relay = { ...nestedBranchCourse.relay, legs: 3, branches: [
+  { branch: "A", legs: [1, 2] },
+  { branch: "C", legs: [2, 3] }
+] };
+nestedBranchModel.courses = [nestedBranchCourse];
+nestedBranchModel.courseControls = [
+  createCourseControl(1, 1, 2),
+  { ...createCourseControl(2, 2, 11), variation: "fork", variationEnd: 11, variationCourseControls: [3, 9] },
+  createCourseControl(3, 2, 4),
+  { ...createCourseControl(4, 3, 8), variation: "fork", variationEnd: 8, variationCourseControls: [5, 7] },
+  createCourseControl(5, 3, 6),
+  createCourseControl(6, 4, 8),
+  createCourseControl(7, 3, 12),
+  createCourseControl(12, 5, 8),
+  createCourseControl(8, 6, 11),
+  createCourseControl(9, 2, 10),
+  createCourseControl(10, 7, 11),
+  createCourseControl(11, 8, 13),
+  createCourseControl(13, 9, null)
+];
+const nestedRows = courseView(nestedBranchModel, 1, {
+  variationChoices: [3, 5],
+  variationCode: "AC",
+  page: "global"
+});
+const nestedPythonCourse = buildPythonPageCourse(nestedRows, nestedBranchCourse, { variationCode: "AC" });
+assert.deepEqual(nestedPythonCourse.control_number, ["31", "32", "33", "35", "37"]);
+assert.deepEqual(nestedPythonCourse.point_branch, ["", "A", "C", "A", ""],
+  "nested routes restore the outer branch after an inner join and clear it after the outer join");
+assert.deepEqual(nestedPythonCourse.point_allowed_legs, [[], [1, 2], [2], [1, 2], []],
+  "nested point leg lists apply inherited parent-branch restrictions");
+assert.deepEqual(nestedPythonCourse.allowed_legs, [2],
+  "the complete nested route intersects every selected branch restriction");
+
 assert.equal(coursePageCount(forkModel, 1, routeA), 2, "a formula is evaluated on a real A branch traversal");
 assert.equal(coursePageCount(forkModel, 1, routeB), 1, "the same formula can leave the B branch on one page");
 assert.equal(courseView(forkModel, 1, { ...routeA, page: "global" })
@@ -506,6 +565,34 @@ assert.match(fixedEditorHtml, /data-field="course\.pageBreakFormula"/, "fixed co
 assert.match(fixedEditorHtml, /def advanced_flip_exchange\(course\)/);
 assert.match(fixedEditorHtml, /course\.control_number\[i\]/);
 assert.match(fixedEditorHtml, /Use sample Python code/);
+assert.match(fixedEditorHtml, /data-course-page-copy-ai-prompt/, "the advanced editor offers a one-click AI prompt");
+assert.match(fixedEditorHtml, /data-course-page-ai-prompt/, "the generated AI prompt can be inspected before copying");
+const fixedAIPrompt = editor.coursePageAIPrompt(editorModel.courses[0], [{
+  branchName: "",
+  controlNumbers: ["31", "32"]
+}]);
+assert.match(fixedAIPrompt, /def advanced_flip_exchange\(course\):/);
+assert.match(fixedAIPrompt, /course is a types\.SimpleNamespace/);
+assert.match(fixedAIPrompt, /control_number: list\[str\]/);
+assert.match(fixedAIPrompt, /point_allowed_legs: list\[list\[int\]\]/);
+assert.match(fixedAIPrompt, /Return type: tuple\[list\[bool \| int\], list\[bool \| int\]\]/);
+assert.match(fixedAIPrompt, /O-Composer designs orienteering courses/,
+  "the copied prompt explains the map flip/exchange domain before giving the interface");
+assert.match(fixedAIPrompt, /course\.branch_name/);
+assert.match(fixedAIPrompt, /return flip_list, exchange_list/);
+assert.match(fixedAIPrompt, /"control_number":"31"/,
+  "the copied prompt includes the current concrete route data");
+const compactAIPrompt = editor.coursePageAIPrompt(editorModel.courses[0], Array.from({ length: 5 }, (_route, routeIndex) => ({
+  branchName: `ROUTE_${routeIndex + 1}`,
+  allowedLegs: [routeIndex + 1],
+  controlNumbers: Array.from({ length: 20 }, (_point, pointIndex) => String(100 + routeIndex * 20 + pointIndex)),
+  pointBranches: Array.from({ length: 20 }, (_point, pointIndex) => pointIndex > 2 && pointIndex < 17 ? `B${routeIndex + 1}` : ""),
+  pointAllowedLegs: Array.from({ length: 20 }, () => [routeIndex + 1])
+})));
+assert.match(compactAIPrompt, /"route_count":5/);
+assert.match(compactAIPrompt, /"omitted_routes":2/);
+assert.match(compactAIPrompt, /"omitted_points":14/);
+assert.ok(compactAIPrompt.length < 6000, "the copied AI prompt stays compact for courses with many route lists");
 assert.match(fixedEditorHtml, /Course data available to Python/);
 assert.match(fixedEditorHtml, /1:31/);
 assert.match(fixedEditorHtml, /Python code can produce map exchanges and map flips at controls/);
@@ -535,14 +622,23 @@ const branchEditorMethods = createAppShellSelectionEditorMethods({
   courseHasVariations: () => true,
   courseView,
   allCourseVariations,
+  relayBranchEffectiveLegs,
+  relayBranchGroups,
   escapeHtml: escape,
   escapeAttr: escape
 });
-const branchEditorHtml = ({ ...branchEditorMethods, t: translate }).coursePageEditor(forkModel, forkCourse);
+const branchEditor = { ...branchEditorMethods, t: translate };
+const branchEditorHtml = branchEditor.coursePageEditor(forkModel, forkCourse);
 assert.doesNotMatch(branchEditorHtml, /data-course-page-add-toggle/, "branch courses keep the formula-only editor");
 assert.doesNotMatch(branchEditorHtml, /value="standalone-exchange"/, "advanced paging does not offer standalone map exchanges");
 assert.match(branchEditorHtml, /<code role="cell">A<\/code>/, "the advanced editor exposes concrete branch names");
 assert.match(branchEditorHtml, /2:32/, "the advanced editor exposes each branch point position and code");
+const nestedPromptTree = branchEditor.coursePageBranchTree(nestedBranchModel, nestedBranchCourse);
+assert.match(nestedPromptTree, /course\n└─ fork@course_control:2/);
+assert.match(nestedPromptTree, /├─ A \[allowed_legs=\[1,2\]\][\s\S]*└─ fork@course_control:4[\s\S]*├─ C \[allowed_legs=\[2\]\]/,
+  "the AI prompt tree nests child forks under their parent branch and shows effective legs");
+const nestedTreePrompt = branchEditor.coursePageAIPrompt(nestedBranchCourse, [], { branchTree: nestedPromptTree });
+assert.match(nestedTreePrompt, /Branch tree \(indentation shows parent\/child branches\):[\s\S]*course[\s\S]*course_control:4/);
 
 const dialogMethods = createAppShellDialogMethods({});
 let focusedDraft = false;
@@ -568,6 +664,14 @@ const actionManager = {
 const addCancel = { closest: selector => selector === ".course-page-action-manager" ? actionManager : null };
 const clickTarget = matches => ({ closest: selector => matches[selector] || null });
 const dialogApp = { ...dialogMethods };
+const copyPromptButton = {};
+let copiedPromptButton = null;
+dialogApp.copyCoursePageAIPrompt = button => { copiedPromptButton = button; };
+dialogApp.handleSelectionPanelClick({
+  target: clickTarget({ "[data-course-page-copy-ai-prompt]": copyPromptButton }),
+  preventDefault: () => {}
+});
+assert.equal(copiedPromptButton, copyPromptButton, "the AI prompt copy button uses delegated panel clicks");
 dialogApp.handleSelectionPanelClick({
   target: clickTarget({ "[data-course-page-add-toggle]": addToggle }),
   preventDefault: () => {}
@@ -621,6 +725,7 @@ dialogApp.handleCommandDialogClick({
       "[data-course-page-add-cancel]",
       "[data-course-page-add]",
       "[data-course-page-python-example]",
+      "[data-course-page-copy-ai-prompt]",
       "[data-course-page-remove-standalone]",
       "[data-course-page-remove]"
     ].join(",")]: pythonExampleButton,
@@ -758,6 +863,30 @@ assert.equal(commandApp.openCoursePageSettings(), true, "the independent tool op
 assert.equal(commandApp.coursePageSettingsCourseId, 1);
 assert.equal(openedPageSettings?.coursePageSettings, true);
 assert.match(openedPageSettings?.body || "", /data-settings-course="1"/);
+const pageDialogSyncModel = structuredClone(mutuallyExclusiveModel);
+pageDialogSyncModel.courses.push({ ...structuredClone(pageDialogSyncModel.courses[0]), id: 2, name: "Course 2" });
+pageDialogSyncModel.courses.push({ ...structuredClone(pageDialogSyncModel.courses[0]), id: 3, name: "Score", kind: "score" });
+let syncedPageDialogCourseId = 0;
+let closedUnsupportedPageDialog = false;
+const pageDialogSyncApp = {
+  ...commandMethods,
+  activeCommandDialog: { coursePageSettings: true },
+  coursePageSettingsCourseId: 1,
+  refreshCoursePageSettingsDialog() { syncedPageDialogCourseId = this.coursePageSettingsCourseId; },
+  closeCommandDialog() { closedUnsupportedPageDialog = true; }
+};
+assert.equal(pageDialogSyncApp.syncCoursePageSettingsDialogToSelectedCourse({
+  eventModel: pageDialogSyncModel,
+  ui: { selectedCourseId: 2 }
+}), true);
+assert.equal(syncedPageDialogCourseId, 2,
+  "an open map-page dialog follows the newly selected normal course");
+assert.equal(pageDialogSyncApp.syncCoursePageSettingsDialogToSelectedCourse({
+  eventModel: pageDialogSyncModel,
+  ui: { selectedCourseId: 3 }
+}), false);
+assert.equal(closedUnsupportedPageDialog, true,
+  "switching to a course type without map pages closes the stale dialog");
 assert.equal(commandApp.changeFixedCoursePageAction({ sourceId: 5, targetId: 5, kind: "exchange" }), true,
   "the independent settings remain bound to the course without replacing the Adjustment selection");
 assert.equal(commandState.ui.selection.type, "control");

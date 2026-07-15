@@ -672,6 +672,34 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   -webkit-overflow-scrolling: touch;
 }
 
+.constants-course-properties-table {
+  table-layout: fixed;
+}
+
+.constants-course-property-name-column {
+  width: 18%;
+}
+
+.constants-course-property-type-column {
+  width: 22%;
+}
+
+.constants-course-property-value-column {
+  width: 60%;
+}
+
+.constants-course-properties-table td {
+  overflow-wrap: anywhere;
+}
+
+.constants-course-properties-table code {
+  font-size: 11px;
+}
+
+.constants-course-property-value {
+  overflow-wrap: anywhere;
+}
+
 .variation-panel {
   flex: 1 1 auto;
   display: flex;
@@ -1322,6 +1350,60 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.page-ai-prompt {
+  display: grid;
+  gap: 7px;
+  margin: 9px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel) 88%, var(--accent) 12%);
+}
+
+.page-ai-prompt-intro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.page-ai-prompt-intro p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.page-ai-prompt-intro button {
+  align-self: flex-start;
+  flex: 0 0 auto;
+}
+
+.page-ai-prompt details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.page-ai-prompt-text {
+  width: 100%;
+  min-height: 210px;
+  margin-top: 7px;
+  resize: vertical;
+  white-space: pre;
+  overflow: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.page-ai-prompt-status {
+  min-height: 1em;
+  margin: 0;
+  color: #285d4f;
+  font-size: 12px;
 }
 
 .page-formula-course-data {

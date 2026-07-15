@@ -1,5 +1,6 @@
-import { courseLength, courseLengthRange, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js?v=20260715-40";
-import { courseHasVariations, relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js?v=20260715-40";
+import { courseLength, courseLengthRange, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js?v=20260716-41";
+import { buildPythonPageCourse } from "./course-pages.js?v=20260716-41";
+import { allCourseVariations, courseHasVariations, relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js?v=20260716-41";
 
 export const BUILTIN_CONSTANTS = Object.freeze([
   { name: "\\event", description: "Event name" },
@@ -13,6 +14,24 @@ export const BUILTIN_CONSTANTS = Object.freeze([
   { name: "\\teamno", description: "Team number" },
   { name: "\\leg", description: "Relay leg" },
   { name: "\\variation", description: "Variation" }
+]);
+
+export const PYTHON_COURSE_PROPERTIES = Object.freeze([
+  { name: "course.length", description: "Number of normal controls", type: "int", key: "length" },
+  { name: "course.control_number", description: "Control codes in route order", type: "list[str]", key: "control_number" },
+  { name: "course.point_branch", description: "Branch containing each point; empty on the shared route", type: "list[str]", key: "point_branch" },
+  { name: "course.point_allowed_legs", description: "Allowed relay legs for each point's branch; empty on the shared route", type: "list[list[int]]", key: "point_allowed_legs" },
+  { name: "course.allowed_legs", description: "Allowed relay legs for the complete concrete route; empty when unrestricted", type: "list[int]", key: "allowed_legs" },
+  { name: "course.point", description: "One-based point positions", type: "list[int]", key: "point" },
+  { name: "course.ordinal", description: "Course row ordinals", type: "list[int]", key: "ordinal" },
+  { name: "course.course_control", description: "Internal course-control IDs", type: "list[int]", key: "course_control" },
+  { name: "course.control_id", description: "Internal control IDs", type: "list[int]", key: "control_id" },
+  { name: "course.branch_name", description: "Complete branch name; empty for a fixed route", type: "str", key: "branch_name" },
+  { name: "course.variation", description: "Alias of course.branch_name", type: "str", key: "variation" },
+  { name: "course.course_name", description: "Course name", type: "str", key: "course_name" },
+  { name: "course.course_id", description: "Internal course ID", type: "int", key: "course_id" },
+  { name: "course.team", description: "Relay team number; 0 outside a relay context", type: "int", key: "team" },
+  { name: "course.leg", description: "Relay leg number; 0 outside a relay context", type: "int", key: "leg" }
 ]);
 
 export function ensureEventConstants(eventModel) {
@@ -87,6 +106,7 @@ export function updateCustomConstant(eventModel, index, field, value) {
 
 export function constantRowsForView(eventModel, ui = {}) {
   const builtins = builtinConstantsForView(eventModel, ui);
+  const courseProperties = pythonCoursePropertiesForView(eventModel, ui);
   const resolved = resolveConstantMap(eventModel, ui);
   const custom = normalizeCustomConstants(eventModel?.event?.constants || []).map(constant => ({
     ...constant,
@@ -94,7 +114,18 @@ export function constantRowsForView(eventModel, ui = {}) {
     value: resolved.get(constant.name)?.display || "",
     unit: ""
   }));
-  return { builtins, custom };
+  return { builtins, courseProperties, custom };
+}
+
+export function pythonCoursePropertiesForView(eventModel, ui = {}) {
+  const selectedCourseId = ui?.selectedCourseId || "all";
+  const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
+  if (!course) return [];
+  const inputs = pythonCourseInputsForView(eventModel, course, ui);
+  return PYTHON_COURSE_PROPERTIES.map(property => ({
+    ...property,
+    value: summarizePythonProperty(inputs, property.key)
+  }));
 }
 
 export function resolveTextConstants(text, eventModel, ui = {}) {
@@ -224,6 +255,54 @@ function courseDisplayOptionsForConstants(eventModel, ui = {}) {
     return variation ? { variationChoices: variation.choices } : {};
   }
   return {};
+}
+
+function pythonCourseInputsForView(eventModel, course, ui = {}) {
+  if (ui.variationMode === "variation") {
+    const variation = variationForCode(eventModel, course.id, ui.variationCode);
+    if (variation) return [pythonCourseInput(eventModel, course, variation, ui)];
+  }
+  if (ui.variationMode === "relay") {
+    const variation = relayVariationForLeg(eventModel, course.id, ui.relayTeam, ui.relayLeg);
+    if (variation) return [pythonCourseInput(eventModel, course, variation, ui)];
+  }
+  if (courseHasVariations(eventModel, course.id)) {
+    return allCourseVariations(eventModel, course.id)
+      .map(variation => pythonCourseInput(eventModel, course, variation, ui));
+  }
+  return [pythonCourseInput(eventModel, course, { code: "", choices: [] }, ui)];
+}
+
+function pythonCourseInput(eventModel, course, variation, ui = {}) {
+  const variationCode = String(variation?.code || "");
+  const relayTeam = ui.variationMode === "relay" ? Number(ui.relayTeam) || 0 : 0;
+  const relayLeg = ui.variationMode === "relay" ? Number(ui.relayLeg) || 0 : 0;
+  const options = {
+    variationChoices: variation?.choices || [],
+    variationCode,
+    relayTeam,
+    relayLeg,
+    page: "global"
+  };
+  return buildPythonPageCourse(courseView(eventModel, course.id, options), course, options);
+}
+
+function summarizePythonProperty(inputs, key) {
+  const values = (inputs || []).map(input => input?.[key]);
+  if (!values.length) return "";
+  const serialized = values.map(value => JSON.stringify(value ?? null));
+  const unique = [...new Set(serialized)];
+  if (unique.length === 1) return unique[0];
+  if (key === "length" || key === "team" || key === "leg") {
+    const numbers = values.map(Number).filter(Number.isFinite);
+    if (numbers.length) {
+      const min = Math.min(...numbers);
+      const max = Math.max(...numbers);
+      return min === max ? String(min) : `${min} – ${max}`;
+    }
+  }
+  if (unique.length <= 3 && unique.every(value => value.length <= 80)) return unique.join(" / ");
+  return `${unique[0]} … (×${unique.length})`;
 }
 
 function relayConstantsForView(eventModel, course, ui = {}) {

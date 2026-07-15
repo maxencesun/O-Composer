@@ -3,7 +3,7 @@ import {
   isPythonPageScript,
   pythonPageExecutionState,
   validatePythonPageScript
-} from "./python-page-script.js?v=20260715-40";
+} from "./python-page-script.js?v=20260716-41";
 
 const FORMULA_VARIABLES = new Set([
   "variation",
@@ -242,6 +242,13 @@ export function buildPythonPageCourse(rows, course, options = {}) {
   return {
     length: normalRows.length,
     control_number: normalRows.map(row => String(row.control?.code || "")),
+    point_branch: normalRows.map(row => String(row?.pointBranch || "")),
+    point_allowed_legs: normalRows.map(row => Array.isArray(row?.pointAllowedLegs)
+      ? row.pointAllowedLegs.map(value => Math.max(1, Math.round(Number(value) || 1)))
+      : []),
+    allowed_legs: Array.isArray(normalRows[0]?.routeAllowedLegs)
+      ? normalRows[0].routeAllowedLegs.map(value => Math.max(1, Math.round(Number(value) || 1)))
+      : [],
     point: normalRows.map((_row, index) => index + 1),
     ordinal: normalRows.map(row => finiteOrZero(row?.ordinal)),
     course_control: normalRows.map(row => finiteOrZero(row?.courseControl?.id)),

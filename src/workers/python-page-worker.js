@@ -1,7 +1,7 @@
 import {
   APP_RESOURCE_CACHE_NAME,
   APP_RESOURCE_URLS
-} from "../ui/app-shell-config.js?v=20260715-40";
+} from "../ui/app-shell-config.js?v=20260716-41";
 
 const pyodideBase = new URL("../../assets/pyodide/", import.meta.url);
 const PYODIDE_BASE_URL = pyodideBase.href;

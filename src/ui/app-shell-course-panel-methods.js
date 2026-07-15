@@ -1,5 +1,5 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260715-40";
-import { coursePageCount } from "../domain/course-service.js?v=20260715-40";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260716-41";
+import { coursePageCount } from "../domain/course-service.js?v=20260716-41";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -370,6 +370,9 @@ export function createAppShellCoursePanelMethods(deps) {
     if (shouldRenderCourse || shouldRenderReport || !this.renderKeys || this.renderKeys.eventModel !== keys.eventModel) {
       this.renderConstants(state);
     }
+    if (shouldRenderCourse) {
+      this.syncCoursePageSettingsDialogToSelectedCourse(state);
+    }
     this.renderStatus(state);
     this.syncUiModeToggle();
     const hasVariationAdjustment = !!state.ui.variationBranch || state.ui.variationAdjustmentMode === "relay-auto";
@@ -526,12 +529,19 @@ export function createAppShellCoursePanelMethods(deps) {
   renderConstants({ eventModel, ui }) {
     const panel = this.querySelector("#constantsPanel");
     if (!panel) return;
-    const { builtins, custom } = constantRowsForView(eventModel, ui);
+    const { builtins, courseProperties, custom } = constantRowsForView(eventModel, ui);
     const builtinRows = builtins.map(row => `
       <tr>
         <td><code>${escapeHtml(row.name)}</code></td>
         <td>${escapeHtml(this.t(row.description))}</td>
         <td>${escapeHtml(row.value || "")}</td>
+      </tr>
+    `).join("");
+    const coursePropertyRows = courseProperties.map(row => `
+      <tr>
+        <td><code>${escapeHtml(row.name)}</code></td>
+        <td><code>${escapeHtml(row.type)}</code> — ${escapeHtml(this.t(row.description))}</td>
+        <td class="constants-course-property-value"><code>${escapeHtml(row.value || "")}</code></td>
       </tr>
     `).join("");
     const customRows = custom.length ? custom.map((row, index) => `
@@ -552,6 +562,17 @@ export function createAppShellCoursePanelMethods(deps) {
         <thead><tr><th>${escapeHtml(this.t("Constant name"))}</th><th>${escapeHtml(this.t("Explanation"))}</th><th>${escapeHtml(this.t("Current value / range"))}</th></tr></thead>
         <tbody>${builtinRows}</tbody>
       </table>
+      <h3>${escapeHtml(this.t("Advanced map-page course properties"))}</h3>
+      <p class="muted">${escapeHtml(courseProperties.length
+        ? this.t("These Python properties are available as course attributes when advanced map-page code runs for each concrete route.")
+        : this.t("Select a course to inspect the Python properties available to advanced map-page code."))}</p>
+      ${courseProperties.length ? `
+        <table class="constants-table constants-course-properties-table">
+          <colgroup><col class="constants-course-property-name-column"><col class="constants-course-property-type-column"><col class="constants-course-property-value-column"></colgroup>
+          <thead><tr><th>${escapeHtml(this.t("Property"))}</th><th>${escapeHtml(this.t("Type and meaning"))}</th><th>${escapeHtml(this.t("Current value / range"))}</th></tr></thead>
+          <tbody>${coursePropertyRows}</tbody>
+        </table>
+      ` : ""}
       <h3>${escapeHtml(this.t("Custom constants"))}</h3>
       <table class="constants-table">
         <thead><tr><th>${escapeHtml(this.t("Constant name"))}</th><th>${escapeHtml(this.t("Explanation"))}</th><th>${escapeHtml(this.t("Value or expression"))}</th><th></th></tr></thead>

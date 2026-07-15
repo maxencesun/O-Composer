@@ -1,6 +1,96 @@
-import { coursePageCount } from "../domain/course-service.js?v=20260715-40";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-40";
-import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260715-40";
+import { coursePageCount } from "../domain/course-service.js?v=20260716-41";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260716-41";
+import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260716-41";
+
+function representativeIndexes(length, limit) {
+  const count = Math.max(0, Number(length) || 0);
+  const max = Math.max(1, Number(limit) || 1);
+  if (count <= max) return Array.from({ length: count }, (_value, index) => index);
+  return [...new Set(Array.from({ length: max }, (_value, index) =>
+    Math.round(index * (count - 1) / Math.max(1, max - 1))))];
+}
+
+function representativePointIndexes(route, limit = 6) {
+  const controls = route?.controlNumbers || [];
+  const branches = route?.pointBranches || [];
+  const count = controls.length;
+  if (count <= limit) return representativeIndexes(count, limit);
+  const candidates = [0, count - 1, 1, count - 2, Math.floor((count - 1) / 2)];
+  const seenBranches = new Set();
+  branches.forEach((branch, index) => {
+    const code = String(branch || "");
+    if (code && !seenBranches.has(code)) {
+      seenBranches.add(code);
+      candidates.push(index);
+    }
+  });
+  for (const index of representativeIndexes(count, limit)) candidates.push(index);
+  return [...new Set(candidates)]
+    .slice(0, limit)
+    .sort((a, b) => a - b);
+}
+
+function compactPromptRouteData(routeContexts = []) {
+  const routeIndexes = representativeIndexes(routeContexts.length, 3);
+  return routeIndexes.map(routeIndex => {
+    const route = routeContexts[routeIndex] || {};
+    const controls = route.controlNumbers || [];
+    const branches = route.pointBranches || [];
+    const pointLegs = route.pointAllowedLegs || [];
+    const pointIndexes = representativePointIndexes(route);
+    return {
+      branch_name: String(route.branchName || ""),
+      allowed_legs: route.allowedLegs || [],
+      length: controls.length,
+      representative_points: pointIndexes.map(index => ({
+        point: index + 1,
+        control_number: String(controls[index] || ""),
+        point_branch: String(branches[index] || ""),
+        point_allowed_legs: pointLegs[index] || []
+      })),
+      omitted_points: Math.max(0, controls.length - pointIndexes.length)
+    };
+  });
+}
+
+function formatPromptBranchTree(groups = [], relay = {}, effectiveLegsForBranch = () => []) {
+  if (!groups.length) return "";
+  const children = new Map();
+  for (const group of groups) {
+    const parent = group.parentPath?.[group.parentPath.length - 1];
+    const key = parent ? `${parent.groupId}:${parent.code}` : "root";
+    if (!children.has(key)) children.set(key, []);
+    children.get(key).push(group);
+  }
+  const showLegs = Number(relay?.legs) > 1 || (relay?.branches || []).length > 0;
+  const lines = ["course"];
+  const maxLines = 30;
+  let omitted = 0;
+  const push = line => {
+    if (lines.length < maxLines) lines.push(line);
+    else omitted += 1;
+  };
+  const renderGroups = (items, prefix) => {
+    items.forEach((group, groupIndex) => {
+      const groupLast = groupIndex === items.length - 1;
+      push(`${prefix}${groupLast ? "└─" : "├─"} ${group.kind || "fork"}@course_control:${group.forkCourseControl}`);
+      const groupPrefix = `${prefix}${groupLast ? "   " : "│  "}`;
+      (group.codes || []).forEach((rawCode, codeIndex) => {
+        const code = String(rawCode || "");
+        const branchLast = codeIndex === group.codes.length - 1;
+        const legs = showLegs ? effectiveLegsForBranch(code) : [];
+        push(`${groupPrefix}${branchLast ? "└─" : "├─"} ${code}${showLegs ? ` [allowed_legs=${JSON.stringify(legs)}]` : ""}`);
+        const nested = children.get(`${group.groupId}:${code}`) || [];
+        if (nested.length) {
+          renderGroups(nested, `${groupPrefix}${branchLast ? "   " : "│  "}`);
+        }
+      });
+    });
+  };
+  renderGroups(children.get("root") || [], "");
+  if (omitted) lines.push(`… (+${omitted} lines)`);
+  return lines.join("\n");
+}
 
 export function createAppShellSelectionEditorMethods(deps) {
   const {
@@ -97,6 +187,7 @@ export function createAppShellSelectionEditorMethods(deps) {
     relayBranchAllowedLegs,
     relayBranchDisplayLegs,
     relayBranchEffectiveLegs,
+    relayBranchGroups,
     relayBranchRestrictionIssues,
     relayBranchParentAllowedLegs,
     relayEntryLabel,
@@ -275,6 +366,93 @@ export function createAppShellSelectionEditorMethods(deps) {
   return {
   coursePagePythonExample() {
     return PAGE_PYTHON_SAMPLE;
+  },
+  coursePageBranchTree(eventModel, course) {
+    if (!course || typeof relayBranchGroups !== "function") return "";
+    const groups = relayBranchGroups(eventModel, course.id);
+    const maxLegs = Math.max(1, Math.round(Number(course.relay?.legs) || 1));
+    return formatPromptBranchTree(groups, course.relay || {}, code =>
+      relayBranchEffectiveLegs(groups, course.relay?.branches || [], code, maxLegs));
+  },
+  coursePageAIPrompt(course, routeContexts = [], options = {}) {
+    const routeData = compactPromptRouteData(routeContexts);
+    const currentCourse = JSON.stringify({
+      course_name: String(course?.name || ""),
+      course_id: Number(course?.id) || 0,
+      route_count: routeContexts.length,
+      representative_routes: routeData,
+      omitted_routes: Math.max(0, routeContexts.length - routeData.length)
+    });
+    const branchTree = String(options.branchTree || "").trim();
+    const englishBranchTree = branchTree
+      ? `\nBranch tree (indentation shows parent/child branches):\n${branchTree}\n`
+      : "";
+    const chineseBranchTree = branchTree
+      ? `\n分支树（缩进表示父子分支）：\n${branchTree}\n`
+      : "";
+    const english = `Write O-Composer advanced map-page Python for my requirement below. Return only paste-ready Python source, without Markdown or explanation.
+
+Background: O-Composer designs orienteering courses. A map flip turns over the current map; a map exchange collects another map. Either action creates a page boundary after a normal control. Fork/relay courses are expanded into concrete routes, and this function runs independently for each one.
+
+Required entry: def advanced_flip_exchange(course): where course is a types.SimpleNamespace.
+Interface types:
+- course.length: int — number of normal controls.
+- Per-point fields are parallel lists of length course.length, indexed by zero-based i: control_number: list[str]; point_branch: list[str] ("" on shared route); point_allowed_legs: list[list[int]] ([] on shared route); point: list[int] (one-based positions); ordinal: list[int]; course_control: list[int]; control_id: list[int].
+- Route fields: branch_name: str (complete branch code, "" for fixed); variation: str (alias); allowed_legs: list[int] ([] means unrestricted/not applicable); course_name: str; course_id: int; team: int; leg: int (team/leg are 0 outside relay context).
+- Return type: tuple[list[bool | int], list[bool | int]] named (flip_list, exchange_list). Both lists must have course.length items; integer items may only be 0 or 1.
+flip_list[i] flips after point i; exchange_list[i] exchanges after it. Never set both, and do not act after the last point. Standard-library imports are allowed; no third-party/browser/editor APIs; 3-second limit. Standalone exchanges are unsupported here.
+
+Example:
+def advanced_flip_exchange(course):
+    flip_list = [False] * course.length
+    exchange_list = [False] * course.length
+    for i, code in enumerate(course.control_number):
+        if i >= course.length - 1:
+            continue
+        if str(code) == "32" and course.point_branch[i] == "A":
+            flip_list[i] = True
+        elif course.branch_name == "ABCD" and course.point[i] == 6:
+            exchange_list[i] = True
+    return flip_list, exchange_list
+
+Representative current data only (omitted counts mean other routes/points exist):
+${currentCourse}
+${englishBranchTree}
+
+My requirement:
+[Add the desired flip/exchange rules here]`;
+    if (this.language !== "zh") return english;
+    return `请根据末尾需求编写 O-Composer 高级翻图/换图 Python。只返回可直接粘贴的 Python 源码，不要 Markdown 和解释。
+
+背景：O-Composer 用于设计定向越野线路。“翻图”是在检查点后翻到当前地图背面，“换图”是在检查点后领取另一张地图，两者都会形成页面边界。分支/接力线路会先展开为具体线路，本函数对每条具体线路独立运行一次。
+
+入口必须是 def advanced_flip_exchange(course):，其中 course 的类型是 types.SimpleNamespace。
+接口类型：
+- course.length: int — 普通检查点数量。
+- 以下逐点字段都是长度为 course.length 的平行列表，使用从 0 开始的索引 i：control_number: list[str]；point_branch: list[str]（共用主线为 ""）；point_allowed_legs: list[list[int]]（共用主线为 []）；point: list[int]（值从 1 开始）；ordinal: list[int]；course_control: list[int]；control_id: list[int]。
+- 线路字段：branch_name: str（完整分支名，固定线路为 ""）；variation: str（别名）；allowed_legs: list[int]（[] 表示无限制或不适用）；course_name: str；course_id: int；team: int；leg: int（非接力上下文中 team/leg 为 0）。
+- 返回类型：tuple[list[bool | int], list[bool | int]]，即 (flip_list, exchange_list)。两个列表长度必须为 course.length；整数元素只能是 0 或 1。
+flip_list[i] 表示该点后翻图，exchange_list[i] 表示该点后换图。同一点不能同时命中，最后一点后不要产生动作。可用标准库，不可用第三方包、浏览器或编辑器 API，限时 3 秒；这里不能创建独立换图点。
+
+例子：
+def advanced_flip_exchange(course):
+    flip_list = [False] * course.length
+    exchange_list = [False] * course.length
+    for i, code in enumerate(course.control_number):
+        if i >= course.length - 1:
+            continue
+        if str(code) == "32" and course.point_branch[i] == "A":
+            flip_list[i] = True
+        elif course.branch_name == "ABCD" and course.point[i] == 6:
+            exchange_list[i] = True
+    return flip_list, exchange_list
+
+当前数据仅提供代表性抽样（omitted 计数表示还有其他线路或检查点）：
+${currentCourse}
+${chineseBranchTree}
+
+我的具体需求：
+[在这里补充希望在哪些条件下翻图或换图]`;
   },
   renderSelection({ eventModel, ui }) {
     const panel = this.querySelector("#selectionPanel");
@@ -764,6 +942,17 @@ export function createAppShellSelectionEditorMethods(deps) {
           .map((row, index) => `${index + 1}:${row.control.code || "?"}`);
         return {
           branch: variation.code || this.t("Fixed route"),
+          branchName: variation.code || "",
+          controlNumbers: rows
+            .filter(row => row.control?.kind === "normal")
+            .map(row => String(row.control.code || "")),
+          pointBranches: rows
+            .filter(row => row.control?.kind === "normal")
+            .map(row => String(row.pointBranch || "")),
+          pointAllowedLegs: rows
+            .filter(row => row.control?.kind === "normal")
+            .map(row => Array.isArray(row.pointAllowedLegs) ? row.pointAllowedLegs : []),
+          allowedLegs: Array.isArray(rows[0]?.routeAllowedLegs) ? rows[0].routeAllowedLegs : [],
           points,
           pageCount: coursePageCount(eventModel, course.id, {
             variationChoices: variation.choices,
@@ -776,6 +965,9 @@ export function createAppShellSelectionEditorMethods(deps) {
       });
     const error = syntaxError || routeContexts.find(route => route.error)?.error || "";
     const pending = routeContexts.some(route => route.pending);
+    const aiPrompt = this.coursePageAIPrompt(course, routeContexts, {
+      branchTree: hasVariations ? this.coursePageBranchTree(eventModel, course) : ""
+    });
     const preview = !error && !pending && formula.trim()
       ? routeContexts.map(route => `${route.branch}: ${this.t("{count} pages", { count: route.pageCount })}`).join(" · ")
       : "";
@@ -787,8 +979,17 @@ export function createAppShellSelectionEditorMethods(deps) {
         </label>
       </div>
       <div class="button-row"><button type="button" class="secondary" data-course-page-python-example>${escapeHtml(this.t("Use sample Python code"))}</button></div>
-      <p class="muted">${escapeHtml(this.t("Paste a Python function named advanced_flip_exchange(course). Pyodide runs it in an isolated worker once for every concrete route. It must return (flip_list, exchange_list), with one item per normal control. Python standard-library imports are available; third-party packages are not downloaded automatically, and editor/browser APIs are not exposed."))}</p>
-      <p class="muted">${escapeHtml(this.t("The course object provides length, control_number, branch_name, point, ordinal, course_control, control_id, course_name, course_id, team, and leg. branch_name is the complete branch name such as ABCD."))}</p>
+      <div class="page-ai-prompt">
+        <div class="page-ai-prompt-intro">
+          <p>${escapeHtml(this.t("If you are not sure how to write this code, copy the prompt below, add your requirements, and send it to any AI model. The returned code can be pasted here directly."))}</p>
+          <button type="button" class="secondary" data-course-page-copy-ai-prompt>${escapeHtml(this.t("Copy AI prompt"))}</button>
+        </div>
+        <details>
+          <summary>${escapeHtml(this.t("View AI prompt"))}</summary>
+          <textarea class="page-ai-prompt-text" data-course-page-ai-prompt rows="14" readonly spellcheck="false" aria-label="${escapeAttr(this.t("AI prompt for advanced map pages"))}">${escapeHtml(aiPrompt)}</textarea>
+        </details>
+        <p class="page-ai-prompt-status" data-course-page-copy-status aria-live="polite"></p>
+      </div>
       ${formula.trim() && !pythonScript ? `<p class="page-formula-warning">${escapeHtml(this.t("This course uses the legacy formula syntax. It remains supported; replace it with Python code when you are ready."))}</p>` : ""}
       <p class="muted">${escapeHtml(this.t("Python code can produce map exchanges and map flips at controls. Standalone map exchanges must still be added with the simple settings or the Add menu."))}</p>
       <div class="page-formula-course-data">

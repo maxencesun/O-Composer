@@ -1,3 +1,10 @@
+import {
+  executePythonPageScript,
+  isPythonPageScript,
+  pythonPageExecutionState,
+  validatePythonPageScript
+} from "./python-page-script.js?v=20260715-40";
+
 const FORMULA_VARIABLES = new Set([
   "variation",
   "control",
@@ -72,6 +79,7 @@ export function compilePageBreakRules(source) {
 }
 
 export function validatePageBreakFormula(source) {
+  if (isPythonPageScript(source)) return validatePythonPageScript(source);
   try {
     compilePageBreakRules(source);
     return "";
@@ -85,6 +93,7 @@ export function validatePageBreakFormula(source) {
 export function remapPageBreakFormulaCourseControls(source, idMap) {
   const formula = String(source || "");
   if (!formula.trim() || !idMap?.get) return formula;
+  if (isPythonPageScript(formula)) return formula;
   let tokens;
   try {
     tokens = tokenizeFormula(formula);
@@ -121,9 +130,34 @@ export function remapPageBreakFormulaCourseControls(source, idMap) {
 export function coursePageLayout(rows, course, options = {}) {
   const sourceRows = Array.isArray(rows) ? rows : [];
   const formula = String(course?.pageBreakFormula || "").trim();
+  const pythonScript = isPythonPageScript(formula);
   let formulaResolver = () => "";
   let formulaError = "";
-  if (formula) {
+  let scriptFlips = [];
+  let scriptExchanges = [];
+  let scriptPending = false;
+  if (pythonScript) {
+    try {
+      const scriptCourse = buildPythonPageCourse(sourceRows, course, options);
+      const execution = pythonPageExecutionState(formula, scriptCourse);
+      if (execution.status === "error") throw new Error(execution.error);
+      if (execution.status !== "ready") scriptPending = true;
+      const result = execution.status === "ready" ? execution.result : [[], []];
+      if (!Array.isArray(result) || result.length !== 2 || !Array.isArray(result[0]) || !Array.isArray(result[1])) {
+        throw new Error("advanced_flip_exchange(course) must return (flip_list, exchange_list)");
+      }
+      [scriptFlips, scriptExchanges] = result;
+      if (!scriptPending && (scriptFlips.length !== scriptCourse.length || scriptExchanges.length !== scriptCourse.length)) {
+        throw new Error(`Returned lists must each contain ${scriptCourse.length} item(s)`);
+      }
+      const conflict = scriptFlips.findIndex((value, index) => !!value && !!scriptExchanges[index]);
+      if (conflict >= 0) throw new Error(`Point ${conflict + 1} cannot be both a map flip and a map exchange`);
+    }
+    catch (error) {
+      formulaError = error?.message || String(error);
+    }
+  }
+  else if (formula) {
     try {
       formulaResolver = compilePageBreakRules(formula);
     }
@@ -146,7 +180,10 @@ export function coursePageLayout(rows, course, options = {}) {
 
     const courseControl = row?.courseControl;
     const explicitKind = courseControlMapChangeKind(courseControl);
-    const formulaKind = normal && !formulaError ? formulaResolver({
+    const scriptIndex = normalControlIndex - 1;
+    const formulaKind = normal && !formulaError && pythonScript
+      ? (scriptFlips[scriptIndex] ? "flip" : scriptExchanges[scriptIndex] ? "exchange" : "")
+      : normal && !formulaError ? formulaResolver({
       variation,
       control: normalControlIndex,
       point: normalControlIndex,
@@ -156,7 +193,7 @@ export function coursePageLayout(rows, course, options = {}) {
       index: index + 1,
       team,
       leg
-    }) : "";
+      }) : "";
 
     // A terminal exchange has no following map part. Ignore it for paging so
     // an accidental flag cannot create a blank trailing page.
@@ -184,7 +221,37 @@ export function coursePageLayout(rows, course, options = {}) {
     breakKinds,
     pages,
     pageCount: Math.max(1, pages.length),
-    formulaError
+    formulaError,
+    formulaPending: scriptPending
+  };
+}
+
+export async function preparePythonPageLayout(rows, course, options = {}) {
+  const source = String(course?.pageBreakFormula || "").trim();
+  if (!isPythonPageScript(source)) return coursePageLayout(rows, course, options);
+  const scriptCourse = buildPythonPageCourse(rows, course, options);
+  await executePythonPageScript(source, scriptCourse);
+  return coursePageLayout(rows, course, options);
+}
+
+export function buildPythonPageCourse(rows, course, options = {}) {
+  const normalRows = (Array.isArray(rows) ? rows : []).filter(row => row?.control?.kind === "normal");
+  const branchName = String(options.variationCode || options.pageContext?.variation || "");
+  const team = finiteOrZero(options.relayTeam ?? options.pageContext?.team);
+  const leg = finiteOrZero(options.relayLeg ?? options.pageContext?.leg);
+  return {
+    length: normalRows.length,
+    control_number: normalRows.map(row => String(row.control?.code || "")),
+    point: normalRows.map((_row, index) => index + 1),
+    ordinal: normalRows.map(row => finiteOrZero(row?.ordinal)),
+    course_control: normalRows.map(row => finiteOrZero(row?.courseControl?.id)),
+    control_id: normalRows.map(row => finiteOrZero(row?.control?.id)),
+    branch_name: branchName,
+    variation: branchName,
+    course_name: String(course?.name || ""),
+    course_id: finiteOrZero(course?.id),
+    team,
+    leg
   };
 }
 
@@ -220,7 +287,8 @@ export function rowsForCoursePage(rows, course, options = {}) {
       suppressControlSymbol: endsAtExchange && row.control?.kind === "map-exchange",
       coursePage: selectedPage,
       coursePageCount: layout.pageCount,
-      pageFormulaError: layout.formulaError
+      pageFormulaError: layout.formulaError,
+      pageFormulaPending: layout.formulaPending === true
     };
   });
 }

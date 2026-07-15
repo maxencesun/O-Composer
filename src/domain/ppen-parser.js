@@ -3,11 +3,12 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260715-38";
+} from "./event-model.js?v=20260715-40";
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260715-38";
+} from "./course-pages.js?v=20260715-40";
+import { isPythonPageScript } from "./python-page-script.js?v=20260715-40";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
@@ -812,11 +813,18 @@ function writeCourse(lines, course, level, saveOptions = {}) {
     node(lines, level + 1, "secondary-title", course.secondaryTitle);
   }
   if (!saveOptions.nativePpen && String(course.pageBreakFormula || "").trim()) {
-    // XML normalizes literal newlines inside attributes to spaces. Newlines are
-    // OR separators in the page formula language, so preserve their meaning as
-    // semicolons before placing the expression in the extension attribute.
-    const formula = String(course.pageBreakFormula).trim().replace(/\r\n?|\n/g, "; ");
-    empty(lines, level + 1, "page-breaks", { formula });
+    const source = String(course.pageBreakFormula).trim();
+    if (isPythonPageScript(source)) {
+      // Python indentation is semantic, so persist scripts as element text.
+      node(lines, level + 1, "page-breaks", source, { language: "python" });
+    }
+    else {
+      // XML normalizes literal newlines inside attributes to spaces. Newlines
+      // are OR separators in the legacy formula language, so preserve their
+      // meaning as semicolons inside the extension attribute.
+      const formula = source.replace(/\r\n?|\n/g, "; ");
+      empty(lines, level + 1, "page-breaks", { formula });
+    }
   }
   empty(lines, level + 1, "labels", { "label-kind": courseLabelKindForSave(course.labelKind, saveOptions) });
   if (course.firstCourseControl) {

@@ -33,9 +33,9 @@ export const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 export const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 export const APP_VERSION = "0.0.3";
-export const APP_CODE_VERSION = "20260715-38";
-// Keep the unchanged 9.7 MB font/symbol cache so this feature release does not
-// force existing users to download those large assets again.
+export const APP_CODE_VERSION = "20260715-40";
+// Keep the existing cache generation so returning users retain the 9.7 MB
+// fonts/symbols and only fetch the newly added Pyodide runtime entries.
 export const APP_CACHE_VERSION = "20260711-4";
 export const APP_RESOURCE_CACHE_PREFIX = "o-composer-resources-";
 export const APP_RESOURCE_CACHE_NAME = `${APP_RESOURCE_CACHE_PREFIX}${APP_CACHE_VERSION}`;
@@ -46,7 +46,12 @@ export const APP_RESOURCE_URLS = Object.freeze([
   "./assets/fonts/Roboto-Italic.ttf",
   "./assets/fonts/RobotoCondensed.ttf",
   "./assets/fonts/RobotoCondensed-Bold.ttf",
-  "./assets/fonts/Heiti.ttf"
+  "./assets/fonts/Heiti.ttf",
+  "./assets/pyodide/pyodide.mjs",
+  "./assets/pyodide/pyodide.asm.mjs",
+  "./assets/pyodide/pyodide.asm.wasm",
+  "./assets/pyodide/python_stdlib.zip",
+  "./assets/pyodide/pyodide-lock.json"
 ]);
 // Decoded byte sizes for the pinned resource files. GitHub Pages serves several
 // of these with gzip, so HTTP Content-Length is not the byte count exposed by a
@@ -58,7 +63,12 @@ export const APP_RESOURCE_BYTES = Object.freeze({
   "./assets/fonts/Roboto-Italic.ttf": 328_640,
   "./assets/fonts/RobotoCondensed.ttf": 300_664,
   "./assets/fonts/RobotoCondensed-Bold.ttf": 303_944,
-  "./assets/fonts/Heiti.ttf": 7_463_714
+  "./assets/fonts/Heiti.ttf": 7_463_714,
+  "./assets/pyodide/pyodide.mjs": 17_880,
+  "./assets/pyodide/pyodide.asm.mjs": 1_250_259,
+  "./assets/pyodide/pyodide.asm.wasm": 9_609_998,
+  "./assets/pyodide/python_stdlib.zip": 2_552_456,
+  "./assets/pyodide/pyodide-lock.json": 113_804
 });
 export const LANGUAGE_REFRESH_PARAM = "__oc_language_refresh";
 export const UI_MODE_KEY = "oComposerUiMode";

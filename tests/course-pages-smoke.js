@@ -16,11 +16,18 @@ import {
 } from "../src/domain/course-service.js";
 import { flaggedEndpointGapSuppression, isEntireLegFlagged, legFlagRange } from "../src/ui/map-view-helpers.js";
 import {
+  buildPythonPageCourse,
   compilePageBreakFormula,
   compilePageBreakRules,
+  preparePythonPageLayout,
   remapPageBreakFormulaCourseControls,
   validatePageBreakFormula
 } from "../src/domain/course-pages.js";
+import {
+  PAGE_PYTHON_SAMPLE,
+  executePythonPageScript,
+  validatePythonPageScript
+} from "../src/domain/python-page-script.js";
 import { buildControlDescriptionRows, specialVisibleForCourse } from "../src/domain/control-descriptions.js";
 import { effectivePrintArea, setPrintArea } from "../src/domain/print-area.js";
 import { serializeNativePpen, serializeOcp } from "../src/domain/ppen-parser.js";
@@ -30,6 +37,33 @@ import { createAppShellSelectionEditorMethods } from "../src/ui/app-shell-select
 import { createAppShellCommandMethods } from "../src/ui/app-shell-command-methods.js";
 import { createAppShellDialogMethods } from "../src/ui/app-shell-dialog-methods.js";
 import { Store } from "../src/state/store.js";
+
+assert.equal(validatePythonPageScript(PAGE_PYTHON_SAMPLE), "");
+assert.deepEqual(await executePythonPageScript(PAGE_PYTHON_SAMPLE, {
+  length: 4,
+  control_number: ["31", "32", "40", "32"],
+  branch_name: "ABCD"
+}), [[0, 0, 0, 1], [0, 0, 0, 0]], "the exact sample Python code executes without translation");
+
+const fullPythonScript = `def advanced_flip_exchange(course):
+    import statistics
+    numeric_codes = [int(code) for code in course.control_number]
+    threshold = statistics.median(numeric_codes)
+    flip_list = [index == 1 and code >= threshold for index, code in enumerate(numeric_codes)]
+    exchange_list = [False] * course.length
+    return flip_list, exchange_list`;
+assert.deepEqual(await executePythonPageScript(fullPythonScript, {
+  length: 3,
+  control_number: ["31", "40", "32"],
+  branch_name: "A"
+}), [[false, true, false], [false, false, false]],
+"Pyodide supports real Python comprehensions, enumerate, and standard-library imports");
+await assert.rejects(
+  executePythonPageScript(`def advanced_flip_exchange(course):
+    return [`, { length: 0, control_number: [] }),
+  /SyntaxError/,
+  "CPython syntax errors are returned to the advanced editor"
+);
 
 const model = createBlankEvent();
 model.event.title = "Paging test";
@@ -182,6 +216,27 @@ assert.equal(
   "invalid formulas remain byte-for-byte unchanged during duplication"
 );
 
+const repeatedCodeModel = structuredClone(model);
+repeatedCodeModel.courseControls.forEach(courseControl => {
+  courseControl.mapExchange = false;
+  courseControl.mapFlip = false;
+});
+repeatedCodeModel.courseControls.find(row => row.id === 3).nextCourseControl = 5;
+repeatedCodeModel.courseControls.push(createCourseControl(5, 3, 4));
+repeatedCodeModel.courses[0].pageBreakFormula = PAGE_PYTHON_SAMPLE;
+const repeatedPendingRows = courseView(repeatedCodeModel, 1, { page: "global" });
+await preparePythonPageLayout(repeatedPendingRows, repeatedCodeModel.courses[0], { page: "global" });
+const repeatedCodeRows = courseView(repeatedCodeModel, 1, { page: "global" });
+const repeated32Rows = repeatedCodeRows.filter(row => row.control?.code === "32");
+assert.equal(repeated32Rows.length, 2);
+assert.equal(repeated32Rows[0].pageBreakKind, "", "the first visit to code 32 does not match occurrence == 2");
+assert.equal(repeated32Rows[1].pageBreakKind, "flip", "the second visit to code 32 matches the sample logic");
+assert.equal(coursePageCount(repeatedCodeModel, 1), 2);
+const pythonOcp = serializeOcp(repeatedCodeModel);
+assert.match(pythonOcp, /<page-breaks language="python">def advanced_flip_exchange\(course\):/);
+assert.match(pythonOcp, /\n    flip_list=\[\]\n    exchange_list=\[\]/,
+  "OCP persistence preserves Python indentation in element text");
+
 model.event.standards.description = "2004";
 course.pageBreakFormula = "point == 1";
 const legacyDescription = buildControlDescriptionRows(model, 1, "symbols", { page: 1 });
@@ -224,11 +279,50 @@ forkModel.courseControls = [
 ];
 const routeA = { variationChoices: [3], variationCode: "A" };
 const routeB = { variationChoices: [5], variationCode: "B" };
+const pythonRouteA = buildPythonPageCourse(courseView(forkModel, 1, { ...routeA, page: "global" }), forkCourse, routeA);
+assert.equal(pythonRouteA.branch_name, "A");
+assert.deepEqual(pythonRouteA.control_number, ["31", "32", "34"]);
+assert.deepEqual(pythonRouteA.point, [1, 2, 3]);
+assert.equal(pythonRouteA.course_name, "Fork");
 assert.equal(coursePageCount(forkModel, 1, routeA), 2, "a formula is evaluated on a real A branch traversal");
 assert.equal(coursePageCount(forkModel, 1, routeB), 1, "the same formula can leave the B branch on one page");
 assert.equal(courseView(forkModel, 1, { ...routeA, page: "global" })
   .find(row => row.control.code === "32")?.pageBreakKind, "exchange");
 assert.deepEqual(courseView(forkModel, 1, { ...routeA, page: 2 }).map(row => row.control.code), ["32", "34", ""]);
+
+const branchPython = `def advanced_flip_exchange(course):
+    flip_list=[]
+    exchange_list=[]
+    for i in range(course.length):
+        flip=course.branch_name=="B" and course.control_number[i]=="33"
+        exchange=course.branch_name=="A" and course.control_number[i]=="32"
+        assert not flip*exchange
+        flip_list.append(flip)
+        exchange_list.append(exchange)
+    return flip_list,exchange_list`;
+forkCourse.pageBreakFormula = branchPython;
+await preparePythonPageLayout(courseView(forkModel, 1, { ...routeA, page: "global" }), forkCourse, { ...routeA, page: "global" });
+await preparePythonPageLayout(courseView(forkModel, 1, { ...routeB, page: "global" }), forkCourse, { ...routeB, page: "global" });
+assert.equal(courseView(forkModel, 1, { ...routeA, page: "global" })
+  .find(row => row.control.code === "32")?.pageBreakKind, "exchange",
+"Python receives branch A and its concrete control_number list");
+assert.equal(courseView(forkModel, 1, { ...routeB, page: "global" })
+  .find(row => row.control.code === "33")?.pageBreakKind, "flip",
+"the same Python function runs independently with branch B data");
+
+const invalidPythonModel = structuredClone(forkModel);
+invalidPythonModel.courses[0].pageBreakFormula = `def advanced_flip_exchange(course):
+    return [1],[0]`;
+await preparePythonPageLayout(courseView(invalidPythonModel, 1, { ...routeA, page: "global" }), invalidPythonModel.courses[0], { ...routeA, page: "global" });
+const invalidPythonRows = courseView(invalidPythonModel, 1, { ...routeA, page: "global" });
+assert.match(invalidPythonRows[0].pageFormulaError, /must each contain 3 item/,
+  "runtime result-shape errors are exposed on the concrete route");
+invalidPythonModel.courses[0].pageBreakFormula = `def advanced_flip_exchange(course):
+    return [1,0,0],[1,0,0]`;
+await preparePythonPageLayout(courseView(invalidPythonModel, 1, { ...routeA, page: "global" }), invalidPythonModel.courses[0], { ...routeA, page: "global" });
+assert.match(courseView(invalidPythonModel, 1, { ...routeA, page: "global" })[0].pageFormulaError,
+  /cannot be both a map flip and a map exchange/,
+  "Python cannot request two incompatible actions at one point");
 
 const migrationModel = structuredClone(model);
 const migrationCourse = migrationModel.courses[0];
@@ -256,6 +350,20 @@ const duplicate = duplicateCourse(migrationModel, 1, "Fork copy");
 const duplicateFormula = migrationModel.courses.find(candidate => candidate.id === duplicate.id)?.pageBreakFormula || "";
 assert.match(duplicateFormula, /^flip: courseControl == \d+\nexchange: courseControl == \d+$/);
 assert.notEqual(duplicateFormula, migrationCourse.pageBreakFormula, "duplicating a course remaps typed formula course-control IDs");
+
+const pythonMigrationModel = structuredClone(model);
+const pythonMigrationCourse = pythonMigrationModel.courses[0];
+pythonMigrationCourse.pageBreakFormula = PAGE_PYTHON_SAMPLE;
+pythonMigrationModel.courseControls.forEach(courseControl => {
+  courseControl.mapExchange = false;
+  courseControl.mapFlip = false;
+});
+pythonMigrationModel.courseControls[1].mapExchange = true;
+assert.ok(addVariationAtCourseControl(pythonMigrationModel, 1, 2, { branches: 2 }));
+assert.equal(pythonMigrationCourse.pageBreakFormula, PAGE_PYTHON_SAMPLE,
+  "adding a fork never rewrites pasted Python into the legacy formula language");
+assert.equal(pythonMigrationModel.courseControls[1].mapExchange, true,
+  "fixed actions remain explicit when a pasted Python script already exists");
 
 const standaloneExchange = createBlankEvent();
 standaloneExchange.controls = [
@@ -395,9 +503,12 @@ assert.match(addPointSelect, /value="5"/);
 assert.doesNotMatch(addPointSelect, /value="2"/, "already configured occurrences are excluded from Add");
 assert.match(fixedEditorHtml, /data-course-page-remove="2"/);
 assert.match(fixedEditorHtml, /data-field="course\.pageBreakFormula"/, "fixed courses also expose the advanced formula editor");
-assert.match(fixedEditorHtml, /flip: point == 8/);
-assert.match(fixedEditorHtml, /exchange: variation/);
-assert.match(fixedEditorHtml, /Advanced formulas support only map exchange and map flip at controls/);
+assert.match(fixedEditorHtml, /def advanced_flip_exchange\(course\)/);
+assert.match(fixedEditorHtml, /course\.control_number\[i\]/);
+assert.match(fixedEditorHtml, /Use sample Python code/);
+assert.match(fixedEditorHtml, /Course data available to Python/);
+assert.match(fixedEditorHtml, /1:31/);
+assert.match(fixedEditorHtml, /Python code can produce map exchanges and map flips at controls/);
 
 const emptyEditorModel = structuredClone(editorModel);
 emptyEditorModel.courseControls.forEach(courseControl => {
@@ -423,13 +534,15 @@ assert.match(fullEditorHtml, /data-course-page-add-toggle[^>]*disabled/);
 const branchEditorMethods = createAppShellSelectionEditorMethods({
   courseHasVariations: () => true,
   courseView,
-  allCourseVariations: () => [],
+  allCourseVariations,
   escapeHtml: escape,
   escapeAttr: escape
 });
 const branchEditorHtml = ({ ...branchEditorMethods, t: translate }).coursePageEditor(forkModel, forkCourse);
 assert.doesNotMatch(branchEditorHtml, /data-course-page-add-toggle/, "branch courses keep the formula-only editor");
 assert.doesNotMatch(branchEditorHtml, /value="standalone-exchange"/, "advanced paging does not offer standalone map exchanges");
+assert.match(branchEditorHtml, /<code role="cell">A<\/code>/, "the advanced editor exposes concrete branch names");
+assert.match(branchEditorHtml, /2:32/, "the advanced editor exposes each branch point position and code");
 
 const dialogMethods = createAppShellDialogMethods({});
 let focusedDraft = false;
@@ -493,6 +606,35 @@ dialogApp.handleSelectionPanelClick({
   preventDefault: () => {}
 });
 assert.equal(removedStandaloneId, "4");
+
+const pythonExampleButton = {};
+let appliedPythonExample = false;
+let refreshedPythonDialog = false;
+dialogApp.activeCommandDialog = { coursePageSettings: true };
+dialogApp.applyCoursePagePythonExample = () => { appliedPythonExample = true; };
+dialogApp.refreshCoursePageSettingsDialog = () => { refreshedPythonDialog = true; };
+dialogApp.handleCommandDialogClick({
+  target: clickTarget({
+    "[data-course-page-python-example]": pythonExampleButton,
+    [[
+      "[data-course-page-add-toggle]",
+      "[data-course-page-add-cancel]",
+      "[data-course-page-add]",
+      "[data-course-page-python-example]",
+      "[data-course-page-remove-standalone]",
+      "[data-course-page-remove]"
+    ].join(",")]: pythonExampleButton,
+    [[
+      "[data-course-page-add]",
+      "[data-course-page-python-example]",
+      "[data-course-page-remove-standalone]",
+      "[data-course-page-remove]"
+    ].join(",")]: pythonExampleButton
+  }),
+  preventDefault: () => {}
+});
+assert.equal(appliedPythonExample, true, "the sample button directly inserts the bundled Python function");
+assert.equal(refreshedPythonDialog, true);
 
 const mutuallyExclusiveModel = structuredClone(editorModel);
 mutuallyExclusiveModel.courses[0].pageBreakFormula = "";

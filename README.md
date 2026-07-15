@@ -94,6 +94,8 @@ The import status identifies the conversion mode. **Official Mapper WASM** uses 
 
 The Mapper WebAssembly bundle is built from [OpenOrienteering Mapper](https://github.com/OpenOrienteering/mapper) commit `064e6c943ee963277f1e930bda595723acd3e8c6`, which is distributed under the GNU GPL v3 or later. The browser bridge and corresponding source/provenance are retained with the project so the bundled engine remains traceable and rebuildable. O-Composer itself remains licensed under GNU AGPLv3.
 
+Advanced map-page Python uses the bundled [Pyodide](https://pyodide.org/) 314.0.2 runtime in `assets/pyodide/`. Its core files join the same post-startup background cache batch as the Mapper WebAssembly resources; execution happens in a dedicated worker with a three-second per-route timeout. Pyodide is distributed under the Mozilla Public License 2.0, and its pinned package provenance and hashes are retained beside the runtime files.
+
 ## Browser-Only Limits
 
 O-Composer intentionally runs in the browser, so some desktop-only capabilities are replaced or approximated:

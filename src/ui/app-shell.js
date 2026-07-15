@@ -1,4 +1,4 @@
-import { Store } from "../state/store.js?v=20260715-39";
+import { Store } from "../state/store.js?v=20260715-40";
 import {
   acceptCookieConsent,
   hasCookieConsent,
@@ -6,15 +6,19 @@ import {
   loadCachedSession,
   saveCachedPdfBasemap,
   saveCachedSession
-} from "../state/cookie-cache.js?v=20260715-39";
-import { parseOmap } from "../domain/omap-parser.js?v=20260715-39";
-import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260715-39";
+} from "../state/cookie-cache.js?v=20260715-40";
+import { parseOmap } from "../domain/omap-parser.js?v=20260715-40";
+import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260715-40";
+import {
+  preloadPythonPageRuntime,
+  subscribePythonPageResults
+} from "../domain/python-page-script.js?v=20260715-40";
 import {
   CONTROL_KINDS,
   cloneEvent,
   createBlankEvent,
   findById
-} from "../domain/event-model.js?v=20260715-39";
+} from "../domain/event-model.js?v=20260715-40";
 import {
   addControlAt,
   addExistingControlToCourse,
@@ -32,7 +36,7 @@ import {
   removeUnusedControls,
   setCourseOrder,
   updateControlDescription
-} from "../domain/actions.js?v=20260715-39";
+} from "../domain/actions.js?v=20260715-40";
 import {
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
@@ -52,7 +56,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=20260715-39";
+} from "../domain/control-descriptions.js?v=20260715-40";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -63,16 +67,16 @@ import {
   printAreaFromPoints,
   printAreaTargetLabel,
   setPrintArea
-} from "../domain/print-area.js?v=20260715-39";
-import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260715-39";
-import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260715-39";
+} from "../domain/print-area.js?v=20260715-40";
+import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260715-40";
+import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260715-40";
 import {
   measurementMetrics,
   formatGroundLength,
   formatPaperLength,
   formatGroundArea,
   formatPaperArea
-} from "../domain/measurement.js?v=20260715-39";
+} from "../domain/measurement.js?v=20260715-40";
 import {
   allControlsView,
   controlKindLabel,
@@ -95,18 +99,18 @@ import {
   getCourseControl,
   isTeamFreeCourseControl,
   sortedCourses
-} from "../domain/course-service.js?v=20260715-39";
+} from "../domain/course-service.js?v=20260715-40";
 import {
   exportCourseSvg,
   exportGpx,
   exportIofXml,
   exportKml,
   exportRouteGadgetXml
-} from "../domain/exporters.js?v=20260715-39";
+} from "../domain/exporters.js?v=20260715-40";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance
-} from "./course-symbols.js?v=20260715-39";
+} from "./course-symbols.js?v=20260715-40";
 import {
   allCourseVariations,
   courseHasVariations,
@@ -126,29 +130,29 @@ import {
   variationBranchCodeMap,
   variationDisplayLabel,
   variationForCode
-} from "../domain/relay-variations.js?v=20260715-39";
-import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260715-39";
-import { iconSvg } from "./icons.js?v=20260715-39";
-import { MapView } from "./map-view.js?v=20260715-39";
-import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260715-39";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260715-39";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260715-39";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260715-39";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260715-39";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260715-39";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260715-39";
-import { createAppShellMapImportMethods } from "./app-shell-map-import-methods.js?v=20260715-39";
-import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260715-39";
-import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260715-39";
+} from "../domain/relay-variations.js?v=20260715-40";
+import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260715-40";
+import { iconSvg } from "./icons.js?v=20260715-40";
+import { MapView } from "./map-view.js?v=20260715-40";
+import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260715-40";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260715-40";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260715-40";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260715-40";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260715-40";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260715-40";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260715-40";
+import { createAppShellMapImportMethods } from "./app-shell-map-import-methods.js?v=20260715-40";
+import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260715-40";
+import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260715-40";
 import {
   RENDER_QUALITIES,
   isRenderQualityId,
   readRenderQualityPreference,
   setRenderQualityPreference,
   renderQualityHighQuality
-} from "./render-quality.js?v=20260715-39";
-import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260715-39";
-import { debugWarn } from "./debug-log.js?v=20260715-39";
+} from "./render-quality.js?v=20260715-40";
+import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260715-40";
+import { debugWarn } from "./debug-log.js?v=20260715-40";
 
 import {
   PAPER_SIZES,
@@ -176,7 +180,7 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260715-39";
+} from "./app-shell-config.js?v=20260715-40";
 import {
   teamAddControlRoleFromSelection,
   objectForSelection,
@@ -320,7 +324,7 @@ import {
   formatBytes,
   escapeHtml,
   escapeAttr
-} from "./app-shell-helpers.js?v=20260715-39";
+} from "./app-shell-helpers.js?v=20260715-40";
 
 function updateBootLoadingProgress(percent, detail) {
   const determinate = percent !== null && percent !== undefined && Number.isFinite(Number(percent));
@@ -388,6 +392,18 @@ export class OComposerApp extends HTMLElement {
       .finally(() => this.completeInitialLoadingTask("session", this.t("Finalizing…")));
     this.store.subscribe(state => this.render(state));
     this.store.subscribe(state => this.scheduleSessionCache(state));
+    this.pythonPageResultUnsubscribe?.();
+    this.pythonPageResultUnsubscribe = subscribePythonPageResults(() => {
+      if (this.pythonPageRenderFrame) return;
+      this.pythonPageRenderFrame = requestAnimationFrame(() => {
+        this.pythonPageRenderFrame = 0;
+        this.renderKeys = null;
+        this.render(this.store.snapshot());
+        if (this.activeCommandDialog?.coursePageSettings) {
+          this.refreshCoursePageSettingsDialog();
+        }
+      });
+    });
     this.refreshAfterFontLoad();
     const symbolsReady = ensureIscdSymbolDb()
       .then(() => {
@@ -400,7 +416,15 @@ export class OComposerApp extends HTMLElement {
       .finally(() => this.completeInitialLoadingTask("symbols", this.t("Finalizing…")));
     this.hideInitialLoadingWhenReady([cachedSessionReady, symbolsReady], () => {
       this.initializeMapImporter();
-      this.startResourcePrecache();
+      const resourcesReady = this.startResourcePrecache();
+      void Promise.resolve(resourcesReady)
+        .finally(() => preloadPythonPageRuntime())
+        .catch(error => {
+          debugWarn("python.pages.preload.failed", {
+            message: error?.message || String(error),
+            stack: error?.stack || ""
+          });
+        });
     });
     // The synchronous application shell is now usable. Background resource,
     // converter, or worker failures must not be mislabeled as a fatal startup
@@ -445,6 +469,10 @@ export class OComposerApp extends HTMLElement {
   disconnectedCallback() {
     this.viewportMetricCleanup?.();
     this.disposeMapImporter?.();
+    this.pythonPageResultUnsubscribe?.();
+    this.pythonPageResultUnsubscribe = null;
+    if (this.pythonPageRenderFrame) cancelAnimationFrame(this.pythonPageRenderFrame);
+    this.pythonPageRenderFrame = 0;
     clearTimeout(this.cacheTimer);
   }
 
@@ -601,7 +629,7 @@ export class OComposerApp extends HTMLElement {
       done: false
     };
     this.updateResourcePrecacheProgress(this.appResourcePrecacheProgress);
-    void precacheAppResources({
+    return precacheAppResources({
       cacheName: APP_RESOURCE_CACHE_NAME,
       cachePrefix: APP_RESOURCE_CACHE_PREFIX,
       urls: APP_RESOURCE_URLS,

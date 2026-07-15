@@ -19,6 +19,7 @@ import {
   buildPythonPageCourse,
   compilePageBreakFormula,
   compilePageBreakRules,
+  preparePythonPageLayout,
   remapPageBreakFormulaCourseControls,
   validatePageBreakFormula
 } from "../src/domain/course-pages.js";
@@ -38,11 +39,31 @@ import { createAppShellDialogMethods } from "../src/ui/app-shell-dialog-methods.
 import { Store } from "../src/state/store.js";
 
 assert.equal(validatePythonPageScript(PAGE_PYTHON_SAMPLE), "");
-assert.deepEqual(executePythonPageScript(PAGE_PYTHON_SAMPLE, {
+assert.deepEqual(await executePythonPageScript(PAGE_PYTHON_SAMPLE, {
   length: 4,
   control_number: ["31", "32", "40", "32"],
   branch_name: "ABCD"
 }), [[0, 0, 0, 1], [0, 0, 0, 0]], "the exact sample Python code executes without translation");
+
+const fullPythonScript = `def advanced_flip_exchange(course):
+    import statistics
+    numeric_codes = [int(code) for code in course.control_number]
+    threshold = statistics.median(numeric_codes)
+    flip_list = [index == 1 and code >= threshold for index, code in enumerate(numeric_codes)]
+    exchange_list = [False] * course.length
+    return flip_list, exchange_list`;
+assert.deepEqual(await executePythonPageScript(fullPythonScript, {
+  length: 3,
+  control_number: ["31", "40", "32"],
+  branch_name: "A"
+}), [[false, true, false], [false, false, false]],
+"Pyodide supports real Python comprehensions, enumerate, and standard-library imports");
+await assert.rejects(
+  executePythonPageScript(`def advanced_flip_exchange(course):
+    return [`, { length: 0, control_number: [] }),
+  /SyntaxError/,
+  "CPython syntax errors are returned to the advanced editor"
+);
 
 const model = createBlankEvent();
 model.event.title = "Paging test";
@@ -203,6 +224,8 @@ repeatedCodeModel.courseControls.forEach(courseControl => {
 repeatedCodeModel.courseControls.find(row => row.id === 3).nextCourseControl = 5;
 repeatedCodeModel.courseControls.push(createCourseControl(5, 3, 4));
 repeatedCodeModel.courses[0].pageBreakFormula = PAGE_PYTHON_SAMPLE;
+const repeatedPendingRows = courseView(repeatedCodeModel, 1, { page: "global" });
+await preparePythonPageLayout(repeatedPendingRows, repeatedCodeModel.courses[0], { page: "global" });
 const repeatedCodeRows = courseView(repeatedCodeModel, 1, { page: "global" });
 const repeated32Rows = repeatedCodeRows.filter(row => row.control?.code === "32");
 assert.equal(repeated32Rows.length, 2);
@@ -278,6 +301,8 @@ const branchPython = `def advanced_flip_exchange(course):
         exchange_list.append(exchange)
     return flip_list,exchange_list`;
 forkCourse.pageBreakFormula = branchPython;
+await preparePythonPageLayout(courseView(forkModel, 1, { ...routeA, page: "global" }), forkCourse, { ...routeA, page: "global" });
+await preparePythonPageLayout(courseView(forkModel, 1, { ...routeB, page: "global" }), forkCourse, { ...routeB, page: "global" });
 assert.equal(courseView(forkModel, 1, { ...routeA, page: "global" })
   .find(row => row.control.code === "32")?.pageBreakKind, "exchange",
 "Python receives branch A and its concrete control_number list");
@@ -288,11 +313,13 @@ assert.equal(courseView(forkModel, 1, { ...routeB, page: "global" })
 const invalidPythonModel = structuredClone(forkModel);
 invalidPythonModel.courses[0].pageBreakFormula = `def advanced_flip_exchange(course):
     return [1],[0]`;
+await preparePythonPageLayout(courseView(invalidPythonModel, 1, { ...routeA, page: "global" }), invalidPythonModel.courses[0], { ...routeA, page: "global" });
 const invalidPythonRows = courseView(invalidPythonModel, 1, { ...routeA, page: "global" });
 assert.match(invalidPythonRows[0].pageFormulaError, /must each contain 3 item/,
   "runtime result-shape errors are exposed on the concrete route");
 invalidPythonModel.courses[0].pageBreakFormula = `def advanced_flip_exchange(course):
     return [1,0,0],[1,0,0]`;
+await preparePythonPageLayout(courseView(invalidPythonModel, 1, { ...routeA, page: "global" }), invalidPythonModel.courses[0], { ...routeA, page: "global" });
 assert.match(courseView(invalidPythonModel, 1, { ...routeA, page: "global" })[0].pageFormulaError,
   /cannot be both a map flip and a map exchange/,
   "Python cannot request two incompatible actions at one point");

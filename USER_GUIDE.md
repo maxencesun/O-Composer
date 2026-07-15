@@ -559,9 +559,9 @@ O-Composer 是一个在浏览器中运行的定向越野路线设计工具。它
 - **不含分支的普通路线**：点击“添加地图动作”，再选择检查点和“换图 / 翻图 / 独立换图点”类型；只会常驻显示已经添加的动作。换图表示在该检查点领取另一张地图，翻图表示翻到当前地图背面；独立换图点会把所选普通检查点在原位置直接转换为独立换图点，不会插入新的路线节点，该点也不再计入普通检查点序号。删除独立换图点时不会删除路线节点，而会把同一个点原位还原为普通检查点，并恢复原点号和检查点资料；没有原点号的旧文件或原生独立换图点会自动分配可用点号。修改这些简单设置会清除高级代码。
 - **高级 Python**：可以直接粘贴与 `samples/map_exchange.py` 相同形式的 `def advanced_flip_exchange(course): ...`。函数会对每条具体线路分别运行，并返回 `(flip_list, exchange_list)`；两个列表必须与该线路的普通检查点数量相同，非零元素表示在对应点后翻图或换图，同一点不能同时命中两种动作。
 - `course.length` 是普通检查点数量；`course.control_number` 是点号数组；`course.branch_name` 是 `ABCD` 这样的完整分支名。还提供 `course.point`、`course.ordinal`、`course.course_control`、`course.control_id`、`course.course_name`、`course.course_id`、`course.team` 和 `course.leg`。设置窗口会直接列出每条分支实际传入的 `branch_name` 与 `control_number`。
-- 脚本支持变量、列表、索引、函数、`if/elif/else`、`for ... in range(...)`、`while`、`break/continue`、`return`、`assert`、算术/比较/布尔运算，以及常用的 `str`、`int`、`float`、`bool`、`len`、`range`、`min`、`max`、`sum`、`abs`、`enumerate`、`zip` 和列表方法。独立换图点仍需通过简单设置或“添加”菜单创建。
+- 高级代码由项目内置的 Pyodide 314.0.2（CPython 3.14 WebAssembly）执行，支持正常的 Python 语法及 Pyodide 包含的标准库；不会根据用户代码自动下载第三方包。独立换图点仍需通过简单设置或“添加”菜单创建。
 
-Python 在受限同步解释器中运行，不使用 JavaScript `eval`，也不能访问文件、网络、`import`、浏览器或 JavaScript API。旧版高级公式仍可读取和执行，方便现有赛事文件迁移。Global 视图显示整条具体线路；选择“所有分支”时没有唯一的先后顺序，因此需要先选择一个具体分支或接力棒次才能查看它的独立页面。
+Pyodide 在独立 Worker 中异步运行，每次执行限时 3 秒；超时会终止并重建 Worker，避免死循环阻塞编辑器。传入 Worker 的只有当前具体线路的 JSON 数据，Pyodide 的 `js` 全局使用空对象，不暴露编辑器 DOM 和应用内部对象。运行时与 Mapper WASM 在编辑器可用后进入同一后台加载批次，并由浏览器缓存。旧版高级公式仍可读取和执行，方便现有赛事文件迁移。Global 视图显示整条具体线路；选择“所有分支”时没有唯一的先后顺序，因此需要先选择一个具体分支或接力棒次才能查看它的独立页面。
 
 换图和翻图都会生成新的地图页面，边界检查点同时出现在前后两页，后一页用 IOF 圆中三角续跑点符号表示。检查点说明中，换图使用 `13.5control` 并标注 `0 m`，翻图使用 `15.6`；旧版 2004 检查点说明标准会把翻图降级显示为换图指令。
 

@@ -1,6 +1,6 @@
-import { coursePageCount } from "../domain/course-service.js?v=20260715-39";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-39";
-import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260715-39";
+import { coursePageCount } from "../domain/course-service.js?v=20260715-40";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-40";
+import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260715-40";
 
 export function createAppShellSelectionEditorMethods(deps) {
   const {
@@ -770,11 +770,13 @@ export function createAppShellSelectionEditorMethods(deps) {
             variationCode: variation.code,
             page: "global"
           }),
-          error: rows.find(row => row.pageFormulaError)?.pageFormulaError || ""
+          error: rows.find(row => row.pageFormulaError)?.pageFormulaError || "",
+          pending: rows.some(row => row.pageFormulaPending)
         };
       });
     const error = syntaxError || routeContexts.find(route => route.error)?.error || "";
-    const preview = !error && formula.trim()
+    const pending = routeContexts.some(route => route.pending);
+    const preview = !error && !pending && formula.trim()
       ? routeContexts.map(route => `${route.branch}: ${this.t("{count} pages", { count: route.pageCount })}`).join(" · ")
       : "";
     return `
@@ -785,7 +787,7 @@ export function createAppShellSelectionEditorMethods(deps) {
         </label>
       </div>
       <div class="button-row"><button type="button" class="secondary" data-course-page-python-example>${escapeHtml(this.t("Use sample Python code"))}</button></div>
-      <p class="muted">${escapeHtml(this.t("Paste a Python function named advanced_flip_exchange(course). It runs once for every concrete route and must return (flip_list, exchange_list), with one item per normal control. The script is sandboxed: file, network, import, browser, and JavaScript access are unavailable."))}</p>
+      <p class="muted">${escapeHtml(this.t("Paste a Python function named advanced_flip_exchange(course). Pyodide runs it in an isolated worker once for every concrete route. It must return (flip_list, exchange_list), with one item per normal control. Python standard-library imports are available; third-party packages are not downloaded automatically, and editor/browser APIs are not exposed."))}</p>
       <p class="muted">${escapeHtml(this.t("The course object provides length, control_number, branch_name, point, ordinal, course_control, control_id, course_name, course_id, team, and leg. branch_name is the complete branch name such as ABCD."))}</p>
       ${formula.trim() && !pythonScript ? `<p class="page-formula-warning">${escapeHtml(this.t("This course uses the legacy formula syntax. It remains supported; replace it with Python code when you are ready."))}</p>` : ""}
       <p class="muted">${escapeHtml(this.t("Python code can produce map exchanges and map flips at controls. Standalone map exchanges must still be added with the simple settings or the Add menu."))}</p>
@@ -808,6 +810,7 @@ export function createAppShellSelectionEditorMethods(deps) {
       ${!hasVariations ? `<p class="muted">${escapeHtml(this.t("Non-empty advanced page code replaces the point-by-point actions above."))}</p>` : ""}
       ${fixedBreakCount && hasVariations ? `<p class="page-formula-warning">${escapeHtml(this.t("This imported course also has {count} fixed page actions that apply to every matching variation.", { count: fixedBreakCount }))}</p>` : ""}
       ${error ? `<p class="page-formula-error">${escapeHtml(this.t("Advanced code error: {message}", { message: error }))}</p>` : ""}
+      ${pending && !error ? `<p class="page-formula-preview">${escapeHtml(this.t("Loading Python runtime and evaluating routes…"))}</p>` : ""}
       ${preview ? `<p class="page-formula-preview">${escapeHtml(this.t("Preview"))}: ${escapeHtml(preview)}${variations.length > 12 ? " …" : ""}</p>` : ""}
     `;
   },

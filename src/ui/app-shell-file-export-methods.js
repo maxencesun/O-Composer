@@ -1,7 +1,7 @@
-import { debugLog } from "./debug-log.js?v=20260715-39";
-import { coursePageCount } from "../domain/course-service.js?v=20260715-39";
-import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260715-39";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-39";
+import { debugLog } from "./debug-log.js?v=20260715-40";
+import { coursePageCount } from "../domain/course-service.js?v=20260715-40";
+import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260715-40";
+import { preparePythonPageLayout, validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-40";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -952,12 +952,19 @@ export function createAppShellFileExportMethods(deps) {
     const runtimeDisplayOptions = typeof courseDisplayOptions === "function"
       ? courseDisplayOptions(state.eventModel, exportUi)
       : {};
-    const runtimeError = course?.kind === "normal" && !formulaError && typeof courseView === "function"
-      ? courseView(state.eventModel, target.courseId, {
-        ...runtimeDisplayOptions,
-        page: "global"
-      }).find(row => row.pageFormulaError)?.pageFormulaError || ""
-      : "";
+    let runtimeError = "";
+    if (course?.kind === "normal" && !formulaError && typeof courseView === "function") {
+      const pageOptions = { ...runtimeDisplayOptions, page: "global" };
+      const runtimeRows = courseView(state.eventModel, target.courseId, pageOptions);
+      try {
+        await preparePythonPageLayout(runtimeRows, course, pageOptions);
+      }
+      catch (error) {
+        runtimeError = error?.message || String(error);
+      }
+      runtimeError ||= courseView(state.eventModel, target.courseId, pageOptions)
+        .find(row => row.pageFormulaError)?.pageFormulaError || "";
+    }
     if (formulaError || runtimeError) {
       throw new Error(this.t("Cannot export {course}: advanced page code is invalid ({message}).", {
         course: course?.name || target.name,

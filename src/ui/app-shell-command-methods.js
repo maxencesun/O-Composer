@@ -1,7 +1,7 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260715-39";
+} from "../domain/course-pages.js?v=20260715-40";
 
 export function createAppShellCommandMethods(deps) {
   const {

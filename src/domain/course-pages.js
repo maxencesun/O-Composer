@@ -1,8 +1,9 @@
 import {
   executePythonPageScript,
   isPythonPageScript,
+  pythonPageExecutionState,
   validatePythonPageScript
-} from "./python-page-script.js?v=20260715-39";
+} from "./python-page-script.js?v=20260715-40";
 
 const FORMULA_VARIABLES = new Set([
   "variation",
@@ -134,15 +135,19 @@ export function coursePageLayout(rows, course, options = {}) {
   let formulaError = "";
   let scriptFlips = [];
   let scriptExchanges = [];
+  let scriptPending = false;
   if (pythonScript) {
     try {
       const scriptCourse = buildPythonPageCourse(sourceRows, course, options);
-      const result = executePythonPageScript(formula, scriptCourse);
+      const execution = pythonPageExecutionState(formula, scriptCourse);
+      if (execution.status === "error") throw new Error(execution.error);
+      if (execution.status !== "ready") scriptPending = true;
+      const result = execution.status === "ready" ? execution.result : [[], []];
       if (!Array.isArray(result) || result.length !== 2 || !Array.isArray(result[0]) || !Array.isArray(result[1])) {
         throw new Error("advanced_flip_exchange(course) must return (flip_list, exchange_list)");
       }
       [scriptFlips, scriptExchanges] = result;
-      if (scriptFlips.length !== scriptCourse.length || scriptExchanges.length !== scriptCourse.length) {
+      if (!scriptPending && (scriptFlips.length !== scriptCourse.length || scriptExchanges.length !== scriptCourse.length)) {
         throw new Error(`Returned lists must each contain ${scriptCourse.length} item(s)`);
       }
       const conflict = scriptFlips.findIndex((value, index) => !!value && !!scriptExchanges[index]);
@@ -216,8 +221,17 @@ export function coursePageLayout(rows, course, options = {}) {
     breakKinds,
     pages,
     pageCount: Math.max(1, pages.length),
-    formulaError
+    formulaError,
+    formulaPending: scriptPending
   };
+}
+
+export async function preparePythonPageLayout(rows, course, options = {}) {
+  const source = String(course?.pageBreakFormula || "").trim();
+  if (!isPythonPageScript(source)) return coursePageLayout(rows, course, options);
+  const scriptCourse = buildPythonPageCourse(rows, course, options);
+  await executePythonPageScript(source, scriptCourse);
+  return coursePageLayout(rows, course, options);
 }
 
 export function buildPythonPageCourse(rows, course, options = {}) {
@@ -273,7 +287,8 @@ export function rowsForCoursePage(rows, course, options = {}) {
       suppressControlSymbol: endsAtExchange && row.control?.kind === "map-exchange",
       coursePage: selectedPage,
       coursePageCount: layout.pageCount,
-      pageFormulaError: layout.formulaError
+      pageFormulaError: layout.formulaError,
+      pageFormulaPending: layout.formulaPending === true
     };
   });
 }

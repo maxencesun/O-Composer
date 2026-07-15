@@ -1,7 +1,7 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260715-36";
+} from "../domain/course-pages.js?v=20260715-37";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -1300,11 +1300,8 @@ export function createAppShellCommandMethods(deps) {
       const control = getControl(model, targetCourseControl?.control);
       if (!targetCourse || !targetCourseControl || control?.kind !== "normal") return;
       control.kind = "map-exchange";
-      control.code = "";
-      control.mapIssueLocation = "";
-      control.descriptions = [];
-      control.descriptionText = "";
-      control.punchPattern = null;
+      // Keep the original code and description data hidden on the exchange so
+      // removing the action can restore this exact checkpoint in place.
       for (const occurrence of model.courseControls || []) {
         if (Number(occurrence.control) === Number(control.id)) {
           setCourseControlMapChange(occurrence, "exchange");

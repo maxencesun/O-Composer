@@ -12,7 +12,7 @@ const PDF_CJK_FONT_SOURCES = Object.freeze([
 
 // Keep multi-page export and PDF-basemap composition fully local. This pinned
 // browser ESM build is vendored under assets together with its MIT license.
-const PDF_LIB_MODULE_URL = new URL("../../assets/vendor/pdf-lib/pdf-lib.esm.min.js?v=20260715-36", import.meta.url).href;
+const PDF_LIB_MODULE_URL = new URL("../../assets/vendor/pdf-lib/pdf-lib.esm.min.js?v=20260715-37", import.meta.url).href;
 
 const pdfFontPromises = new Map();
 let pdfLatinFontSetPromise = null;

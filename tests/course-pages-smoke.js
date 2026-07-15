@@ -623,6 +623,9 @@ simpleStandaloneModel.controls = [
   createControl(4, "finish", { x: 30, y: 0 })
 ];
 const simpleStandaloneCourse = createCourse(1, "Simple standalone", "normal", 1);
+simpleStandaloneModel.controls[1].descriptions = [{ box: "D", ref: "1.1", text: "" }];
+simpleStandaloneModel.controls[1].descriptionText = "Original checkpoint";
+simpleStandaloneModel.controls[1].punchPattern = { size: 3, rows: ["XXX", "X.X", "XXX"] };
 simpleStandaloneCourse.firstCourseControl = 1;
 simpleStandaloneCourse.pageBreakFormula = "flip: point == 2";
 simpleStandaloneModel.courses = [simpleStandaloneCourse];
@@ -649,7 +652,8 @@ assert.equal(simpleStandaloneApp.addCoursePageAction(addActionButton(2, "standal
 assert.equal(simpleStandaloneModel.courseControls.length, simpleCourseControlCount,
   "simple standalone conversion does not insert another course node");
 assert.equal(getControl(simpleStandaloneModel, 2).kind, "map-exchange");
-assert.equal(getControl(simpleStandaloneModel, 2).code, "");
+assert.equal(getControl(simpleStandaloneModel, 2).code, "31", "conversion preserves the original checkpoint code for restoration");
+assert.equal(getControl(simpleStandaloneModel, 2).descriptionText, "Original checkpoint");
 assert.equal(getCourseControl(simpleStandaloneModel, 2).mapExchange, true);
 assert.equal(getCourseControl(simpleStandaloneModel, 2).mapFlip, false);
 assert.equal(simpleStandaloneCourse.pageBreakFormula, "", "simple conversion replaces the advanced formula");
@@ -659,8 +663,30 @@ assert.deepEqual(courseView(simpleStandaloneModel, 1, { page: "global" })
   .map(row => row.control.code), ["32"], "the converted point is removed from checkpoint numbering");
 assert.equal(simpleStandaloneState.ui.coursePage, "global");
 assert.equal(simpleStandaloneApp.removeStandaloneCoursePageAction(2), true);
+assert.equal(simpleStandaloneModel.courseControls.length, simpleCourseControlCount,
+  "removing a converted standalone exchange keeps its course node");
+assert.equal(getControl(simpleStandaloneModel, 2).kind, "normal",
+  "removing a converted standalone exchange restores the same normal checkpoint");
+assert.equal(getControl(simpleStandaloneModel, 2).code, "31", "restoration keeps the original checkpoint code");
+assert.deepEqual(getControl(simpleStandaloneModel, 2).descriptions, [{ box: "D", ref: "1.1", text: "" }]);
+assert.equal(getControl(simpleStandaloneModel, 2).descriptionText, "Original checkpoint");
+assert.deepEqual(getControl(simpleStandaloneModel, 2).punchPattern, { size: 3, rows: ["XXX", "X.X", "XXX"] });
+assert.equal(getCourseControl(simpleStandaloneModel, 2).mapExchange, false);
+assert.equal(getCourseControl(simpleStandaloneModel, 2).mapFlip, false);
+assert.deepEqual(courseView(simpleStandaloneModel, 1, { page: "global" })
+  .filter(row => row.control.kind === "normal")
+  .map(row => row.control.code), ["31", "32"], "the restored checkpoint returns to course numbering");
 assert.equal(courseView(simpleStandaloneModel, 1, { page: "global" })
   .some(row => row.control.kind === "map-exchange"), false);
+
+const nativeStandaloneCount = standaloneExchange.courseControls.length;
+deleteSelection(standaloneExchange, { type: "control", id: standaloneSelection.id }, { selectedCourseId: 1 });
+assert.equal(standaloneExchange.courseControls.length, nativeStandaloneCount,
+  "deleting an independently placed exchange restores instead of removing its course node");
+assert.equal(getControl(standaloneExchange, standaloneSelection.id)?.kind, "normal");
+assert.match(getControl(standaloneExchange, standaloneSelection.id)?.code || "", /^\d+$/,
+  "a restored exchange without an original code receives an available checkpoint code");
+assert.equal(getCourseControl(standaloneExchange, standaloneCourseControl.id)?.mapExchange, false);
 
 const convertedExchangeModel = createBlankEvent();
 convertedExchangeModel.controls = [createControl(1, "normal", { x: 0, y: 0 }, "31")];

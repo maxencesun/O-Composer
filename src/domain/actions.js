@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260715-36";
-import { cloneDeep } from "./clone.js?v=20260715-36";
+} from "./event-model.js?v=20260715-37";
+import { cloneDeep } from "./clone.js?v=20260715-37";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,12 +15,12 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260715-36";
+} from "./course-service.js?v=20260715-37";
 import {
   courseControlMapChangeKind,
   remapPageBreakFormulaCourseControls,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260715-36";
+} from "./course-pages.js?v=20260715-37";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const automaticCoursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -449,6 +449,9 @@ export function moveSelection(eventModel, selection, location) {
 export function deleteSelection(eventModel, selection, options = {}) {
   if (!selection) return null;
   if (selection.type === "control") {
+    if (restoreStandaloneMapExchange(eventModel, selection.id)) {
+      return null;
+    }
     if (!removeControlFromCourse(eventModel, selection.id, options.selectedCourseId)) {
       removeControl(eventModel, selection.id);
     }
@@ -460,7 +463,10 @@ export function deleteSelection(eventModel, selection, options = {}) {
     eventModel.specials = eventModel.specials.filter(special => special.id !== selection.id);
   }
   else if (selection.type === "course-control") {
-    removeCourseControl(eventModel, selection.id);
+    const courseControl = getCourseControl(eventModel, selection.id);
+    if (!restoreStandaloneMapExchange(eventModel, courseControl?.control)) {
+      removeCourseControl(eventModel, selection.id);
+    }
   }
   else if (selection.type === "leg-gap") {
     const leg = eventModel.legs.find(candidate =>
@@ -472,6 +478,26 @@ export function deleteSelection(eventModel, selection, options = {}) {
     }
   }
   return null;
+}
+
+export function restoreStandaloneMapExchange(eventModel, controlId) {
+  const control = getControl(eventModel, controlId);
+  if (control?.kind !== "map-exchange") return false;
+
+  control.kind = "normal";
+  // Converted checkpoints retain their original data while acting as an
+  // exchange. Imported or independently placed exchange points have no code,
+  // so give them a valid checkpoint code when they are restored.
+  if (!String(control.code || "").trim()) {
+    control.code = nextAvailableCode(eventModel);
+  }
+  control.mapIssueLocation = "";
+  for (const courseControl of eventModel.courseControls || []) {
+    if (Number(courseControl.control) === Number(control.id)) {
+      setCourseControlMapChange(courseControl, "");
+    }
+  }
+  return true;
 }
 
 export function removeControl(eventModel, controlId) {

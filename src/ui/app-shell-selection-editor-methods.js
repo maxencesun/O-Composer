@@ -1,5 +1,5 @@
-import { coursePageCount } from "../domain/course-service.js?v=20260715-36";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-36";
+import { coursePageCount } from "../domain/course-service.js?v=20260715-37";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-37";
 
 export function createAppShellSelectionEditorMethods(deps) {
   const {

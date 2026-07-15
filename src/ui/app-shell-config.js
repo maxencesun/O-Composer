@@ -33,7 +33,7 @@ export const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 export const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 export const APP_VERSION = "0.0.3";
-export const APP_CODE_VERSION = "20260715-36";
+export const APP_CODE_VERSION = "20260715-38";
 // Keep the unchanged 9.7 MB font/symbol cache so this feature release does not
 // force existing users to download those large assets again.
 export const APP_CACHE_VERSION = "20260711-4";

@@ -1,5 +1,5 @@
-import { coursePageCount } from "../domain/course-service.js?v=20260715-36";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-36";
+import { coursePageCount } from "../domain/course-service.js?v=20260715-38";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-38";
 
 export function createAppShellSelectionEditorMethods(deps) {
   const {
@@ -596,7 +596,6 @@ export function createAppShellSelectionEditorMethods(deps) {
         </label>
         <label class="check"><input data-field="course.options.hideFromReports" type="checkbox" ${course.options.hideFromReports ? "checked" : ""}> ${escapeHtml(this.t("Hide from reports"))}</label>
       </div>
-      ${this.coursePageEditor(eventModel, course)}
       ${course.kind === "team" ? "" : `
         <h3>${escapeHtml(this.t("Relay"))}</h3>
         <div class="form-grid">

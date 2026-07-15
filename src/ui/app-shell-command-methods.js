@@ -1,7 +1,7 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260715-36";
+} from "../domain/course-pages.js?v=20260715-38";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -368,6 +368,9 @@ export function createAppShellCommandMethods(deps) {
         break;
       case "open-measure":
         this.openMeasurementPanel();
+        break;
+      case "course-pages":
+        this.openCoursePageSettings();
         break;
       case "fit-course":
       case "fit-map":
@@ -1212,13 +1215,15 @@ export function createAppShellCommandMethods(deps) {
   changeFixedCoursePageAction({ sourceId = 0, targetId = 0, kind = null, addOnly = false } = {}) {
     const state = this.store.snapshot();
     const selection = state.ui.selection;
-    if (selection?.type !== "course") return false;
+    const courseId = Number(this.coursePageSettingsCourseId)
+      || (selection?.type === "course" ? Number(selection.id) : 0);
+    if (!courseId) return false;
     if (kind !== null && kind !== "" && kind !== "exchange" && kind !== "flip") return false;
 
     const sourceCourseControlId = Number(sourceId) || 0;
     const targetCourseControlId = Number(targetId) || 0;
     const resolveChange = model => {
-      const course = getCourse(model, selection.id);
+      const course = getCourse(model, courseId);
       if (!course || course.kind !== "normal" || courseHasVariations(model, course.id)) return null;
       const rows = courseView(model, course.id, { page: "global" });
       const normalRows = rows.map((row, rowIndex) => ({ row, rowIndex }))
@@ -1285,8 +1290,10 @@ export function createAppShellCommandMethods(deps) {
   convertFixedCoursePointToStandaloneMapExchange(courseControlId) {
     const state = this.store.snapshot();
     const selection = state.ui.selection;
-    if (selection?.type !== "course") return false;
-    const course = getCourse(state.eventModel, selection.id);
+    const courseId = Number(this.coursePageSettingsCourseId)
+      || (selection?.type === "course" ? Number(selection.id) : 0);
+    if (!courseId) return false;
+    const course = getCourse(state.eventModel, courseId);
     if (!course || course.kind !== "normal" || courseHasVariations(state.eventModel, course.id)) return false;
     const rows = courseView(state.eventModel, course.id, { page: "global" });
     const rowIndex = rows.findIndex(row => Number(row.courseControl?.id) === Number(courseControlId));
@@ -1295,16 +1302,13 @@ export function createAppShellCommandMethods(deps) {
     if (courseControlMapChangeKind(row.courseControl)) return false;
 
     this.store.updateEvent(model => {
-      const targetCourse = getCourse(model, selection.id);
+      const targetCourse = getCourse(model, courseId);
       const targetCourseControl = getCourseControl(model, courseControlId);
       const control = getControl(model, targetCourseControl?.control);
       if (!targetCourse || !targetCourseControl || control?.kind !== "normal") return;
       control.kind = "map-exchange";
-      control.code = "";
-      control.mapIssueLocation = "";
-      control.descriptions = [];
-      control.descriptionText = "";
-      control.punchPattern = null;
+      // Keep the original code and description data hidden on the exchange so
+      // removing the action can restore this exact checkpoint in place.
       for (const occurrence of model.courseControls || []) {
         if (Number(occurrence.control) === Number(control.id)) {
           setCourseControlMapChange(occurrence, "exchange");
@@ -1319,8 +1323,10 @@ export function createAppShellCommandMethods(deps) {
   removeStandaloneCoursePageAction(courseControlId) {
     const state = this.store.snapshot();
     const selection = state.ui.selection;
-    if (selection?.type !== "course") return false;
-    const course = getCourse(state.eventModel, selection.id);
+    const courseId = Number(this.coursePageSettingsCourseId)
+      || (selection?.type === "course" ? Number(selection.id) : 0);
+    if (!courseId) return false;
+    const course = getCourse(state.eventModel, courseId);
     if (!course || course.kind !== "normal" || courseHasVariations(state.eventModel, course.id)) return false;
     const row = courseView(state.eventModel, course.id, { page: "global" })
       .find(item => Number(item.courseControl?.id) === Number(courseControlId));
@@ -1333,10 +1339,66 @@ export function createAppShellCommandMethods(deps) {
     return true;
   },
 
-  updateSelectionField(event) {
+  openCoursePageSettings() {
+    const state = this.store.snapshot();
+    const courseId = state.ui.selectedCourseId === "all" ? 0 : Number(state.ui.selectedCourseId);
+    const course = getCourse(state.eventModel, courseId);
+    if (!course) {
+      alert(this.t("Select a course first."));
+      return false;
+    }
+    if (course.kind !== "normal") {
+      alert(this.t("Map pages are available only for normal courses."));
+      return false;
+    }
+
+    this.coursePageSettingsCourseId = course.id;
+    this.openCommandDialog({
+      title: "Map pages",
+      body: this.coursePageSettingsDialogBody(state.eventModel, course),
+      showActions: false,
+      coursePageSettings: true,
+      onChange: event => {
+        const target = event.target;
+        if (target.dataset.coursePageMove === undefined
+          && target.dataset.coursePageBreak === undefined
+          && target.dataset.field !== "course.pageBreakFormula") {
+          return;
+        }
+        this.updateSelectionField(event, { courseId: this.coursePageSettingsCourseId });
+        this.refreshCoursePageSettingsDialog();
+      }
+    });
+    return true;
+  },
+
+  coursePageSettingsDialogBody(eventModel, course) {
+    return `
+      <div class="course-page-settings-dialog-body">
+        <p class="course-page-settings-course"><span>${escapeHtml(this.t("Course"))}</span><strong>${escapeHtml(course.name || `Course ${course.id}`)}</strong></p>
+        ${this.coursePageEditor(eventModel, course)}
+      </div>
+    `;
+  },
+
+  refreshCoursePageSettingsDialog() {
+    if (!this.activeCommandDialog?.coursePageSettings || !this.coursePageSettingsCourseId) return;
+    const state = this.store.snapshot();
+    const course = getCourse(state.eventModel, this.coursePageSettingsCourseId);
+    if (!course || course.kind !== "normal") {
+      this.closeCommandDialog();
+      return;
+    }
+    const body = this.querySelector("#commandBody");
+    if (body) body.innerHTML = this.coursePageSettingsDialogBody(state.eventModel, course);
+  },
+
+  updateSelectionField(event, options = {}) {
     const target = event.target;
     const state = this.store.snapshot();
-    const selection = state.ui.selection;
+    const selection = Number(options.courseId)
+      ? { type: "course", id: Number(options.courseId) }
+      : state.ui.selection;
     if (target.dataset.backgroundField !== undefined) {
       this.updateBackgroundField(target.dataset.backgroundField, target.value);
       this.syncBackgroundFields(target);

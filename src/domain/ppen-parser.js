@@ -3,11 +3,11 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260715-36";
+} from "./event-model.js?v=20260715-38";
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260715-36";
+} from "./course-pages.js?v=20260715-38";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 

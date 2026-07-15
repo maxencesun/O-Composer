@@ -1,4 +1,4 @@
-import { cloneDeep } from "../domain/clone.js?v=20260715-36";
+import { cloneDeep } from "../domain/clone.js?v=20260715-38";
 import {
   PAPER_SIZES,
   PAPER_MARGINS,
@@ -24,17 +24,17 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260715-36";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260715-36";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260715-36";
-import { findById } from "../domain/event-model.js?v=20260715-36";
+} from "./app-shell-config.js?v=20260715-38";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260715-38";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260715-38";
+import { findById } from "../domain/event-model.js?v=20260715-38";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260715-36";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260715-36";
+} from "../domain/control-descriptions.js?v=20260715-38";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260715-38";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -45,11 +45,11 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260715-36";
-import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260715-36";
-import { t } from "./i18n.js?v=20260715-36";
-import { safeFilePart } from "./app-shell-pdf-helpers.js?v=20260715-36";
-import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=20260715-36";
+} from "../domain/course-service.js?v=20260715-38";
+import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260715-38";
+import { t } from "./i18n.js?v=20260715-38";
+import { safeFilePart } from "./app-shell-pdf-helpers.js?v=20260715-38";
+import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=20260715-38";
 
 export function teamAddControlRoleFromSelection(eventModel, ui, selection) {
   const courseId = ui?.selectedCourseId;

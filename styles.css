@@ -1187,6 +1187,29 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   margin: 6px 0;
 }
 
+.course-page-settings-course {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #f6f8fa;
+}
+
+.course-page-settings-course span {
+  color: var(--muted);
+}
+
+.course-page-settings-course strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .course-page-action-list {
   display: grid;
   max-height: 220px;

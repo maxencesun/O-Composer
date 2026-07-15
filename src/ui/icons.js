@@ -10,6 +10,7 @@ const ICONS = {
   control: '<circle cx="12" cy="12" r="7"/>',
   finish: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="5"/>',
   "map-issue": '<path d="M9 5v14"/><path d="M9 12h7"/>',
+  "map-pages": '<rect x="3.5" y="5" width="11" height="14" rx="1"/><rect x="9.5" y="3" width="11" height="14" rx="1"/><path d="m12.5 8 2.5 2.5L12.5 13"/><path d="M15 10.5h3"/>',
   "restricted-special": '<path d="M3 5h8v14H3Z"/><path d="m3 12 7-7M3 18l8-8M6 19l5-5"/><path d="M16 5h3v5h3v4h-3v5h-3v-5h-3v-4h3Z"/>',
   decoration: '<path d="M4 18 10 7l4 11 2-5 4 5"/><circle cx="8" cy="15" r="2"/><path d="M15 5h6"/><path d="M18 5v8"/>',
   "out-of-bounds": '<path d="M5 18 19 6"/><path d="M5 6l14 12"/><path d="M8 4h8l4 4v8l-4 4H8l-4-4V8Z"/>',

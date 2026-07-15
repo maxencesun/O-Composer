@@ -396,6 +396,7 @@ export function createAppShellDialogMethods(deps) {
       "[data-course-page-add-cancel]",
       "[data-course-page-add]",
       "[data-course-page-python-example]",
+      "[data-course-page-copy-ai-prompt]",
       "[data-course-page-remove-standalone]",
       "[data-course-page-remove]"
     ].join(","));
@@ -445,6 +446,12 @@ export function createAppShellDialogMethods(deps) {
   },
 
   handleSelectionPanelClick(event) {
+    const copyAIPrompt = event.target.closest("[data-course-page-copy-ai-prompt]");
+    if (copyAIPrompt) {
+      event.preventDefault();
+      void this.copyCoursePageAIPrompt(copyAIPrompt);
+      return;
+    }
     const eventAction = event.target.closest("[data-event-action]")?.dataset.eventAction;
     if (eventAction) {
       event.preventDefault();
@@ -561,6 +568,44 @@ export function createAppShellDialogMethods(deps) {
         gapIndex: Number(button.dataset.selectLegGap) || 0
       };
     }, "Select cut");
+  },
+
+  async copyCoursePageAIPrompt(button) {
+    const container = button?.closest?.(".page-ai-prompt");
+    const promptField = container?.querySelector?.("[data-course-page-ai-prompt]");
+    const status = container?.querySelector?.("[data-course-page-copy-status]");
+    const prompt = String(promptField?.value || promptField?.textContent || "");
+    if (!prompt) return false;
+    let copied = false;
+    try {
+      if (globalThis.navigator?.clipboard?.writeText) {
+        await globalThis.navigator.clipboard.writeText(prompt);
+        copied = true;
+      }
+    }
+    catch (_) {}
+    if (!copied) {
+      promptField?.focus?.();
+      promptField?.select?.();
+      try {
+        copied = globalThis.document?.execCommand?.("copy") === true;
+      }
+      catch (_) {}
+    }
+    if (copied) {
+      if (status) status.textContent = this.t("Prompt copied.");
+      const original = button.textContent;
+      button.textContent = this.t("Copied");
+      globalThis.setTimeout?.(() => {
+        if (button.isConnected !== false) button.textContent = original;
+        if (status?.isConnected !== false && status) status.textContent = "";
+      }, 1600);
+      return true;
+    }
+    promptField?.focus?.();
+    promptField?.select?.();
+    if (status) status.textContent = this.t("Could not copy automatically. Select and copy the prompt manually.");
+    return false;
   },
 
   handleEventAdjustmentAction(action) {

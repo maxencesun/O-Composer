@@ -1,6 +1,6 @@
-import { findById } from "./event-model.js?v=20260715-40";
-import { allCourseVariations, variationBranchCodeMap } from "./relay-variations.js?v=20260715-40";
-import { coursePageLayout, rowsForCoursePage } from "./course-pages.js?v=20260715-40";
+import { findById } from "./event-model.js?v=20260716-41";
+import { allCourseVariations, relayBranchEffectiveLegs, relayBranchGroups, variationBranchCodeMap } from "./relay-variations.js?v=20260716-41";
+import { coursePageLayout, rowsForCoursePage } from "./course-pages.js?v=20260716-41";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -21,6 +21,10 @@ export function sortedCourses(eventModel, includeHidden = true) {
 }
 
 export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
+  return enumerateCourseControlRoute(eventModel, courseId, options).map(entry => entry.id);
+}
+
+function enumerateCourseControlRoute(eventModel, courseId, options = {}) {
   const course = getCourse(eventModel, courseId);
   if (!course || !course.firstCourseControl) {
     return [];
@@ -29,13 +33,18 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
   const result = [];
   const seen = new Set();
   const allBranches = !!options.allBranches;
+  const branchCodes = variationBranchCodeMap(eventModel, courseId);
   const variationChoices = Array.isArray(options.variationChoices)
     ? options.variationChoices.map(Number).filter(Boolean)
     : [];
   const maxSteps = Math.max(1000, eventModel.courseControls.length * 20);
   let steps = 0;
 
-  function visit(id, joinId = null, ignoreFirstSplit = false, sharedSplitControlId = null) {
+  function append(id, pointBranch) {
+    result.push({ id: Number(id), pointBranch: String(pointBranch || "") });
+  }
+
+  function visit(id, joinId = null, ignoreFirstSplit = false, sharedSplitControlId = null, activeBranch = "") {
     let currentId = id;
     let first = true;
     while (currentId && currentId !== joinId && steps++ < maxSteps) {
@@ -51,13 +60,19 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
       const split = !!courseControl.variation;
       if (split && !(first && ignoreFirstSplit) && courseControl.variationCourseControls.length) {
         if (!seen.has(currentId) || allBranches) {
-          result.push(currentId);
+          append(currentId, activeBranch);
           seen.add(currentId);
         }
         const branches = courseControl.variationCourseControls;
         if (allBranches) {
           for (const branchId of branches) {
-            visit(branchId, courseControl.variationEnd, true, courseControl.control);
+            visit(
+              branchId,
+              courseControl.variationEnd,
+              true,
+              courseControl.control,
+              branchCodes.get(Number(branchId)) || activeBranch
+            );
           }
           currentId = courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd;
           first = false;
@@ -68,12 +83,18 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
           if (courseControl.variation === "loop") {
             const loopBranches = variationChoices.filter(choice => branches.includes(choice));
             for (const branchId of loopBranches) {
-              visit(branchId, courseControl.variationEnd, true, courseControl.control);
+              visit(
+                branchId,
+                courseControl.variationEnd,
+                true,
+                courseControl.control,
+                branchCodes.get(Number(branchId)) || activeBranch
+              );
               // In imported loop courses, the runner returns to the loop owner after
               // every loop.  Keep that repeated checkpoint in a chosen variation
               // sequence; otherwise the map line jumps from one loop directly to
               // the next and the loop is no longer a loop.
-              result.push(currentId);
+              append(currentId, activeBranch);
             }
             currentId = courseControl.nextCourseControl;
             first = false;
@@ -81,7 +102,13 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
           }
           const selectedBranch = variationChoices.find(choice => branches.includes(choice)) || branches[0];
           if (selectedBranch) {
-            visit(selectedBranch, courseControl.variationEnd, true, courseControl.control);
+            visit(
+              selectedBranch,
+              courseControl.variationEnd,
+              true,
+              courseControl.control,
+              branchCodes.get(Number(selectedBranch)) || activeBranch
+            );
             currentId = courseControl.variationEnd;
             first = false;
             continue;
@@ -90,9 +117,15 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
 
         const defaultBranch = branches[0] || currentId;
         if (defaultBranch !== currentId) {
-          visit(defaultBranch, courseControl.variationEnd, true, courseControl.control);
+          visit(
+            defaultBranch,
+            courseControl.variationEnd,
+            true,
+            courseControl.control,
+            branchCodes.get(Number(defaultBranch)) || activeBranch
+          );
           if (courseControl.variation === "loop") {
-            result.push(currentId);
+            append(currentId, activeBranch);
           }
           currentId = courseControl.variation === "loop" ? courseControl.nextCourseControl : courseControl.variationEnd;
           first = false;
@@ -101,7 +134,7 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
       }
 
       if (!skipSharedSplitStart && (!seen.has(currentId) || allBranches)) {
-        result.push(currentId);
+        append(currentId, activeBranch);
         seen.add(currentId);
       }
       currentId = courseControl.nextCourseControl;
@@ -109,7 +142,7 @@ export function enumerateCourseControlIds(eventModel, courseId, options = {}) {
     }
   }
 
-  visit(course.firstCourseControl);
+  visit(course.firstCourseControl, null, false, null, "");
   return result;
 }
 
@@ -127,8 +160,20 @@ export function courseView(eventModel, courseId, options = {}) {
   const allBranchOrdinals = options.allBranches
     ? allBranchOrdinalMap(eventModel, course)
     : null;
-  const rows = enumerateCourseControlIds(eventModel, courseId, options)
-    .map(courseControlId => {
+  const branchGroups = relayBranchGroups(eventModel, course.id);
+  const relayLegs = Math.max(1, Math.round(Number(course.relay?.legs) || 1));
+  const branchCodes = variationBranchCodeMap(eventModel, course.id);
+  const selectedBranchCodes = (options.variationChoices || [])
+    .map(id => branchCodes.get(Number(id)) || "")
+    .filter(Boolean);
+  const hasRelayLegRules = relayLegs > 1 || (course.relay?.branches || []).length > 0;
+  const routeAllowedLegs = hasRelayLegRules && selectedBranchCodes.length
+    ? selectedBranchCodes
+      .map(code => relayBranchEffectiveLegs(branchGroups, course.relay?.branches || [], code, relayLegs))
+      .reduce((allowed, legs) => allowed.filter(leg => legs.includes(leg)), Array.from({ length: relayLegs }, (_value, index) => index + 1))
+    : [];
+  const rows = enumerateCourseControlRoute(eventModel, courseId, options)
+    .map(({ id: courseControlId, pointBranch }) => {
       const courseControl = getCourseControl(eventModel, courseControlId);
       const control = getControl(eventModel, courseControl?.control);
       if (!courseControl || !control) {
@@ -143,6 +188,11 @@ export function courseView(eventModel, courseId, options = {}) {
         courseControl,
         control,
         ordinal: displayOrdinal,
+        pointBranch,
+        pointAllowedLegs: pointBranch
+          ? relayBranchEffectiveLegs(branchGroups, course.relay?.branches || [], pointBranch, relayLegs)
+          : [],
+        routeAllowedLegs,
         teamRole: teamCourseControlRole(course, courseControl),
         label: labelForControl(course, courseControl, control, displayOrdinal)
       };

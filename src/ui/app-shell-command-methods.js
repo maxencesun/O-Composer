@@ -1,7 +1,7 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260715-40";
+} from "../domain/course-pages.js?v=20260716-41";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -1391,6 +1391,21 @@ export function createAppShellCommandMethods(deps) {
     }
     const body = this.querySelector("#commandBody");
     if (body) body.innerHTML = this.coursePageSettingsDialogBody(state.eventModel, course);
+  },
+
+  syncCoursePageSettingsDialogToSelectedCourse(state = this.store.snapshot()) {
+    if (!this.activeCommandDialog?.coursePageSettings) return false;
+    const selectedCourseId = state.ui?.selectedCourseId === "all"
+      ? 0
+      : Number(state.ui?.selectedCourseId) || 0;
+    const course = getCourse(state.eventModel, selectedCourseId);
+    if (!course || course.kind !== "normal") {
+      this.closeCommandDialog();
+      return false;
+    }
+    this.coursePageSettingsCourseId = course.id;
+    this.refreshCoursePageSettingsDialog();
+    return true;
   },
 
   applyCoursePagePythonExample() {

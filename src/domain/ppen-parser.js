@@ -3,12 +3,12 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260715-40";
+} from "./event-model.js?v=20260716-41";
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260715-40";
-import { isPythonPageScript } from "./python-page-script.js?v=20260715-40";
+} from "./course-pages.js?v=20260716-41";
+import { isPythonPageScript } from "./python-page-script.js?v=20260716-41";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 

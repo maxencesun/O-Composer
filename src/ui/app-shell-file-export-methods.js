@@ -1,7 +1,7 @@
-import { debugLog } from "./debug-log.js?v=20260715-38";
-import { coursePageCount } from "../domain/course-service.js?v=20260715-38";
-import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260715-38";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-38";
+import { debugLog } from "./debug-log.js?v=20260715-39";
+import { coursePageCount } from "../domain/course-service.js?v=20260715-39";
+import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260715-39";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-39";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -501,7 +501,7 @@ export function createAppShellFileExportMethods(deps) {
     const formulaCourses = model.courses
       .filter(course => course.kind === "normal" && String(course.pageBreakFormula || "").trim())
       .map(course => course.name || `Course ${course.id}`);
-    if (formulaCourses.length && !confirm(this.t("Native .ppen cannot store advanced page-turn formulas for: {courses}. Export anyway? Use .ocp to preserve them.", {
+    if (formulaCourses.length && !confirm(this.t("Native .ppen cannot store advanced page code for: {courses}. Export anyway? Use .ocp to preserve it.", {
       courses: formulaCourses.join(", ")
     }))) return;
     syncDescriptionLanguageWithApp(model);
@@ -942,10 +942,26 @@ export function createAppShellFileExportMethods(deps) {
     const formulaError = course?.kind === "normal"
       ? validatePageBreakFormula(course.pageBreakFormula || "")
       : "";
-    if (formulaError) {
-      throw new Error(this.t("Cannot export {course}: page-turn formula is invalid ({message}).", {
+    const exportUi = target.type === "course" ? {
+      ...state.ui,
+      selectedCourseId: target.uiCourseId,
+      showAllControls: false,
+      coursePage: "global",
+      ...(target.exportUi || {})
+    } : null;
+    const runtimeDisplayOptions = typeof courseDisplayOptions === "function"
+      ? courseDisplayOptions(state.eventModel, exportUi)
+      : {};
+    const runtimeError = course?.kind === "normal" && !formulaError && typeof courseView === "function"
+      ? courseView(state.eventModel, target.courseId, {
+        ...runtimeDisplayOptions,
+        page: "global"
+      }).find(row => row.pageFormulaError)?.pageFormulaError || ""
+      : "";
+    if (formulaError || runtimeError) {
+      throw new Error(this.t("Cannot export {course}: advanced page code is invalid ({message}).", {
         course: course?.name || target.name,
-        message: formulaError
+        message: formulaError || runtimeError
       }));
     }
     const pageCount = this.pdfTargetPageCount(state, target);

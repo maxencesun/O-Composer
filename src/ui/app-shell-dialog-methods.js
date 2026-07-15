@@ -390,20 +390,29 @@ export function createAppShellDialogMethods(deps) {
   },
 
   handleCommandDialogClick(event) {
+    const pythonExampleTarget = event.target.closest("[data-course-page-python-example]");
     const coursePageTarget = event.target.closest([
       "[data-course-page-add-toggle]",
       "[data-course-page-add-cancel]",
       "[data-course-page-add]",
+      "[data-course-page-python-example]",
       "[data-course-page-remove-standalone]",
       "[data-course-page-remove]"
     ].join(","));
     if (this.activeCommandDialog?.coursePageSettings && coursePageTarget) {
       const changesModel = !!event.target.closest([
         "[data-course-page-add]",
+        "[data-course-page-python-example]",
         "[data-course-page-remove-standalone]",
         "[data-course-page-remove]"
       ].join(","));
-      this.handleSelectionPanelClick(event);
+      if (pythonExampleTarget) {
+        event.preventDefault();
+        this.applyCoursePagePythonExample();
+      }
+      else {
+        this.handleSelectionPanelClick(event);
+      }
       if (changesModel) this.refreshCoursePageSettingsDialog();
       return;
     }

@@ -1,5 +1,6 @@
-import { coursePageCount } from "../domain/course-service.js?v=20260715-38";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-38";
+import { coursePageCount } from "../domain/course-service.js?v=20260715-39";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260715-39";
+import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260715-39";
 
 export function createAppShellSelectionEditorMethods(deps) {
   const {
@@ -272,6 +273,9 @@ export function createAppShellSelectionEditorMethods(deps) {
     escapeAttr
   } = deps;
   return {
+  coursePagePythonExample() {
+    return PAGE_PYTHON_SAMPLE;
+  },
   renderSelection({ eventModel, ui }) {
     const panel = this.querySelector("#selectionPanel");
     const selection = ui.selection;
@@ -729,7 +733,7 @@ export function createAppShellSelectionEditorMethods(deps) {
         </div>
         <p class="muted">${escapeHtml(this.t("Map exchange and map flip happen at the selected control. Standalone map exchange converts the selected control at its current location and does not add another course point."))}</p>
         <p class="muted">${escapeHtml(this.t("The boundary point appears on both pages. The next page starts with the IOF continuing-point symbol."))}</p>
-        ${formula ? `<p class="page-formula-warning">${escapeHtml(this.t("An advanced formula is active. Adding, changing, moving, or removing a point action clears the formula."))}</p>` : ""}
+        ${formula ? `<p class="page-formula-warning">${escapeHtml(this.t("Advanced page code is active. Adding, changing, moving, or removing a point action clears the code."))}</p>` : ""}
         ${this.advancedCoursePageEditor(eventModel, course, { hasVariations: false })}
       `;
     }
@@ -739,34 +743,71 @@ export function createAppShellSelectionEditorMethods(deps) {
 
   advancedCoursePageEditor(eventModel, course, { hasVariations = courseHasVariations(eventModel, course.id) } = {}) {
     const formula = String(course.pageBreakFormula || "");
-    const error = validatePageBreakFormula(formula);
+    const syntaxError = validatePageBreakFormula(formula);
+    const pythonScript = /^\s*def\s+advanced_flip_exchange\s*\(/m.test(formula);
     const variations = hasVariations ? allCourseVariations(eventModel, course.id) : [];
     const fixedBreakCount = new Set(courseView(eventModel, course.id, { allBranches: true })
       .filter(row => row.control?.kind === "normal" && (row.courseControl?.mapExchange || row.courseControl?.mapFlip))
       .map(row => Number(row.courseControl.id)))
       .size;
-    const preview = !error && formula.trim()
-      ? (hasVariations ? variations.slice(0, 12).map(variation => {
-          const count = coursePageCount(eventModel, course.id, {
+    const routeContexts = (hasVariations
+      ? variations.slice(0, 12)
+      : [{ code: "", choices: [] }])
+      .map(variation => {
+        const rows = courseView(eventModel, course.id, {
+          variationChoices: variation.choices,
+          variationCode: variation.code,
+          page: "global"
+        });
+        const points = rows
+          .filter(row => row.control?.kind === "normal")
+          .map((row, index) => `${index + 1}:${row.control.code || "?"}`);
+        return {
+          branch: variation.code || this.t("Fixed route"),
+          points,
+          pageCount: coursePageCount(eventModel, course.id, {
             variationChoices: variation.choices,
             variationCode: variation.code,
             page: "global"
-          });
-          return `${variation.code}: ${this.t("{count} pages", { count })}`;
-        }).join(" · ") : this.t("{count} pages", { count: coursePageCount(eventModel, course.id, { page: "global" }) }))
+          }),
+          error: rows.find(row => row.pageFormulaError)?.pageFormulaError || ""
+        };
+      });
+    const error = syntaxError || routeContexts.find(route => route.error)?.error || "";
+    const preview = !error && formula.trim()
+      ? routeContexts.map(route => `${route.branch}: ${this.t("{count} pages", { count: route.pageCount })}`).join(" · ")
       : "";
     return `
-      <h3>${escapeHtml(this.t("Advanced map pages"))}</h3>
+      <h3>${escapeHtml(this.t("Advanced map page Python"))}</h3>
       <div class="form-grid">
-        <label class="span-2">${escapeHtml(this.t("Page-turn formula"))}
-          <textarea data-field="course.pageBreakFormula" rows="4" spellcheck="false" placeholder='flip: point == 8&#10;exchange: variation == "AC" &amp;&amp; code == "54"'>${escapeHtml(formula)}</textarea>
+        <label class="span-2">${escapeHtml(this.t("Python code"))}
+          <textarea class="page-python-editor" data-field="course.pageBreakFormula" rows="16" spellcheck="false" placeholder="${escapeAttr(this.coursePagePythonExample())}">${escapeHtml(formula)}</textarea>
         </label>
       </div>
-      <p class="muted">${escapeHtml(this.t("The formula is evaluated after every normal control on each concrete route. Prefix a rule with exchange: or flip:; an unprefixed rule remains a map flip. If both match, map flip wins. Variables: point, ordinal, code, courseControl, variation, team, leg. Use ==, !=, <, <=, >, >=, &&, ||, ! and parentheses; semicolons or new lines separate rules."))}</p>
-      <p class="muted">${escapeHtml(this.t("Advanced formulas support only map exchange and map flip at controls. Standalone map exchanges must be added with the simple settings or the Add menu."))}</p>
-      ${!hasVariations ? `<p class="muted">${escapeHtml(this.t("A non-empty formula replaces the point-by-point actions above."))}</p>` : ""}
+      <div class="button-row"><button type="button" class="secondary" data-course-page-python-example>${escapeHtml(this.t("Use sample Python code"))}</button></div>
+      <p class="muted">${escapeHtml(this.t("Paste a Python function named advanced_flip_exchange(course). It runs once for every concrete route and must return (flip_list, exchange_list), with one item per normal control. The script is sandboxed: file, network, import, browser, and JavaScript access are unavailable."))}</p>
+      <p class="muted">${escapeHtml(this.t("The course object provides length, control_number, branch_name, point, ordinal, course_control, control_id, course_name, course_id, team, and leg. branch_name is the complete branch name such as ABCD."))}</p>
+      ${formula.trim() && !pythonScript ? `<p class="page-formula-warning">${escapeHtml(this.t("This course uses the legacy formula syntax. It remains supported; replace it with Python code when you are ready."))}</p>` : ""}
+      <p class="muted">${escapeHtml(this.t("Python code can produce map exchanges and map flips at controls. Standalone map exchanges must still be added with the simple settings or the Add menu."))}</p>
+      <div class="page-formula-course-data">
+        <strong>${escapeHtml(this.t("Course data available to Python"))}</strong>
+        <div class="page-formula-course-data-table" role="table" aria-label="${escapeAttr(this.t("Course data available to Python"))}">
+          <div class="page-formula-course-data-row heading" role="row">
+            <span role="columnheader">course.branch_name</span>
+            <span role="columnheader">course.control_number (${escapeHtml(this.t("position:code"))})</span>
+          </div>
+          ${routeContexts.map(route => `
+            <div class="page-formula-course-data-row" role="row">
+              <code role="cell">${escapeHtml(route.branch)}</code>
+              <span role="cell">${escapeHtml(route.points.join(" → ") || "-")}</span>
+            </div>
+          `).join("")}
+        </div>
+        ${hasVariations && variations.length > 12 ? `<p class="muted">${escapeHtml(this.t("Showing the first {count} branches.", { count: 12 }))}</p>` : ""}
+      </div>
+      ${!hasVariations ? `<p class="muted">${escapeHtml(this.t("Non-empty advanced page code replaces the point-by-point actions above."))}</p>` : ""}
       ${fixedBreakCount && hasVariations ? `<p class="page-formula-warning">${escapeHtml(this.t("This imported course also has {count} fixed page actions that apply to every matching variation.", { count: fixedBreakCount }))}</p>` : ""}
-      ${error ? `<p class="page-formula-error">${escapeHtml(this.t("Formula error: {message}", { message: error }))}</p>` : ""}
+      ${error ? `<p class="page-formula-error">${escapeHtml(this.t("Advanced code error: {message}", { message: error }))}</p>` : ""}
       ${preview ? `<p class="page-formula-preview">${escapeHtml(this.t("Preview"))}: ${escapeHtml(preview)}${variations.length > 12 ? " …" : ""}</p>` : ""}
     `;
   },

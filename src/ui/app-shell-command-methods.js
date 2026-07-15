@@ -1,7 +1,7 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260715-38";
+} from "../domain/course-pages.js?v=20260715-39";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -1391,6 +1391,19 @@ export function createAppShellCommandMethods(deps) {
     }
     const body = this.querySelector("#commandBody");
     if (body) body.innerHTML = this.coursePageSettingsDialogBody(state.eventModel, course);
+  },
+
+  applyCoursePagePythonExample() {
+    const courseId = Number(this.coursePageSettingsCourseId);
+    if (!courseId) return false;
+    this.updateSelectionField({
+      target: {
+        dataset: { field: "course.pageBreakFormula" },
+        type: "textarea",
+        value: this.coursePagePythonExample()
+      }
+    }, { courseId });
+    return true;
   },
 
   updateSelectionField(event, options = {}) {

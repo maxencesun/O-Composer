@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260715-38";
-import { cloneDeep } from "./clone.js?v=20260715-38";
+} from "./event-model.js?v=20260715-39";
+import { cloneDeep } from "./clone.js?v=20260715-39";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,12 +15,13 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260715-38";
+} from "./course-service.js?v=20260715-39";
 import {
   courseControlMapChangeKind,
   remapPageBreakFormulaCourseControls,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260715-38";
+} from "./course-pages.js?v=20260715-39";
+import { isPythonPageScript } from "./python-page-script.js?v=20260715-39";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const automaticCoursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -691,23 +692,25 @@ export function addVariationAtCourseControl(eventModel, courseId, courseControlI
   const joinCourseControlId = joinCourseControl?.id || null;
 
   // Once a fixed course gains branches, migrate its point-by-point actions to
-  // typed formulas so both map exchanges and flips remain visible and editable
-  // in the advanced branch-aware editor.
-  const migratedPageRules = courseGraphCourseControlIds(eventModel, course.id)
-    .map(id => getCourseControl(eventModel, id))
-    .filter(courseControl => {
-      const control = getControl(eventModel, courseControl?.control);
-      return control?.kind === "normal" && !!courseControlMapChangeKind(courseControl);
-    })
-    .map(courseControl => {
-      const kind = courseControlMapChangeKind(courseControl);
-      setCourseControlMapChange(courseControl, "");
-      return `${kind}: courseControl == ${courseControl.id}`;
-    });
-  if (migratedPageRules.length) {
-    course.pageBreakFormula = [String(course.pageBreakFormula || "").trim(), ...migratedPageRules]
-      .filter(Boolean)
-      .join("\n");
+  // typed legacy rules so both action kinds remain branch-aware. Python scripts
+  // stay byte-for-byte unchanged; their fixed actions remain explicit inputs.
+  if (!isPythonPageScript(course.pageBreakFormula)) {
+    const migratedPageRules = courseGraphCourseControlIds(eventModel, course.id)
+      .map(id => getCourseControl(eventModel, id))
+      .filter(courseControl => {
+        const control = getControl(eventModel, courseControl?.control);
+        return control?.kind === "normal" && !!courseControlMapChangeKind(courseControl);
+      })
+      .map(courseControl => {
+        const kind = courseControlMapChangeKind(courseControl);
+        setCourseControlMapChange(courseControl, "");
+        return `${kind}: courseControl == ${courseControl.id}`;
+      });
+    if (migratedPageRules.length) {
+      course.pageBreakFormula = [String(course.pageBreakFormula || "").trim(), ...migratedPageRules]
+        .filter(Boolean)
+        .join("\n");
+    }
   }
 
   // Relay variations are stored as a proper fork/join graph. The visible fork

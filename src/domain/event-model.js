@@ -1,4 +1,4 @@
-import { cloneDeep } from "./clone.js?v=20260715-38";
+import { cloneDeep } from "./clone.js?v=20260715-39";
 
 const DEFAULT_PRINT_AREA = Object.freeze({
   automatic: true,

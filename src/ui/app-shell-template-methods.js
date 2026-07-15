@@ -939,6 +939,7 @@ export function createAppShellTemplateMethods(deps) {
             ["tool-start", "Start"],
             ["tool-control", "Control"],
             ["tool-finish", "Finish"],
+            ["course-pages", "Map pages"],
             ["tool-map-exchange", "Standalone Map Exchange"],
             ["tool-crossing", "Mandatory Crossing"],
             ["tool-map-issue", "Map Issue"],
@@ -1009,6 +1010,7 @@ export function createAppShellTemplateMethods(deps) {
           ${this.toolButton("tool-control", "Control", "control")}
           ${this.toolButton("tool-finish", "Finish", "finish")}
           ${this.toolButton("tool-map-issue", "Map Issue", "map-issue")}
+          ${this.toolButton("course-pages", "Map pages", "map-pages")}
           ${this.toolButton("tool-line-cut", "Cut Line", "cut")}
           ${this.toolButton("tool-measure", "Measure polyline or area", "measure", "Measure")}
           ${this.toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")}

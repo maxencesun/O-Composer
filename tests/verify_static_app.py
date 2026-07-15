@@ -129,6 +129,18 @@ def verify_app_files() -> None:
     assert '${this.menu("Measure"' not in app_shell, "measurement should not remain a standalone top-level menu"
     assert 'this.toolButton("tool-measure", "Measure polyline or area", "measure", "Measure")' in app_shell, "measurement should remain available in the quick toolbar"
     for token in [
+        '["course-pages", "Map pages"]',
+        'this.toolButton("course-pages", "Map pages", "map-pages")',
+        'case "course-pages":',
+        "this.openCoursePageSettings()",
+        "coursePageSettingsDialogBody",
+        "coursePageSettingsCourseId"
+    ]:
+        assert token in app_shell, f"map-page settings should open as an independent Add/toolbar tool: {token}"
+    selection_editor = (ROOT / "src" / "ui" / "app-shell-selection-editor-methods.js").read_text(encoding="utf-8")
+    course_editor_source = selection_editor.split("courseEditor(course)", 1)[1].split("coursePageEditor(eventModel, course)", 1)[0]
+    assert "this.coursePageEditor" not in course_editor_source, "map-page settings must not remain embedded in Course Adjustment"
+    for token in [
         '["tool-danger", "Dangerous Area"]',
         '["tool-danger", "Dangerous Area", "dangerous-area"]',
         '["tool-opt-crossing", "Optional Crossing Point"]',
@@ -142,7 +154,7 @@ def verify_app_files() -> None:
         assert token in app_shell, f"missing point-special add/toolbar entry: {token}"
     assert 'this.toolGroup("Restricted Areas", "restricted"' not in app_shell
     assert 'this.toolGroup("Special Symbols", "special-symbols"' not in app_shell
-    for token in ['"restricted-special"', '"optional-crossing-point"', 'water:', '"first-aid"', '"registration-mark"']:
+    for token in ['"restricted-special"', '"optional-crossing-point"', 'water:', '"first-aid"', '"registration-mark"', '"map-pages"']:
         assert token in (ROOT / "src" / "ui" / "icons.js").read_text(encoding="utf-8"), f"missing point-special toolbar icon: {token}"
     for token in ['case "open-measure":', "this.openMeasurementPanel()", "adding: false"]:
         assert token in app_shell, f"opening the measurement panel must not start a new measurement: {token}"
@@ -152,7 +164,7 @@ def verify_app_files() -> None:
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.3"' in app_config, "app version should be centrally maintained at 0.0.3"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CODE_VERSION = "20260715-37"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CODE_VERSION = "20260715-38"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
@@ -361,7 +373,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260715-37", "ocd-convert-worker.js?v=20260715-37", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260715-38", "ocd-convert-worker.js?v=20260715-38", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")

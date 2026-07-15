@@ -500,7 +500,7 @@ mutuallyExclusiveModel.courseControls[1].mapExchange = true;
 mutuallyExclusiveModel.courseControls[1].mapFlip = true;
 const commandState = {
   eventModel: mutuallyExclusiveModel,
-  ui: { selection: { type: "course", id: 1 }, coursePage: 2 }
+  ui: { selectedCourseId: 1, selection: { type: "course", id: 1 }, coursePage: 2 }
 };
 let hasVariations = false;
 const commandMethods = createAppShellCommandMethods({
@@ -513,7 +513,8 @@ const commandMethods = createAppShellCommandMethods({
   getCourseControl,
   courseHasVariations: () => hasVariations,
   courseView,
-  applyCourseKindDefaults: () => {}
+  applyCourseKindDefaults: () => {},
+  escapeHtml: escape
 });
 let eventUpdateCount = 0;
 const commandApp = {
@@ -605,6 +606,22 @@ assert.equal(commandApp.changeFixedCoursePageAction({ sourceId: 3, targetId: 0, 
 assert.equal(mutuallyExclusiveModel.courseControls[2].mapExchange, false, "Delete clears only its configured occurrence");
 assert.equal(mutuallyExclusiveModel.courseControls[2].mapFlip, false);
 assert.equal(movedCourseControl.mapFlip, true, "Delete preserves other configured actions");
+
+let openedPageSettings = null;
+commandState.ui.selection = { type: "control", id: 1 };
+commandApp.t = translate;
+commandApp.coursePageEditor = (_eventModel, course) => `<div data-settings-course="${course.id}"></div>`;
+commandApp.openCommandDialog = config => { openedPageSettings = config; };
+assert.equal(commandApp.openCoursePageSettings(), true, "the independent tool opens for the selected course tab");
+assert.equal(commandApp.coursePageSettingsCourseId, 1);
+assert.equal(openedPageSettings?.coursePageSettings, true);
+assert.match(openedPageSettings?.body || "", /data-settings-course="1"/);
+assert.equal(commandApp.changeFixedCoursePageAction({ sourceId: 5, targetId: 5, kind: "exchange" }), true,
+  "the independent settings remain bound to the course without replacing the Adjustment selection");
+assert.equal(commandState.ui.selection.type, "control");
+assert.equal(movedCourseControl.mapFlip, false);
+commandApp.coursePageSettingsCourseId = null;
+commandState.ui.selection = { type: "course", id: 1 };
 
 hasVariations = true;
 mutuallyExclusiveModel.courseControls[1].mapExchange = true;

@@ -315,6 +315,7 @@ export function createAppShellDialogMethods(deps) {
   },
 
   openCommandDialog(config) {
+    if (!config.coursePageSettings) this.coursePageSettingsCourseId = null;
     this.activeCommandDialog = config;
     this.querySelector("#commandTitle").textContent = this.t(config.title || "");
     this.querySelector("#commandBody").innerHTML = config.body || "";
@@ -365,7 +366,9 @@ export function createAppShellDialogMethods(deps) {
       return false;
     }
     const dialog = this.querySelector("#commandDialog");
+    const closesCoursePageSettings = this.activeCommandDialog?.coursePageSettings === true;
     this.activeCommandDialog = null;
+    if (closesCoursePageSettings) this.coursePageSettingsCourseId = null;
     this.courseOrderDraft = null;
     if (dialog.open && dialog.close) {
       dialog.close();
@@ -387,6 +390,23 @@ export function createAppShellDialogMethods(deps) {
   },
 
   handleCommandDialogClick(event) {
+    const coursePageTarget = event.target.closest([
+      "[data-course-page-add-toggle]",
+      "[data-course-page-add-cancel]",
+      "[data-course-page-add]",
+      "[data-course-page-remove-standalone]",
+      "[data-course-page-remove]"
+    ].join(","));
+    if (this.activeCommandDialog?.coursePageSettings && coursePageTarget) {
+      const changesModel = !!event.target.closest([
+        "[data-course-page-add]",
+        "[data-course-page-remove-standalone]",
+        "[data-course-page-remove]"
+      ].join(","));
+      this.handleSelectionPanelClick(event);
+      if (changesModel) this.refreshCoursePageSettingsDialog();
+      return;
+    }
     const symbolButton = event.target.closest("[data-iscd-symbol]");
     if (symbolButton) {
       event.preventDefault();

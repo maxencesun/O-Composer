@@ -368,6 +368,7 @@ const ZH = Object.freeze({
   "Vector PDF": "矢量 PDF",
   "Page": "页面",
   "Map pages": "地图翻页",
+  "Map pages are available only for normal courses.": "地图翻页仅适用于普通路线。",
   "Page action at each point": "每个检查点后的地图动作",
   "Configured map actions": "已添加的地图动作",
   "Point {point}: {code}": "第 {point} 点：{code}",

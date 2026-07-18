@@ -12,7 +12,7 @@ const PDF_CJK_FONT_SOURCES = Object.freeze([
 
 // Keep multi-page export and PDF-basemap composition fully local. This pinned
 // browser ESM build is vendored under assets together with its MIT license.
-const PDF_LIB_MODULE_URL = new URL("../../assets/vendor/pdf-lib/pdf-lib.esm.min.js?v=20260716-41", import.meta.url).href;
+const PDF_LIB_MODULE_URL = new URL("../../assets/vendor/pdf-lib/pdf-lib.esm.min.js?v=20260718-75", import.meta.url).href;
 
 const pdfFontPromises = new Map();
 let pdfLatinFontSetPromise = null;
@@ -423,7 +423,12 @@ class PdfCanvasContext {
 
   measureText(text) {
     const runs = pdfTextRuns(this.fontSet, this.state.font, String(text ?? ""));
-    return { width: textRunsWidth(runs, fontSize(this.state.font)) };
+    const size = fontSize(this.state.font);
+    return {
+      width: textRunsWidth(runs, size),
+      actualBoundingBoxAscent: size * 0.78,
+      actualBoundingBoxDescent: size * 0.22
+    };
   }
 
   pdfFont(font, text = "") {
@@ -507,10 +512,11 @@ async function buildPdf({ pageWidthPt, pageHeightPt, content, fontSet, alphaReso
     offsets[id] = length;
     add(`${id} 0 obj\n${body}\nendobj\n`);
   };
-  const streamObject = (id, dict, data) => {
+  const streamObject = async (id, dict, data) => {
+    const encoded = await pdfStreamData(data, dict, compressStreams);
     offsets[id] = length;
-    add(`${id} 0 obj\n${dict} /Length ${data.length} >>\nstream\n`);
-    add(data);
+    add(`${id} 0 obj\n${encoded.dict} /Length ${encoded.data.length} >>\nstream\n`);
+    add(encoded.data);
     add("\nendstream\nendobj\n");
   };
   const fontObjects = createFontObjects(fontSet, 6);
@@ -578,16 +584,42 @@ async function pdfStreamData(data, dict, compressStreams) {
 }
 
 async function flateCompress(bytes) {
-  if (typeof CompressionStream !== "function" || typeof Blob !== "function" || typeof Response !== "function") {
-    return null;
+  let nativeError = null;
+  if (typeof CompressionStream === "function" && typeof Blob === "function" && typeof Response === "function") {
+    try {
+      const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    catch (error) {
+      nativeError = error;
+    }
   }
+
+  // Safari versions without CompressionStream used to silently emit every
+  // vector path and embedded font uncompressed. pdf-lib already bundles a
+  // pure-JavaScript zlib encoder, so use it as a deterministic local fallback.
   try {
-    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
+    const { PDFFlateStream, PDFDict, PDFContext } = await loadPdfLib();
+    class ByteFlateStream extends PDFFlateStream {
+      constructor(input) {
+        super(PDFDict.withContext(PDFContext.create()), true);
+        this.input = input;
+      }
+
+      getUnencodedContents() {
+        return this.input;
+      }
+    }
+    return new Uint8Array(new ByteFlateStream(bytes).getContents());
   }
-  catch {
-    return null;
+  catch (fallbackError) {
+    const details = [nativeError?.message, fallbackError?.message].filter(Boolean).join("; ");
+    throw new Error(`Lossless PDF compression failed${details ? `: ${details}` : "."}`);
   }
+}
+
+export async function compressPdfStreamBytes(bytes) {
+  return flateCompress(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []));
 }
 
 function defaultState() {

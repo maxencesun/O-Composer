@@ -1,4 +1,4 @@
-import { cloneDeep } from "../domain/clone.js?v=20260716-41";
+import { cloneDeep } from "../domain/clone.js?v=20260718-75";
 import {
   PAPER_SIZES,
   PAPER_MARGINS,
@@ -24,17 +24,17 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260716-41";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260716-41";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260716-41";
-import { findById } from "../domain/event-model.js?v=20260716-41";
+} from "./app-shell-config.js?v=20260718-75";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260718-75";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260718-75";
+import { findById } from "../domain/event-model.js?v=20260718-75";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260716-41";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260716-41";
+} from "../domain/control-descriptions.js?v=20260718-75";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260718-75";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -45,11 +45,11 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260716-41";
-import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260716-41";
-import { t } from "./i18n.js?v=20260716-41";
-import { safeFilePart } from "./app-shell-pdf-helpers.js?v=20260716-41";
-import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=20260716-41";
+} from "../domain/course-service.js?v=20260718-75";
+import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260718-75";
+import { t } from "./i18n.js?v=20260718-75";
+import { safeFilePart } from "./app-shell-pdf-helpers.js?v=20260718-75";
+import { pdfDataUrlLooksLikePdf } from "./app-shell-resource-helpers.js?v=20260718-75";
 
 export function teamAddControlRoleFromSelection(eventModel, ui, selection) {
   const courseId = ui?.selectedCourseId;
@@ -185,6 +185,7 @@ export function safeCachedUi(ui = {}) {
     variationCode: ui.variationCode || "",
     variationAdjustmentMode: ui.variationAdjustmentMode || "",
     variationAddBranches: Math.max(2, Math.min(6, Math.round(Number(ui.variationAddBranches) || 2))),
+    militaryWindowPreview: !!ui.militaryWindowPreview,
     variationAnchorCourseControl: Number(ui.variationAnchorCourseControl) || null,
     variationInsertAfterCourseControl: Number(ui.variationInsertAfterCourseControl) || null,
     variationInsertBeforeCourseControl: Number(ui.variationInsertBeforeCourseControl) || null,
@@ -616,7 +617,8 @@ export function selectedNumberCourseControls(model, selection) {
 
 export function controlDisplayName(control) {
   if (!control) return "";
-  if (control.kind === "normal") return control.code || `Control ${control.id}`;
+  if (["normal", "start", "finish"].includes(control.kind) && control.code) return control.code;
+  if (control.kind === "normal") return `Control ${control.id}`;
   return control.kind.replace(/-/g, " ");
 }
 
@@ -639,7 +641,7 @@ export function setFinishRouteFlagging(model, courseId, kind) {
 export function applyCourseKindDefaults(course) {
   if (!course) return;
   course.options ||= {};
-  if (course.kind === "score") {
+  if (["score", "military"].includes(course.kind)) {
     course.labelKind = course.labelKind === "sequence" ? "code-and-score" : course.labelKind;
     course.options.scoreColumn = course.options.scoreColumn >= 0 ? course.options.scoreColumn : 7;
   }
@@ -655,7 +657,7 @@ export function applyCourseKindDefaults(course) {
 
 export function setScoreFinishControl(model, courseId, controlId, enabled) {
   const course = getCourse(model, courseId);
-  if (!course || course.kind !== "score") return;
+  if (!course || !["score", "military"].includes(course.kind)) return;
   course.options ||= {};
   const view = courseView(model, courseId, { allBranches: true });
   const finish = view.find(row => row.control?.kind === "finish");

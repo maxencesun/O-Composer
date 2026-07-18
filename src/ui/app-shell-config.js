@@ -32,8 +32,8 @@ export const PDF_EXPORT_STEPS_PER_TARGET = 8;
 export const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 export const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
-export const APP_VERSION = "0.0.3";
-export const APP_CODE_VERSION = "20260716-41";
+export const APP_VERSION = "0.0.4";
+export const APP_CODE_VERSION = "20260718-75";
 // Keep the existing cache generation so returning users retain the 9.7 MB
 // fonts/symbols and only fetch the newly added Pyodide runtime entries.
 export const APP_CACHE_VERSION = "20260711-4";
@@ -73,7 +73,7 @@ export const APP_RESOURCE_BYTES = Object.freeze({
 export const LANGUAGE_REFRESH_PARAM = "__oc_language_refresh";
 export const UI_MODE_KEY = "oComposerUiMode";
 export const UI_MODES = Object.freeze({ AUTO: "auto", DESKTOP: "desktop", MOBILE: "mobile" });
-export const COURSE_NAMES = Object.freeze(["Course 1", "Course 2", "Course 3", "Long", "Middle", "Sprint", "Score", "Training"]);
+export const COURSE_NAMES = Object.freeze(["Course 1", "Course 2", "Course 3", "Long", "Middle", "Sprint", "Score", "Military", "Training"]);
 export const TEXT_PRESETS = Object.freeze(["Text", "Water", "First Aid", "Registration", "Start", "Finish", "Danger", "Out of Bounds"]);
 export const COURSE_LABEL_KINDS = Object.freeze([
   "sequence",

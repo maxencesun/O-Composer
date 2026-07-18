@@ -1083,6 +1083,9 @@ export function createAppShellTemplateMethods(deps) {
               <strong>${escapeHtml(this.t("Map scale calibration required"))}</strong>
               <span>${escapeHtml(this.t("Select two points, enter the map scale and their map or ground distance before using other tools."))}</span>
             </div>
+            <div id="backgroundMoveModeBanner" class="background-move-mode-banner" hidden role="status" aria-live="assertive">
+              ${escapeHtml(this.t("Background move mode — press Esc or right-click to exit"))}
+            </div>
             <canvas id="mapCanvas" class="map-canvas"></canvas>
             <aside id="measurementPanel" class="measurement-panel" aria-live="polite" hidden>
               <button type="button" class="measurement-minimize" data-command="tool-measure" title="${escapeAttr(this.t("Minimize measurement panel"))}" aria-label="${escapeAttr(this.t("Minimize measurement panel"))}">−</button>

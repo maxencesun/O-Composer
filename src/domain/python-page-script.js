@@ -156,7 +156,7 @@ function loadNodeRuntime() {
 
 function ensureWorker() {
   if (worker) return worker;
-  worker = new Worker(new URL("../workers/python-page-worker.js?v=20260716-41", import.meta.url), { type: "module" });
+  worker = new Worker(new URL("../workers/python-page-worker.js?v=20260718-75", import.meta.url), { type: "module" });
   worker.addEventListener("message", handleWorkerMessage);
   worker.addEventListener("error", event => resetWorker(event.error || new Error(event.message || "Python worker failed")));
   worker.addEventListener("messageerror", () => resetWorker(new Error("Python worker returned unreadable data")));

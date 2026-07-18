@@ -1,5 +1,5 @@
-import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260716-41";
-import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260716-41";
+import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260718-75";
+import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260718-75";
 import {
   alignTopologySharedJoinPoints,
   layoutVariationTopology,
@@ -12,7 +12,8 @@ import {
   topologyCommonJoinPointMap,
   topologyEdgeKey,
   topologySharedJoinParentMap
-} from "./variation-topology-layout.js?v=20260716-41";
+} from "./variation-topology-layout.js?v=20260718-75";
+import { militaryWindowDescriptionRows } from "./military-orienteering.js?v=20260718-75";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -243,7 +244,8 @@ const FALLBACK_CONTROL_KIND_TEXT = Object.freeze({
     normal: "检查点",
     "crossing-point": "通过点",
     "map-exchange": "换图",
-    "map-issue": "发图"
+    "map-issue": "发图",
+    "time-window": "时间窗口点"
   })
 });
 const COLUMN_F_TEXT_PREFIX = "column-f-text:";
@@ -410,13 +412,14 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
   const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
   const options = selectedCourseId === "all" ? {} : (displayOptions || {});
   let view = selectedCourseId === "all" ? courseView(eventModel, "all") : courseView(eventModel, selectedCourseId, options);
-  if (course?.kind === "score") {
+  if (["score", "military"].includes(course?.kind)) {
     view = scoreCourseDescriptionRows(view);
   }
   if (course?.kind === "team") {
     return buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language, options);
   }
   const normalControls = view.filter(row => row.control.kind === "normal");
+  const timeWindowRows = view.filter(row => row.courseControl?.timeWindow);
   const summaryOptions = Number(options.page) > 0 ? { ...options, page: "global" } : options;
   const summaryView = course && Number(options.page) > 0
     ? courseView(eventModel, selectedCourseId, summaryOptions)
@@ -431,6 +434,7 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
   rows.push(course ? courseHeaderRow(eventModel, course, summaryNormalControlCount, language, headerOptions) : allControlsHeaderRow(normalControls.length, language));
   for (let index = 0; index < view.length; index += 1) {
     const row = view[index];
+    if (row.courseControl?.timeWindow) continue;
     const globalStandaloneExchange = row.control.kind === "map-exchange"
       && row.pageBreakAfter
       && row.coursePage == null;
@@ -445,13 +449,16 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
       const directive = standaloneMapExchangeDirectiveRow(eventModel, view, index, language);
       if (directive) rows.push(directive);
     }
+    else if (selectedCourseId === "all" && row.control.kind === "finish") {
+      rows.push(iscdRow(row, descriptionKind, language, true));
+    }
     else if (row.control.kind === "finish"
       || row.control.kind === "crossing-point"
       || row.control.kind === "map-issue") {
       rows.push(directiveRow(eventModel, view, index, selectedCourseId, language));
     }
     else {
-      rows.push(iscdRow(row, descriptionKind, language));
+      rows.push(iscdRow(row, descriptionKind, language, selectedCourseId === "all"));
     }
     const pageBreak = pageBreakDirectiveRow(eventModel, row, language);
     if (pageBreak) rows.push(pageBreak);
@@ -460,6 +467,7 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
       if (marked) rows.push(marked);
     }
   }
+  rows.push(...militaryWindowDescriptionRows(eventModel, timeWindowRows, language));
   return rows;
 }
 
@@ -833,15 +841,15 @@ function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outpu
         const labelX = labelPosition.x;
         const label = point(labelPosition);
         ctx.fillStyle = "#8a9198";
-        ctx.font = `${Math.max(5, 16 * scale) * outputScale}px Arial`;
+        ctx.font = `${Math.max(0.001, 16 * scale * outputScale)}px Arial`;
         ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(`(${code})`, label.x, label.y);
+        ctx.textBaseline = "alphabetic";
+        ctx.fillText(`(${code})`, label.x, centeredTextBaseline(ctx, `(${code})`, label.y));
         if (legLabel) {
           const allowed = point({ x: labelX, y: fork.y + 18 });
           ctx.fillStyle = "#dc2626";
-          ctx.font = `bold ${Math.max(4, 13 * scale) * outputScale}px Arial`;
-          ctx.fillText(legLabel, allowed.x, allowed.y);
+          ctx.font = `bold ${Math.max(0.001, 13 * scale * outputScale)}px Arial`;
+          ctx.fillText(legLabel, allowed.x, centeredTextBaseline(ctx, legLabel, allowed.y));
         }
         ctx.fillStyle = color;
       }
@@ -895,10 +903,10 @@ function drawVariationTopologyDescription(ctx, eventModel, metrics, color, outpu
     else {
       const label = control.kind === "normal" ? control.code || "" : control.kind || "";
       ctx.fillStyle = color;
-      ctx.font = `${Math.max(6, (control.kind === "normal" ? 26 : 12) * scale) * outputScale}px Arial`;
+      ctx.font = `${Math.max(0.001, (control.kind === "normal" ? 26 : 12) * scale * outputScale)}px Arial`;
       ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, center.x, center.y);
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(label, center.x, centeredTextBaseline(ctx, label, center.y));
     }
   }
   ctx.restore();
@@ -937,7 +945,23 @@ function drawDescriptionRow(ctx, row, metrics, x, y) {
   ctx.fillStyle = ctx.strokeStyle;
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
-  if (["title", "subtitle"].includes(row.kind)) {
+  if (row.kind === "military-window-section") {
+    setDescriptionFont(ctx, cs, "title");
+    fitSingleLineText(ctx, row.text || "", x, y, cs * 8, cs, "center");
+  }
+  else if (["military-window-header", "military-window"].includes(row.kind)) {
+    drawVerticals(ctx, x, y, [3, 7], cs);
+    setDescriptionFont(ctx, cs, row.kind === "military-window-header" ? "columnFSmall" : "columnB");
+    const values = row.kind === "military-window-header"
+      ? row.boxes || []
+      : [row.timeRange, row.coordinates, row.score];
+    const cells = [[0, 3], [3, 4], [7, 1]];
+    for (let index = 0; index < cells.length; index += 1) {
+      const [offset, width] = cells[index];
+      fitSingleLineText(ctx, values[index] || "", x + offset * cs, y, width * cs, cs, "center");
+    }
+  }
+  else if (["title", "subtitle"].includes(row.kind)) {
     setDescriptionFont(ctx, cs, "title");
     fitSingleLineText(ctx, row.text || "", x, y, metrics.columnWidth, cs, "center");
   }
@@ -1035,7 +1059,10 @@ function setDescriptionFont(ctx, cellSize, kind) {
     textLine: ["700", TEXT_LINE_FONT, condensed]
   };
   const [weight, ratio, family] = specs[kind] || specs.text;
-  ctx.font = `${weight} ${Math.max(1, cellSize * ratio)}px ${family}`;
+  // Keep the font proportional to the description cell even when an imported
+  // map uses very small map units. A 1px floor made the table continue to
+  // shrink while its labels stopped shrinking, so 1.5mm rows overlapped.
+  ctx.font = `${weight} ${Math.max(0.001, cellSize * ratio)}px ${family}`;
 }
 
 function fitSingleLineText(ctx, text, x, y, width, height, align = "center") {
@@ -1050,15 +1077,26 @@ function fitSingleLineText(ctx, text, x, y, width, height, align = "center") {
   const match = workingFont.match(/(^|\s)([0-9.]+)px\s+/);
   const baseSize = match ? Number(match[2]) : height * 0.6;
   let size = baseSize;
-  while (size > 1 && ctx.measureText(label).width > width * 0.95) {
+  while (size > 0.001 && ctx.measureText(label).width > width * 0.95) {
     size *= 0.95;
-    ctx.font = workingFont.replace(/[0-9.]+px/, `${Math.max(1, size)}px`);
+    ctx.font = workingFont.replace(/[0-9.]+px/, `${Math.max(0.001, size)}px`);
   }
   ctx.textAlign = align;
-  ctx.textBaseline = "middle";
+  ctx.textBaseline = "alphabetic";
   const textX = align === "left" ? x + width * 0.03 : align === "right" ? x + width * 0.97 : x + width / 2;
-  ctx.fillText(label, textX, y + height / 2, width * 0.98);
+  ctx.fillText(label, textX, centeredTextBaseline(ctx, label, y + height / 2), width * 0.98);
   ctx.font = originalFont;
+}
+
+function centeredTextBaseline(ctx, text, centerY) {
+  const metrics = ctx.measureText(String(text || ""));
+  const fontMatch = String(ctx.font || "").match(/([0-9.]+)px/);
+  const fontSize = Number(fontMatch?.[1]) || 12;
+  const ascent = Number(metrics.actualBoundingBoxAscent);
+  const descent = Number(metrics.actualBoundingBoxDescent);
+  const safeAscent = Number.isFinite(ascent) && ascent > 0 ? ascent : fontSize * 0.78;
+  const safeDescent = Number.isFinite(descent) && descent >= 0 ? descent : fontSize * 0.22;
+  return centerY + (safeAscent - safeDescent) / 2;
 }
 
 function hasCjkText(value) {
@@ -1087,7 +1125,7 @@ function courseHeaderRow(eventModel, course, normalControlCount, language, displ
   if (course.kind === "team") {
     return teamCourseHeaderRow(eventModel, course, normalControlCount, 0, language, displayOptions);
   }
-  if (course.kind === "score") {
+  if (["score", "military"].includes(course.kind)) {
     return {
       kind: "header2",
       boxes: [
@@ -1154,14 +1192,14 @@ function directiveRow(eventModel, view, index, selectedCourseId, language) {
   const previous = index > 0 ? view[index - 1] : null;
   const next = index < view.length - 1 ? view[index + 1] : null;
   const course = selectedCourseId === "all" ? null : getCourse(eventModel, selectedCourseId);
-  const scoreFinishFrom = course?.kind === "score" && control.kind === "finish"
+  const scoreFinishFrom = ["score", "military"].includes(course?.kind) && control.kind === "finish"
     ? scoreFinishFromRow(course, view)
     : null;
   const distance = scoreFinishFrom
     ? formatDirectiveDistance(legLength(eventModel, scoreFinishFrom.control.id, control.id))
     : control.kind === "map-issue"
     ? (next ? formatDirectiveDistance(legLength(eventModel, control.id, next.control.id)) : "")
-    : course?.kind === "score" && control.kind === "finish"
+    : ["score", "military"].includes(course?.kind) && control.kind === "finish"
     ? ""
     : (previous ? formatDirectiveDistance(legLength(eventModel, previous.control.id, control.id)) : "");
   let symbol = directiveSymbol(control);
@@ -1286,7 +1324,7 @@ function normalizeLegFlaggingKind(kind) {
   }[kind] || kind || "none";
 }
 
-function iscdRow(row, descriptionKind, language) {
+function iscdRow(row, descriptionKind, language, showEndpointCode = false) {
   const HScore = scoreDescriptionValue(row);
   if (row.control.kind === "start" || row.control.kind === "map-exchange") {
     // A standalone map exchange is a start row on the new map. IOF 13.5 is
@@ -1297,7 +1335,7 @@ function iscdRow(row, descriptionKind, language) {
     return {
       kind: "control",
       ordinal: "",
-      code: "",
+      code: showEndpointCode && row.control.kind === "start" ? row.control.code || "" : "",
       ASymbol: "start",
       text,
       C: descriptionValue(row.control, "C"),
@@ -1312,7 +1350,7 @@ function iscdRow(row, descriptionKind, language) {
   }
   const D = descriptionValue(row.control, "D") || defaultFeatureForControl(row.control.kind);
   const text = row.control.descriptionText || iscdSymbolLabel("D", D, language) || controlKindText(row.control.kind, language);
-  return { kind: "control", ordinal: (row.course?.kind === "score" || isTeamFreeCourseControl(row.course, row.courseControl)) ? "" : String(row.ordinal || ""), code: row.control.code || "", text, C: descriptionValue(row.control, "C"), D, E: descriptionValue(row.control, "E"), F: descriptionValue(row.control, "F"), G: descriptionValue(row.control, "G"), H: descriptionValue(row.control, "H"), ...(HScore !== undefined ? { HScore } : {}), featureText: descriptionKind === "symbols" ? "" : text };
+  return { kind: "control", ordinal: (["score", "military"].includes(row.course?.kind) || isTeamFreeCourseControl(row.course, row.courseControl)) ? "" : String(row.ordinal || ""), code: row.control.kind === "finish" && !showEndpointCode ? "" : row.control.code || "", text, C: descriptionValue(row.control, "C"), D, E: descriptionValue(row.control, "E"), F: descriptionValue(row.control, "F"), G: descriptionValue(row.control, "G"), H: descriptionValue(row.control, "H"), ...(HScore !== undefined ? { HScore } : {}), featureText: descriptionKind === "symbols" ? "" : text };
 }
 
 function scoreDescriptionValue(row) {
@@ -1325,7 +1363,7 @@ function scoreDescriptionValue(row) {
   if (row.course?.kind === "team") {
     return undefined;
   }
-  if (row.course?.kind === "score") {
+  if (["score", "military"].includes(row.course?.kind)) {
     return String(Math.max(0, Number(row.courseControl?.points) || 0));
   }
   return undefined;
@@ -1515,13 +1553,13 @@ function drawColumnFSingleText(ctx, text, rect, fontSize, small = false) {
   if (!label) return;
   let size = fontSize;
   ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
+  ctx.textBaseline = "alphabetic";
   do {
-    ctx.font = `400 ${Math.max(size, 1)}px ${small ? "\"Roboto Condensed\", Arial Narrow, Arial" : "Roboto, Arial"}, sans-serif`;
-    if (ctx.measureText(label).width <= rect.width * 0.95 || size <= 1) break;
+    ctx.font = `400 ${Math.max(size, 0.001)}px ${small ? "\"Roboto Condensed\", Arial Narrow, Arial" : "Roboto, Arial"}, sans-serif`;
+    if (ctx.measureText(label).width <= rect.width * 0.95 || size <= 0.001) break;
     size *= 0.9;
   } while (true);
-  ctx.fillText(label, rect.left + rect.width / 2, rect.top + rect.height / 2, rect.width * 0.98);
+  ctx.fillText(label, rect.left + rect.width / 2, centeredTextBaseline(ctx, label, rect.top + rect.height / 2), rect.width * 0.98);
 }
 
 function drawLocation(ctx, value, cx, cy, r) {
@@ -1580,7 +1618,7 @@ function wall(ctx, cx, cy, r) { line(ctx, cx - r, cy, cx + r, cy); for (const x 
 function fence(ctx, cx, cy, r) { line(ctx, cx - r, cy, cx + r, cy); for (const x of [-0.55, 0, 0.55]) line(ctx, cx + x * r, cy, cx + x * r, cy - r * 0.48); }
 function crossing(ctx, cx, cy, r) { line(ctx, cx - r * 0.8, cy - r * 0.8, cx + r * 0.8, cy + r * 0.8); line(ctx, cx - r * 0.8, cy + r * 0.8, cx + r * 0.8, cy - r * 0.8); }
 function between(ctx, cx, cy, r) { circle(ctx, cx - r * 0.55, cy, r * 0.22); circle(ctx, cx + r * 0.55, cy, r * 0.22); line(ctx, cx - r * 0.25, cy, cx + r * 0.25, cy); }
-function labelBox(ctx, cx, cy, r, text) { rect(ctx, cx, cy, r * 1.35, r); ctx.font = `${r * 0.85}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(String(text).slice(0, 2).toUpperCase(), cx, cy, r * 1.2); }
+function labelBox(ctx, cx, cy, r, text) { const label = String(text).slice(0, 2).toUpperCase(); rect(ctx, cx, cy, r * 1.35, r); ctx.font = `${r * 0.85}px Arial`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.fillText(label, cx, centeredTextBaseline(ctx, label, cy), r * 1.2); }
 function arrow(ctx, cx, cy, r, degrees, both = false) { const a = degrees * Math.PI / 180; const ends = [[cx - Math.cos(a) * r * 0.85, cy - Math.sin(a) * r * 0.85], [cx + Math.cos(a) * r * 0.85, cy + Math.sin(a) * r * 0.85]]; line(ctx, ends[0][0], ends[0][1], ends[1][0], ends[1][1]); for (const [x, y, angle] of both ? [[...ends[0], a + Math.PI], [...ends[1], a]] : [[...ends[1], a]]) { line(ctx, x, y, x - Math.cos(angle - 0.7) * r * 0.35, y - Math.sin(angle - 0.7) * r * 0.35); line(ctx, x, y, x - Math.cos(angle + 0.7) * r * 0.35, y - Math.sin(angle + 0.7) * r * 0.35); } }
 
 function descriptionValue(control, box) {

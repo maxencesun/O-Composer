@@ -1,4 +1,4 @@
-import { debugLog, debugWarn, debugError } from "./debug-log.js?v=20260716-41";
+import { debugLog, debugWarn, debugError } from "./debug-log.js?v=20260718-75";
 export function createMapViewOmapMethods(deps) {
   const {
     allControlsView,
@@ -113,10 +113,27 @@ export function createMapViewOmapMethods(deps) {
     renderQualityHighQuality
   } = deps;
   return {
+  omapRenderUi(ui) {
+    if (ui?.__omapOffsetApplied) return ui;
+    const offsetX = Number(ui?.omap?.offset?.x) || 0;
+    const offsetY = Number(ui?.omap?.offset?.y) || 0;
+    if (!offsetX && !offsetY) return ui;
+    const scale = this.scale(ui);
+    return {
+      ...ui,
+      __omapOffsetApplied: true,
+      pan: {
+        x: (Number(ui.pan?.x) || 0) + offsetX * scale,
+        y: (Number(ui.pan?.y) || 0) - offsetY * scale
+      }
+    };
+  },
+
   drawOmap(ctx, ui) {
     if (!this.omapMap) {
       return;
     }
+    ui = this.omapRenderUi(ui);
     const width = this.canvas.clientWidth || 1;
     const height = this.canvas.clientHeight || 1;
     const ratio = effectiveOmapPixelRatio(ui, window.devicePixelRatio || 1);
@@ -187,6 +204,7 @@ export function createMapViewOmapMethods(deps) {
     if (!this.omapMap) {
       return;
     }
+    ui = this.omapRenderUi(ui);
     ctx.save();
     ctx.globalAlpha = ui.mapIntensity;
     drawOmapMap(ctx, this.omapMap, point => this.toScreen(point, ui), this.scale(ui), {
@@ -652,7 +670,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260716-41", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260718-75", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");

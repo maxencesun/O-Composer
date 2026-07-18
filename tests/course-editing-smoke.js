@@ -1,16 +1,34 @@
 import assert from "node:assert/strict";
-import { addControlAt, addCourse, addExistingControlToCourse, addVariationAtCourseControl } from "../src/domain/actions.js";
+import {
+  addControlAt,
+  addCourse,
+  addExistingControlToCourse,
+  addVariationAtCourseControl,
+  updateControlCode,
+  validateControlCode
+} from "../src/domain/actions.js";
 import { courseTopology, courseView } from "../src/domain/course-service.js";
+import { buildControlDescriptionRows } from "../src/domain/control-descriptions.js";
+import { exportCourseSvg } from "../src/domain/exporters.js";
 import { createAppShellCoursePanelMethods } from "../src/ui/app-shell-course-panel-methods.js";
 import { createAppShellDialogMethods } from "../src/ui/app-shell-dialog-methods.js";
 import {
   insertionCourseControlId,
   insertionVariationEndOwnerId,
+  topologyNodeSvg,
   topologyNodeCourseControlId,
   topologyPathAttrs,
   variationAnchorCourseControl
 } from "../src/ui/app-shell-topology-helpers.js";
 import { selectionKey } from "../src/ui/app-shell-ui-helpers.js";
+
+const scalableTopologyNode = topologyNodeSvg(
+  { kind: "normal", code: "31" },
+  { x: 40, y: 60 },
+  1,
+  false
+);
+assert.match(scalableTopologyNode, /font-size="26"/, "in-page topology text uses SVG user units so viewBox scaling changes its size");
 
 const blankCourseModel = {
   event: { map: { scale: 10000 }, numbering: { start: 31, disallowInvertible: false } },
@@ -30,10 +48,28 @@ assert.equal(blankCourseModel.courseControls.length, 0);
 const newStart = addControlAt(blankCourseModel, "start", { x: 10, y: 10 }, createdCourse.id);
 const newControl = addControlAt(blankCourseModel, "normal", { x: 50, y: 10 }, createdCourse.id);
 const newFinish = addControlAt(blankCourseModel, "finish", { x: 110, y: 10 }, createdCourse.id);
+assert.equal(blankCourseModel.controls.find(control => control.id === newStart.id).code, "S1", "new starts receive sequential S codes");
+assert.equal(blankCourseModel.controls.find(control => control.id === newFinish.id).code, "F1", "new finishes receive sequential F codes");
+assert.equal(updateControlCode(blankCourseModel, newStart.id, "START-A").ok, true, "start codes are editable");
+assert.equal(updateControlCode(blankCourseModel, newFinish.id, "FINISH-A").ok, true, "finish codes are editable");
 assert.notEqual(newStart.id, 1);
 assert.notEqual(newFinish.id, 2);
 assert.deepEqual(courseView(blankCourseModel, createdCourse.id).map(row => row.control.kind), ["start", "normal", "finish"]);
 assert.equal(courseView(blankCourseModel, createdCourse.id)[1].courseControl.id, newControl.courseControl);
+const allEndpointRows = buildControlDescriptionRows(blankCourseModel, "all");
+assert.ok(allEndpointRows.some(row => row.code === "START-A"), "All Controls descriptions show start codes");
+assert.ok(allEndpointRows.some(row => row.code === "FINISH-A"), "All Controls descriptions show finish codes");
+const courseEndpointRows = buildControlDescriptionRows(blankCourseModel, createdCourse.id);
+assert.ok(!courseEndpointRows.some(row => row.code === "START-A" || row.code === "FINISH-A"),
+  "individual-course descriptions hide start and finish codes by default");
+blankCourseModel.event.courseAppearance = { controlCircleSizeRatio: 2, lineWidthRatio: 1.25, numberSizeRatio: 1.5 };
+const scaledSvg = exportCourseSvg(blankCourseModel, createdCourse.id);
+assert.match(scaledSvg, /font-size="27"/, "SVG label font follows the course number-size ratio");
+assert.match(scaledSvg, /r="30"/, "SVG control symbols follow the course circle-size ratio");
+assert.doesNotMatch(scaledSvg, />START-A<|>FINISH-A</, "ordinary-course SVG maps hide start and finish codes");
+const allControlsSvg = exportCourseSvg(blankCourseModel, "all");
+assert.match(allControlsSvg, />START-A</, "All Controls SVG maps show start codes");
+assert.match(allControlsSvg, />FINISH-A</, "All Controls SVG maps show finish codes");
 
 const reuseCourse = addCourse(blankCourseModel, "Reuse course");
 addExistingControlToCourse(blankCourseModel, reuseCourse.id, 1);
@@ -60,6 +96,17 @@ const branchModel = {
   legs: [],
   specials: []
 };
+assert.equal(validateControlCode(branchModel, 10, " 40 ").code, "40");
+assert.equal(updateControlCode(branchModel, 10, " 40 ").ok, true);
+assert.equal(branchModel.controls.find(control => control.id === 10).code, "40",
+  "control-code edits are trimmed and applied");
+const duplicateCode = updateControlCode(branchModel, 10, "32");
+assert.equal(duplicateCode.ok, false);
+assert.equal(duplicateCode.reason, "duplicate");
+assert.equal(branchModel.controls.find(control => control.id === 10).code, "40",
+  "a duplicate code never mutates the control");
+assert.equal(updateControlCode(branchModel, 10, " ").reason, "empty");
+branchModel.controls.find(control => control.id === 10).code = "31";
 const terminalUi = {
   selectedCourseId: 1,
   selection: { type: "control", id: 13, courseControl: 4 },
@@ -174,6 +221,89 @@ assert.equal(insertionCourseControlId(state), 4);
 const appended = addControlAt(branchModel, "normal", { x: 350, y: 0 }, 1, { afterCourseControl: insertionCourseControlId(state) });
 assert.equal(branchModel.courseControls.find(item => item.id === 4).nextCourseControl, appended.courseControl, "a control selected on the map must insert after the corresponding topology node");
 assert.notEqual(selectionKey({ type: "control", id: 10, courseControl: 1 }), selectionKey({ type: "control", id: 10, courseControl: 2 }));
+
+const codeEditModel = structuredClone(branchModel);
+let codeEditHistory = 0;
+let codeEditStatus = "";
+const codeEditStore = {
+  snapshot: () => ({ eventModel: codeEditModel, ui: {} }),
+  updateEvent(update) {
+    codeEditHistory += 1;
+    update(codeEditModel);
+  },
+  updateUi(update) {
+    const ui = {};
+    update(ui);
+    codeEditStatus = ui.status || "";
+  }
+};
+const codeEditMethods = createAppShellCoursePanelMethods({
+  getControl: (model, id) => model.controls.find(control => Number(control.id) === Number(id)) || null,
+  updateControlCode
+});
+const codeInput = {
+  dataset: { controlId: "10" },
+  value: "32",
+  classList: { add() {}, remove() {} },
+  setCustomValidity(message) { this.validityMessage = message; },
+  reportValidity() { this.reported = true; }
+};
+const codeEditApp = { ...codeEditMethods, store: codeEditStore, t: (message, values = {}) =>
+  message.replace(/\{code\}/g, values.code || "") };
+assert.equal(codeEditApp.updateDescriptionControlCode(codeInput), false);
+assert.equal(codeEditHistory, 0, "a colliding description-table edit does not create history");
+assert.equal(codeInput.value, "31", "a colliding description-table edit restores the previous code");
+assert.match(codeEditStatus, /already used/);
+codeInput.value = "41";
+assert.equal(codeEditApp.updateDescriptionControlCode(codeInput), true);
+assert.equal(codeEditHistory, 1);
+assert.equal(codeEditModel.controls.find(control => control.id === 10).code, "41");
+const escapeHtml = value => String(value ?? "")
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;");
+const descriptionRenderMethods = createAppShellCoursePanelMethods({
+  descriptionLanguageForEvent: () => "en",
+  isTeamFreeCourseControl: () => false,
+  columnFDescriptionDisplayValue: () => "",
+  columnFDescriptionPickerValue: () => "",
+  isColumnFTextValue: () => false,
+  normalizeColumnFText: value => value,
+  iscdSymbolLabel: () => "",
+  ISCD_COLUMNS: ["C", "D", "E", "F", "G", "H"].map(box => [box, box]),
+  controlKindLabel: kind => kind,
+  escapeHtml,
+  escapeAttr: escapeHtml
+});
+const descriptionRenderApp = {
+  ...descriptionRenderMethods,
+  store: { snapshot: () => ({ eventModel: codeEditModel, ui: { selection: null } }) },
+  t: message => message
+};
+const editableDescriptionRow = descriptionRenderApp.descriptionRow({
+  course: { kind: "normal" },
+  courseControl: { id: 1 },
+  control: codeEditModel.controls.find(control => control.id === 10),
+  ordinal: 1
+});
+assert.match(editableDescriptionRow, /data-control-code/);
+assert.match(editableDescriptionRow, /data-control-id="10"/,
+  "normal-control codes are editable directly in the description table");
+const hiddenStartDescriptionCode = descriptionRenderApp.descriptionRow({
+  course: { kind: "normal" },
+  courseControl: { id: 2 },
+  control: { id: 20, kind: "start", code: "S1", descriptions: [] },
+  ordinal: ""
+});
+assert.doesNotMatch(hiddenStartDescriptionCode, />S1</, "start codes stay hidden in the control-description table by default");
+const visibleAllControlsStartCode = descriptionRenderApp.descriptionRow({
+  course: null,
+  courseControl: null,
+  control: { id: 20, kind: "start", code: "S1", descriptions: [] },
+  ordinal: ""
+}, "all");
+assert.match(visibleAllControlsStartCode, />S1</, "start codes appear in the All Controls description table");
 
 const crossingModel = {
   controls: [{ id: 21, kind: "crossing-point", location: { x: 10, y: 20 }, orientation: 0 }],

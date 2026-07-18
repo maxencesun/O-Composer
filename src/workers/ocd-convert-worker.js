@@ -1,4 +1,4 @@
-import { convertOcadToOmap } from '../ocd/ocd2omap.js?v=20260716-41';
+import { convertOcadToOmap } from '../ocd/ocd2omap.js?v=20260718-75';
 
 self.addEventListener('message', (event) => {
   const { id, type = 'convert', buffer, options = {} } = event.data || {};

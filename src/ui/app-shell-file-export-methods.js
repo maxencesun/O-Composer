@@ -1,7 +1,7 @@
-import { debugLog } from "./debug-log.js?v=20260716-41";
-import { coursePageCount } from "../domain/course-service.js?v=20260716-41";
-import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260716-41";
-import { preparePythonPageLayout, validatePageBreakFormula } from "../domain/course-pages.js?v=20260716-41";
+import { debugLog } from "./debug-log.js?v=20260718-75";
+import { coursePageCount } from "../domain/course-service.js?v=20260718-75";
+import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260718-75";
+import { preparePythonPageLayout, validatePageBreakFormula } from "../domain/course-pages.js?v=20260718-75";
 
 export function createAppShellFileExportMethods(deps) {
   const {
@@ -942,13 +942,13 @@ export function createAppShellFileExportMethods(deps) {
     const formulaError = course?.kind === "normal"
       ? validatePageBreakFormula(course.pageBreakFormula || "")
       : "";
-    const exportUi = target.type === "course" ? {
+    const exportUi = {
       ...state.ui,
-      selectedCourseId: target.uiCourseId,
-      showAllControls: false,
+      selectedCourseId: target.uiCourseId || "all",
+      showAllControls: target.type !== "course",
       coursePage: "global",
       ...(target.exportUi || {})
-    } : null;
+    };
     const runtimeDisplayOptions = typeof courseDisplayOptions === "function"
       ? courseDisplayOptions(state.eventModel, exportUi)
       : {};

@@ -523,6 +523,16 @@ export function createAppShellDialogMethods(deps) {
       }, "Calibrate map background");
       return;
     }
+    if (event.target.closest("[data-background-move]")) {
+      this.store.updateUi(ui => {
+        if (!ui.background && !ui.omap) return;
+        const wasMoving = ui.tool === "background-move";
+        ui.tool = wasMoving ? "select" : "background-move";
+        ui.selection = { type: "background" };
+        ui.status = wasMoving ? this.t("Ready") : this.t("Drag the background on the canvas.");
+      }, "Move map background");
+      return;
+    }
     if (event.target.closest("[data-reset-control-number]")) {
       const selection = this.store.snapshot().ui.selection;
       if (selection?.type === "control-number") {

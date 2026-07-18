@@ -1,6 +1,6 @@
-import { coursePageCount } from "../domain/course-service.js?v=20260716-41";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260716-41";
-import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260716-41";
+import { coursePageCount } from "../domain/course-service.js?v=20260718-75";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260718-75";
+import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260718-75";
 
 function representativeIndexes(length, limit) {
   const count = Math.max(0, Number(length) || 0);
@@ -614,10 +614,31 @@ ${chineseBranchTree}
 
   mapBackgroundEditor(eventModel, ui) {
     const background = ui.background;
-    if (!background) {
+    const omap = ui.omap;
+    if (!background && !omap) {
       return `<p class="muted">${escapeHtml(this.t("No item selected."))}</p>`;
     }
     const mapScale = positiveScale(eventModel.event?.map?.scale) || 15000;
+    const movingBackground = ui.tool === "background-move";
+    const moveButtonLabel = movingBackground ? this.t("Finish moving background") : this.t("Move background");
+    if (!background && omap) {
+      const sourceFormat = omap.sourceKind === "ocd" ? "OCAD (.ocd)" : "OpenOrienteering Mapper (.omap/.xmap)";
+      const sourceName = omap.sourceFileName || omap.name || "";
+      return `
+        <div class="map-info-panel">
+          <h2>${escapeHtml(this.t("Map"))}</h2>
+          <div class="readonly-field"><span>${escapeHtml(this.t("File"))}</span><strong>${escapeHtml(sourceName)}</strong></div>
+          <div class="readonly-field"><span>${escapeHtml(this.t("Format"))}</span><strong>${escapeHtml(sourceFormat)}</strong></div>
+          <div class="readonly-field"><span>${escapeHtml(this.t("Objects"))}</span><strong>${Math.max(0, Number(omap.objectCount) || 0)}</strong></div>
+          <div class="readonly-field"><span>${escapeHtml(this.t("Symbols"))}</span><strong>${Math.max(0, Number(omap.symbolCount) || 0)}</strong></div>
+          <div class="form-grid">
+            <label class="span-2">${escapeHtml(this.t("Scale"))} <input data-background-field="mapScale" type="number" min="1" step="1" value="${mapScale}"></label>
+          </div>
+          <button type="button" class="${movingBackground ? "primary" : "secondary"}" data-background-move>${escapeHtml(moveButtonLabel)}</button>
+          <p class="muted">${escapeHtml(this.t("Drag on the canvas to move the background without moving course objects."))}</p>
+        </div>
+      `;
+    }
     const width = positiveNumber(background.widthMeters, 0);
     const height = positiveNumber(background.heightMeters, 0);
     const aspect = backgroundAspect(background);
@@ -645,7 +666,9 @@ ${chineseBranchTree}
           <label class="span-2">${escapeHtml(this.t("Calibration distance (m)"))} <input data-background-field="calibrationDistanceMeters" type="number" min="0.01" step="0.01" value="${formatInputNumber(background.calibrationDistanceMeters || "")}"></label>
           <label class="span-2">${escapeHtml(this.t("Calibration printed length (cm)"))} <input data-background-field="calibrationPrintedCm" type="number" min="0.01" step="0.01" value="${formatInputNumber(background.calibrationPrintedCm || "")}"></label>
         </div>
+        <button type="button" class="${movingBackground ? "primary" : "secondary"}" data-background-move>${escapeHtml(moveButtonLabel)}</button>
         <button type="button" class="secondary" data-background-calibrate>${escapeHtml(this.t("Calibrate with two points"))}</button>
+        <p class="muted">${escapeHtml(this.t("Drag on the canvas to move the background without moving course objects."))}</p>
         <p class="muted" data-background-measured>${escapeHtml(calibrationHint)}</p>
       </div>
     `;
@@ -659,7 +682,7 @@ ${chineseBranchTree}
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Kind"))} <select data-field="control.kind">${CONTROL_KINDS.map(kind => `<option value="${kind}" ${kind === control.kind ? "selected" : ""}>${escapeHtml(optionLabel(kind))}</option>`).join("")}</select></label>
-        <label>${escapeHtml(this.t("Code"))} <input data-field="control.code" value="${escapeAttr(control.code || "")}" ${control.kind !== "normal" ? "disabled" : ""}></label>
+        <label>${escapeHtml(this.t("Code"))} <input data-field="control.code" value="${escapeAttr(control.code || "")}" ${!["normal", "start", "finish"].includes(control.kind) ? "disabled" : ""}></label>
         <label>X <input data-field="control.location.x" type="number" step="0.1" value="${control.location.x}"></label>
         <label>Y <input data-field="control.location.y" type="number" step="0.1" value="${control.location.y}"></label>
         ${control.kind === "crossing-point" ? `<label class="span-2">${escapeHtml(this.t("Rotation angle (°)"))} <input data-field="control.orientation" type="number" min="0" max="359.9" step="0.1" value="${Math.round(((Number(control.orientation) || 0) % 360 + 360) % 360 * 10) / 10}"></label>` : ""}
@@ -700,7 +723,7 @@ ${chineseBranchTree}
       return "";
     }
     const course = getCourse(state.eventModel, courseId);
-    if (course?.kind !== "score") {
+    if (!course || !["score", "military"].includes(course.kind)) {
       return "";
     }
     const view = courseView(state.eventModel, courseId, { allBranches: true });
@@ -761,7 +784,7 @@ ${chineseBranchTree}
     return `
       <div class="form-grid">
         <label>${escapeHtml(this.t("Name"))} <input data-field="course.name" value="${escapeAttr(course.name)}"></label>
-        <label>${escapeHtml(this.t("Kind"))} <select data-field="course.kind"><option value="normal" ${course.kind === "normal" ? "selected" : ""}>${escapeHtml(this.t("normal"))}</option><option value="score" ${course.kind === "score" ? "selected" : ""}>${escapeHtml(this.t("score"))}</option><option value="team" ${course.kind === "team" ? "selected" : ""}>${escapeHtml(this.t("team"))}</option></select></label>
+        <label>${escapeHtml(this.t("Kind"))} <select data-field="course.kind"><option value="normal" ${course.kind === "normal" ? "selected" : ""}>${escapeHtml(this.t("normal"))}</option><option value="score" ${course.kind === "score" ? "selected" : ""}>${escapeHtml(this.t("score"))}</option><option value="military" ${course.kind === "military" ? "selected" : ""}>${escapeHtml(this.t("Military orienteering"))}</option><option value="team" ${course.kind === "team" ? "selected" : ""}>${escapeHtml(this.t("team"))}</option></select></label>
         <label>${escapeHtml(this.t("Labels"))} <select data-field="course.labelKind">${COURSE_LABEL_KINDS.map(kind => `<option value="${kind}" ${kind === course.labelKind ? "selected" : ""}>${escapeHtml(this.t(kind))}</option>`).join("")}</select></label>
         <label>${escapeHtml(this.t("Print scale"))} <input data-field="course.options.printScale" type="number" value="${course.options.printScale || 15000}"></label>
         <label>${escapeHtml(this.t("Climb"))} <input data-field="course.options.climb" type="number" value="${course.options.climb ?? -1}"></label>
@@ -1279,6 +1302,8 @@ ${chineseBranchTree}
 
   renderStatus({ eventModel, ui }) {
     this.querySelector("#statusText").textContent = this.t(ui.status || "Ready");
+    const backgroundMoveBanner = this.querySelector("#backgroundMoveModeBanner");
+    if (backgroundMoveBanner) backgroundMoveBanner.hidden = ui.tool !== "background-move";
     const mapName = ui.omap?.name ? ` | OMAP: ${ui.omap.name}` : "";
     this.querySelector("#dirtyText").textContent = `${eventModel.sourceName || this.t("Untitled.ocp")}${eventModel.dirty ? " *" : ""}${mapName}`;
     const panel = this.querySelector("#measurementPanel");

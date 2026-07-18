@@ -1,5 +1,5 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260716-41";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260716-41";
+import { resolveTextConstants } from "../domain/constants.js?v=20260718-75";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260718-75";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -124,6 +124,7 @@ export function createMapViewRenderMethods(deps) {
     pointInRect,
     orientation,
     drawFallbackSpecialPoint,
+    drawMilitaryGrid,
     isDragSpecialTool,
     specialShapeForDrag,
     drawSpecialObject,
@@ -207,6 +208,8 @@ export function createMapViewRenderMethods(deps) {
       resizePreview: null,
       tool: "select",
       highQuality: true,
+      militaryWindowPreview: true,
+      __exporting: true,
       __viewport: { width, height }
     };
     let exportClipSaved = false;
@@ -400,6 +403,7 @@ export function createMapViewRenderMethods(deps) {
     const selectedCourse = ui.selectedCourseId === "all" ? null : getCourse(eventModel, ui.selectedCourseId);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), false);
     const coursePage = mapCourseDisplayOptions(eventModel, ui).page || "global";
+    drawMilitaryGrid(ctx, eventModel, selectedCourse, point => this.toScreen(point, ui), this.scale(ui));
     for (const special of eventModel.specials) {
       if (!specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls, coursePage)) {
         continue;
@@ -446,19 +450,22 @@ export function createMapViewRenderMethods(deps) {
     const rows = allControls
       ? allControlsView(eventModel)
       : courseView(eventModel, selectedCourseId, displayOptions);
+    const windowRows = allControls ? [] : rows.filter(row => row.courseControl?.timeWindow);
+    const visibleRows = allControls ? rows : rows.filter(row => !row.courseControl?.timeWindow);
+    const showWindowGuides = selectedCourse?.kind === "military" && !ui.militaryWindowPreview && !ui.__exporting;
     const legs = allControls ? [] : courseLegs(eventModel, selectedCourseId, displayOptions);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), allControls);
-    const labelRows = mergedCourseLabelRows(rows);
+    const labelRows = mergedCourseLabelRows(visibleRows);
     const autoGaps = automaticLegGaps(
       legs,
-      rows,
+      visibleRows,
       labelRows,
       metrics,
       this.scale(ui),
       eventModel.event.courseAppearance?.autoLegGapSize || 3.5,
       location => this.toScreen(location, ui)
     );
-    const autoCircleGaps = allControls ? new Map() : automaticControlCircleGaps(rows, metrics, this.scale(ui));
+    const autoCircleGaps = allControls ? new Map() : automaticControlCircleGaps(visibleRows, metrics, this.scale(ui));
 
     ctx.save();
 
@@ -482,7 +489,7 @@ export function createMapViewRenderMethods(deps) {
       });
     }
 
-    for (const row of rows) {
+    for (const row of visibleRows) {
       const point = this.toScreen(row.control.location, ui);
       const rotationPreview = ui.crossingRotationPreview?.selection?.type === "control"
         && Number(ui.crossingRotationPreview.selection.id) === Number(row.control.id)
@@ -499,24 +506,51 @@ export function createMapViewRenderMethods(deps) {
     }
 
     for (const row of labelRows) {
-      if (row.label && row.control.kind === "normal") {
+      const showEndpointCode = allControls && ["start", "finish"].includes(row.control.kind);
+      if (row.label && (row.control.kind === "normal" || showEndpointCode)) {
         const point = this.toScreen(row.control.location, ui);
         const labelPoint = numberLocationPoint(row, point, metrics, labelRows, legs, location => this.toScreen(location, ui));
         drawControlLabel(ctx, row.label, labelPoint, metrics);
+      }
+    }
+    if (showWindowGuides) {
+      const guideMetrics = { ...metrics, color: "#2477c9" };
+      const guideLabelRows = mergedCourseLabelRows(windowRows);
+      for (const row of windowRows) {
+        if (row.suppressControlSymbol) continue;
+        const point = this.toScreen(row.control.location, ui);
+        drawCourseControl(ctx, row.control, point, guideMetrics, { directionAngle: Math.PI / 2 });
+      }
+      for (const row of guideLabelRows) {
+        if (!row.label || row.control.kind !== "normal") continue;
+        const point = this.toScreen(row.control.location, ui);
+        const labelPoint = numberLocationPoint(row, point, guideMetrics, guideLabelRows, [], location => this.toScreen(location, ui));
+        drawControlLabel(ctx, row.label, labelPoint, guideMetrics);
       }
     }
     ctx.restore();
   },
 
   drawAddableControls(ctx, eventModel, ui) {
-    if (!ui.tool?.startsWith("control:") || !ui.selectedCourseId || ui.selectedCourseId === "all") {
+    const militaryWindowMode = ui.tool === "military:window";
+    const controlMode = ui.tool?.startsWith("control:");
+    if ((!controlMode && !militaryWindowMode) || !ui.selectedCourseId || ui.selectedCourseId === "all") {
       return;
     }
-    const kind = ui.tool.slice("control:".length);
-    const controls = addableControlsForTool(eventModel, ui.selectedCourseId, kind);
-    if (!controls.length) return;
     const selectedCourse = getCourse(eventModel, ui.selectedCourseId);
-    const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), false);
+    if (militaryWindowMode && selectedCourse?.kind !== "military") return;
+    const controls = militaryWindowMode
+      ? (() => {
+          const existingWindows = new Set(courseView(eventModel, ui.selectedCourseId, { allBranches: true })
+            .filter(row => row.courseControl?.timeWindow)
+            .map(row => Number(row.control?.id)));
+          return (eventModel.controls || [])
+            .filter(control => control.kind === "normal" && !existingWindows.has(Number(control.id)));
+        })()
+      : addableControlsForTool(eventModel, ui.selectedCourseId, ui.tool.slice("control:".length));
+    if (!controls.length) return;
+    const baseMetrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), false);
+    const metrics = militaryWindowMode ? { ...baseMetrics, color: "#2477c9" } : baseMetrics;
     ctx.save();
     ctx.globalAlpha = 0.28;
     for (const control of controls) {
@@ -534,7 +568,9 @@ export function createMapViewRenderMethods(deps) {
     ctx.setLineDash([4, 4]);
     if (ui.selection.type === "control") {
       const control = getControl(eventModel, ui.selection.id);
-      if (control) {
+      const hiddenWindow = (ui.militaryWindowPreview || ui.__exporting) && ui.selectedCourseId !== "all" && courseView(eventModel, ui.selectedCourseId)
+        .some(row => Number(row.control?.id) === Number(control?.id) && row.courseControl?.timeWindow);
+      if (control && !hiddenWindow) {
         const selectedCourseId = ui.selectedCourseId || "all";
         const allControls = selectedCourseId === "all";
         const selectedCourse = allControls ? null : getCourse(eventModel, selectedCourseId);
@@ -836,6 +872,13 @@ export function createMapViewRenderMethods(deps) {
         stretch: 0,
         circleGaps: []
       }, point, metrics, { directionAngle: Math.PI / 2 });
+    }
+    else if (ui.tool === "military:window") {
+      drawCourseControl(ctx, {
+        kind: "normal",
+        location: this.toolPreview.point,
+        circleGaps: []
+      }, point, { ...metrics, color: "#2477c9" }, { directionAngle: Math.PI / 2 });
     }
     else if (ui.tool.startsWith("special:")) {
       const kind = ui.tool.slice("special:".length);

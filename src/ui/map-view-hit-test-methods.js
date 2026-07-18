@@ -154,7 +154,22 @@ export function createMapViewHitTestMethods(deps) {
     const DRAWN_SPECIAL_PRIORITY_BONUS = 7 / scale;
     const AREA_SPECIAL_PRIORITY_BONUS = 2 / scale;
 
+    const selectedCourseId = state.ui.selectedCourseId || "all";
+    const allControls = selectedCourseId === "all";
+    const selectedCourse = allControls ? null : getCourse(state.eventModel, selectedCourseId);
+    const displayOptions = mapCourseDisplayOptions(state.eventModel, state.ui);
+    const controlRows = allControls
+      ? allControlsView(state.eventModel)
+      : courseView(state.eventModel, selectedCourseId, displayOptions);
+    const showWindowGuides = selectedCourse?.kind === "military"
+      && !state.ui.militaryWindowPreview
+      && !state.ui.__exporting;
+    const selectableControlIds = new Set(controlRows
+      .filter(row => !row.suppressControlSymbol)
+      .filter(row => !row.courseControl?.timeWindow || showWindowGuides)
+      .map(row => Number(row.control?.id)));
     for (const control of state.eventModel.controls) {
+      if (!selectableControlIds.has(Number(control.id))) continue;
       const dist = Math.hypot(control.location.x - point.x, control.location.y - point.y);
       // Use a larger threshold for controls — include clicking within the control circle
       const controlThreshold = Math.max(baseThreshold, symbolApparentRadiusControl(control, scale) + baseThreshold * 0.5);

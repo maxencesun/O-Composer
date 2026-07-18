@@ -1,6 +1,6 @@
-import { findById } from "./event-model.js?v=20260716-41";
-import { allCourseVariations, relayBranchEffectiveLegs, relayBranchGroups, variationBranchCodeMap } from "./relay-variations.js?v=20260716-41";
-import { coursePageLayout, rowsForCoursePage } from "./course-pages.js?v=20260716-41";
+import { findById } from "./event-model.js?v=20260718-75";
+import { allCourseVariations, relayBranchEffectiveLegs, relayBranchGroups, variationBranchCodeMap } from "./relay-variations.js?v=20260718-75";
+import { coursePageLayout, rowsForCoursePage } from "./course-pages.js?v=20260718-75";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -225,7 +225,7 @@ export function coursePageDetails(eventModel, courseId, options = {}) {
 
 export function courseTopology(eventModel, courseId) {
   const course = getCourse(eventModel, courseId);
-  if (!course || course.kind === "score") {
+  if (!course || ["score", "military"].includes(course.kind)) {
     return [];
   }
 
@@ -488,19 +488,20 @@ export function courseLegs(eventModel, courseId, options = {}) {
   }
 
   const view = courseView(eventModel, courseId, options);
-  if (course.kind === "score") {
-    return scoreCourseFinishLeg(eventModel, course, view);
+  const mapView = view.filter(row => !row.courseControl?.timeWindow);
+  if (["score", "military"].includes(course.kind)) {
+    return scoreCourseFinishLeg(eventModel, course, mapView);
   }
   if (course.kind === "team") {
-    return teamCourseLegs(eventModel, course, view);
+    return teamCourseLegs(eventModel, course, mapView);
   }
   if (options.allBranches) {
     return topologyCourseLegs(eventModel, courseId);
   }
   const legs = [];
-  for (let i = 0; i < view.length - 1; i += 1) {
-    const from = view[i];
-    const to = view[i + 1];
+  for (let i = 0; i < mapView.length - 1; i += 1) {
+    const from = mapView[i];
+    const to = mapView[i + 1];
     if (!from.control || !to.control) {
       continue;
     }
@@ -771,6 +772,12 @@ export function eventBounds(eventModel) {
   for (const special of eventModel.specials) {
     points.push(...(special.locations || []));
   }
+  points.push(...(eventModel.event?.militaryGrid?.locations || []));
+  for (const course of eventModel.courses || []) {
+    if (course.kind === "military") {
+      points.push(...(course.options?.military?.grid?.locations || []));
+    }
+  }
 
   if (eventModel.event.printArea && !eventModel.event.printArea.automatic) {
     const area = eventModel.event.printArea;
@@ -946,6 +953,7 @@ export function controlKindLabel(kind) {
     case "crossing-point": return "Crossing";
     case "map-issue": return "Map issue";
     case "map-exchange": return "Map exchange";
+    case "time-window": return "Time-window point";
     default: return "Control";
   }
 }
@@ -956,8 +964,9 @@ export function compareControls(a, b) {
     start: 1,
     "map-exchange": 2,
     normal: 3,
-    finish: 4,
-    "crossing-point": 5
+    "time-window": 4,
+    finish: 5,
+    "crossing-point": 6
   };
   const kindDiff = (order[a.kind] ?? 99) - (order[b.kind] ?? 99);
   if (kindDiff) return kindDiff;
@@ -1082,14 +1091,16 @@ export function isTeamMandatoryCourseControl(course, courseControl) {
 
 function labelForControl(course, courseControl, control, ordinal) {
   if (control.kind !== "normal") {
-    return controlKindLabel(control.kind);
+    return ["start", "finish"].includes(control.kind) && control.code
+      ? control.code
+      : controlKindLabel(control.kind);
   }
   const code = control.code || "";
   const teamFree = isTeamFreeCourseControl(course, courseControl);
   if (teamFree) {
     return code;
   }
-  const score = course.kind === "score"
+  const score = ["score", "military"].includes(course.kind)
     ? String(Math.max(0, Number(courseControl?.points) || 0))
     : (courseControl?.points ? String(courseControl.points) : "");
   const labelKind = course.labelKind;

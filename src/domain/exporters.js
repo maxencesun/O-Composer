@@ -8,8 +8,8 @@ import {
   formatLength,
   isTeamFreeCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260716-41";
-import { allCourseVariations } from "./relay-variations.js?v=20260716-41";
+} from "./course-service.js?v=20260718-75";
+import { allCourseVariations } from "./relay-variations.js?v=20260718-75";
 
 export function exportIofXml(eventModel, version = 3) {
   return version === 2 ? exportIofXml2(eventModel) : exportIofXml3(eventModel);
@@ -60,7 +60,7 @@ export function exportIofXml3(eventModel) {
       if (row.ordinal) {
         lines.push(`        <MapText>${escapeText(row.ordinal)}</MapText>`);
       }
-      if (course.kind === "score" && row.courseControl.points) {
+      if (["score", "military"].includes(course.kind) && row.courseControl.points) {
         lines.push(`        <Score>${row.courseControl.points}</Score>`);
       }
       if (course.kind === "team" && isTeamFreeCourseControl(course, row.courseControl)) {
@@ -120,7 +120,7 @@ export function exportIofXml2(eventModel) {
         lines.push(`      <CourseControl>`);
         lines.push(`        <Sequence>${sequence++}</Sequence>`);
         lines.push(`        <ControlCode>${escapeText(row.control.code || syntheticControlCode(row.control))}</ControlCode>`);
-        if (course.kind === "score" && row.courseControl.points) {
+        if (["score", "military"].includes(course.kind) && row.courseControl.points) {
           lines.push(`        <ScoreOPoints>${row.courseControl.points}</ScoreOPoints>`);
         }
         lines.push(`      </CourseControl>`);
@@ -208,29 +208,38 @@ export function exportCourseSvg(eventModel, selectedCourseId = "all") {
   const selectedCourse = selectedCourseId === "all" ? null : sortedCourses(eventModel).find(course => course.id === Number(selectedCourseId));
   const rows = selectedCourse ? courseView(eventModel, selectedCourse.id) : allControlsView(eventModel);
   const legs = selectedCourse ? courseLegs(eventModel, selectedCourse.id) : [];
+  const appearance = eventModel.event?.courseAppearance || {};
+  const symbolScale = Math.max(0.1, Number(appearance.controlCircleSizeRatio) || 1);
+  const numberScale = Math.max(0.1, Number(appearance.numberSizeRatio) || 1);
+  const lineScale = Math.max(0.1, Number(appearance.lineWidthRatio) || 1);
+  const symbolRadius = 15 * symbolScale;
+  const strokeWidth = 4 * lineScale;
+  const labelFontSize = 18 * numberScale;
   const lines = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     `<rect width="100%" height="100%" fill="#f8f7f2" />`,
-    `<g stroke="#8f2aa8" fill="none" stroke-width="4">`
+    `<g stroke="#8f2aa8" fill="none" stroke-width="${round(strokeWidth)}">`
   ];
   for (const leg of legs) {
     lines.push(`<line x1="${tx(leg.from.control.location.x)}" y1="${ty(leg.from.control.location.y)}" x2="${tx(leg.to.control.location.x)}" y2="${ty(leg.to.control.location.y)}" />`);
   }
   lines.push(`</g>`);
   for (const row of rows) {
+    if (selectedCourse && row.courseControl?.timeWindow) continue;
     const x = tx(row.control.location.x);
     const y = ty(row.control.location.y);
     if (row.control.kind === "start") {
-      lines.push(`<polygon points="${x},${y - 14} ${x - 13},${y + 10} ${x + 13},${y + 10}" fill="none" stroke="#8f2aa8" stroke-width="4" />`);
+      lines.push(`<polygon points="${x},${y - 14 * symbolScale} ${x - 13 * symbolScale},${y + 10 * symbolScale} ${x + 13 * symbolScale},${y + 10 * symbolScale}" fill="none" stroke="#8f2aa8" stroke-width="${round(strokeWidth)}" />`);
     }
     else if (row.control.kind === "finish") {
-      lines.push(`<circle cx="${x}" cy="${y}" r="15" fill="none" stroke="#8f2aa8" stroke-width="4" /><circle cx="${x}" cy="${y}" r="10" fill="none" stroke="#8f2aa8" stroke-width="4" />`);
+      lines.push(`<circle cx="${x}" cy="${y}" r="${round(symbolRadius)}" fill="none" stroke="#8f2aa8" stroke-width="${round(strokeWidth)}" /><circle cx="${x}" cy="${y}" r="${round(10 * symbolScale)}" fill="none" stroke="#8f2aa8" stroke-width="${round(strokeWidth)}" />`);
     }
     else {
-      lines.push(`<circle cx="${x}" cy="${y}" r="15" fill="none" stroke="#8f2aa8" stroke-width="4" />`);
+      lines.push(`<circle cx="${x}" cy="${y}" r="${round(symbolRadius)}" fill="none" stroke="#8f2aa8" stroke-width="${round(strokeWidth)}" />`);
     }
-    if (row.label) {
-      lines.push(`<text x="${x + 18}" y="${y - 12}" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#8f2aa8">${escapeText(row.label)}</text>`);
+    const showEndpointCode = !selectedCourse && ["start", "finish"].includes(row.control.kind);
+    if (row.label && (row.control.kind === "normal" || showEndpointCode)) {
+      lines.push(`<text x="${x + symbolRadius + 3 * numberScale}" y="${y - symbolRadius * 0.8}" font-family="Arial, sans-serif" font-size="${round(labelFontSize)}" font-weight="700" dominant-baseline="central" fill="#8f2aa8">${escapeText(row.label)}</text>`);
     }
   }
   lines.push(`</svg>`);

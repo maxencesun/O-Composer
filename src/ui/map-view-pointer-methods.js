@@ -1,4 +1,4 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260716-41";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260718-75";
 
 export function createMapViewPointerMethods(deps) {
   const {
@@ -228,6 +228,23 @@ export function createMapViewPointerMethods(deps) {
       this.requestDraw(state);
       return;
     }
+    if (state.ui.tool === "background-move" && (state.ui.background || state.ui.omap)) {
+      const origin = state.ui.background
+        ? { x: Number(state.ui.background.centerX) || 0, y: Number(state.ui.background.centerY) || 0 }
+        : { x: Number(state.ui.omap?.offset?.x) || 0, y: Number(state.ui.omap?.offset?.y) || 0 };
+      this.canvas.style.cursor = "grabbing";
+      this.drag = {
+        pointerId: event.pointerId,
+        startScreen: screen,
+        lastScreen: screen,
+        startMap: mapPoint,
+        backgroundMove: true,
+        backgroundOrigin: origin,
+        moved: false,
+        panning: false
+      };
+      return;
+    }
     const calibrationPointCount = state.ui.background?.calibration?.imagePoints?.length
       || state.ui.background?.calibration?.points?.length
       || 0;
@@ -277,7 +294,7 @@ export function createMapViewPointerMethods(deps) {
       const rotationHit = state.ui.tool === "select"
         ? this.hitTestSelectedCrossingRotation(mapPoint, state, 16 / this.scale(state.ui))
         : null;
-      this.canvas.style.cursor = calibrationHit || rotationHit ? "grab" : "";
+      this.canvas.style.cursor = state.ui.tool === "background-move" || calibrationHit || rotationHit ? "grab" : "";
       return;
     }
     if (this.drag.measurement) {
@@ -307,6 +324,15 @@ export function createMapViewPointerMethods(deps) {
       this.store.updateUi(ui => {
         ui.pan = { x: ui.pan.x + dx, y: ui.pan.y + dy };
       }, "Pan");
+      return;
+    }
+
+    if (this.drag.backgroundMove) {
+      this.startFastOmapInteraction();
+      this.callbacks.onBackgroundMove?.({
+        x: this.drag.backgroundOrigin.x + mapPoint.x - this.drag.startMap.x,
+        y: this.drag.backgroundOrigin.y + mapPoint.y - this.drag.startMap.y
+      }, { transient: true });
       return;
     }
 
@@ -406,6 +432,16 @@ export function createMapViewPointerMethods(deps) {
       return;
     }
     if (this.drag.panning) {
+      this.cancelDrag();
+      return;
+    }
+    if (this.drag.backgroundMove) {
+      if (this.drag.moved) {
+        this.callbacks.onBackgroundMove?.({
+          x: this.drag.backgroundOrigin.x + mapPoint.x - this.drag.startMap.x,
+          y: this.drag.backgroundOrigin.y + mapPoint.y - this.drag.startMap.y
+        }, { transient: false });
+      }
       this.cancelDrag();
       return;
     }
@@ -581,7 +617,13 @@ export function createMapViewPointerMethods(deps) {
       event.stopPropagation();
       return;
     }
-    if (this.store.snapshot().ui.tool === "measure") {
+    if (this.store.snapshot().ui.tool === "background-move") {
+      event.preventDefault();
+      event.stopPropagation();
+      this.cancelDrag();
+      this.callbacks.onCancelTool?.();
+    }
+    else if (this.store.snapshot().ui.tool === "measure") {
       event.preventDefault();
       event.stopPropagation();
       if (this.store.snapshot().ui.measurement?.adding) this.callbacks.onMeasurementFinish?.();
@@ -630,7 +672,7 @@ export function createMapViewPointerMethods(deps) {
   },
 
   updateToolPreview(tool, point) {
-    const previewable = typeof tool === "string" && (tool === "measure" || tool === "background-calibration" || tool.startsWith("control:") || tool.startsWith("special:"));
+    const previewable = typeof tool === "string" && (tool === "measure" || tool === "background-calibration" || tool === "military:window" || tool.startsWith("control:") || tool.startsWith("special:"));
     if (!previewable) {
       this.clearToolPreview();
       this.areaSpecialDraft = null;
@@ -647,6 +689,20 @@ export function createMapViewPointerMethods(deps) {
   },
 
   previewPointForTool(tool, point, state = this.store.snapshot()) {
+    if (tool === "military:window") {
+      const threshold = ADDABLE_CONTROL_SNAP_PIXELS / this.scale(state.ui);
+      let nearest = null;
+      let nearestDistance = Infinity;
+      for (const control of state.eventModel.controls || []) {
+        if (control.kind !== "normal") continue;
+        const candidateDistance = distance(point, control.location);
+        if (candidateDistance < threshold && candidateDistance < nearestDistance) {
+          nearest = control;
+          nearestDistance = candidateDistance;
+        }
+      }
+      return nearest?.location || point;
+    }
     if (!tool?.startsWith?.("control:")) {
       return point;
     }

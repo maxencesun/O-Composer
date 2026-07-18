@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260716-41";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260716-41";
-import { findById } from "../domain/event-model.js?v=20260716-41";
+} from "./app-shell-config.js?v=20260718-75";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260718-75";
+import { findById } from "../domain/event-model.js?v=20260718-75";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260716-41";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260716-41";
+} from "../domain/control-descriptions.js?v=20260718-75";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260718-75";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -44,11 +44,11 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260716-41";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260716-41";
-import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260716-41";
-import { t } from "./i18n.js?v=20260716-41";
-import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260716-41";
+} from "../domain/course-service.js?v=20260718-75";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260718-75";
+import { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap } from "../domain/variation-topology-layout.js?v=20260718-75";
+import { t } from "./i18n.js?v=20260718-75";
+import { escapeAttr, escapeHtml } from "./app-shell-ui-helpers.js?v=20260718-75";
 
 export { alignTopologySharedJoinPoints, placeTopologyBranchLabel, topologySharedJoinParentMap };
 
@@ -481,7 +481,8 @@ export function topologyNodeSvg(control, position, courseControlId, selected, op
   }
   const label = control.kind === "normal" ? control.code || "" : controlKindLabel(control.kind);
   const className = control.kind === "normal" ? "variation-topology-number" : "variation-topology-special";
-  return `<g class="variation-topology-node${selectedClass}" ${attrs}>${hitCircle}<text class="${className}" x="${formatSvgNumber(position.x)}" y="${formatSvgNumber(position.y)}" text-anchor="middle" dominant-baseline="central" alignment-baseline="central" ${attrs}>${escapeHtml(label)}</text></g>`;
+  const fontSize = control.kind === "normal" ? 26 : 12;
+  return `<g class="variation-topology-node${selectedClass}" ${attrs}>${hitCircle}<text class="${className}" x="${formatSvgNumber(position.x)}" y="${formatSvgNumber(position.y)}" font-size="${fontSize}" text-anchor="middle" dominant-baseline="central" alignment-baseline="central" ${attrs}>${escapeHtml(label)}</text></g>`;
 }
 
 export function formatSvgNumber(value) {
@@ -650,7 +651,7 @@ export function variationAnchorIsUsable(eventModel, courseControl) {
 }
 
 export function canAddVariationAtCourseControl(eventModel, course, courseControl) {
-  if (!course || course.kind === "score") return false;
+  if (!course || ["score", "military"].includes(course.kind)) return false;
   return variationAnchorIsUsable(eventModel, courseControl);
 }
 

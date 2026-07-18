@@ -1,4 +1,20 @@
-import { debugError } from "./debug-log.js?v=20260716-41";
+import { debugError } from "./debug-log.js?v=20260718-75";
+import {
+  ensureMilitaryGrid,
+  militaryGridBounds,
+  militaryGrid,
+  militaryTimeWindowRows
+} from "../domain/military-orienteering.js?v=20260718-75";
+
+export function normalizeMilitaryWindowTime(value, fallback = "00:00") {
+  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{1,2})$/);
+  if (!match) return fallback;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (!Number.isInteger(hours) || hours < 0 || hours > 23
+    || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) return fallback;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
 
 export function createAppShellVariationMethods(deps) {
   const {
@@ -24,7 +40,6 @@ export function createAppShellVariationMethods(deps) {
     removeVariationBranch,
     addSpecialAt,
     autoNumberControls,
-    deleteSelection,
     duplicateCourse,
     moveAllControls,
     moveSelection,
@@ -289,10 +304,13 @@ export function createAppShellVariationMethods(deps) {
     if (!column || !content) return;
     const inlineTree = panel?.querySelector(".variation-tree-inline");
     const treeHtml = inlineTree?.innerHTML || "";
+    const state = this.store.snapshot();
+    const militaryMode = getCourse(state.eventModel, state.ui.selectedCourseId)?.kind === "military";
     content.innerHTML = treeHtml.trim()
-      ? `<div class="variation-tree variation-tree-external">${treeHtml}</div>`
+      ? `<div class="variation-tree variation-tree-external${militaryMode ? " military-orienteering-panel" : ""}">${treeHtml}</div>`
       : "";
     column.dataset.hasTopology = treeHtml.trim() ? "true" : "false";
+    column.dataset.mode = militaryMode ? "military" : "variation";
   },
 
   syncVariationTopologyColumnVisibility() {
@@ -300,7 +318,8 @@ export function createAppShellVariationMethods(deps) {
     const panel = this.querySelector("#variationPanel");
     const column = this.querySelector("#variationTopologyColumn");
     const topologyLeftDivider = this.querySelector("#topologyLeftDivider");
-    const show = !!column && column.dataset.hasTopology === "true" && !!panel && !panel.hidden;
+    const show = !!column && column.dataset.hasTopology === "true"
+      && (column.dataset.mode === "military" || (!!panel && !panel.hidden));
     const visibilityChanged = workspace?.classList.contains("show-variation-topology-column") !== show;
     if (column) {
       column.hidden = !show;
@@ -329,6 +348,9 @@ export function createAppShellVariationMethods(deps) {
     const course = courseId === "all" ? null : getCourse(eventModel, courseId);
     if (!course) {
       return `<p class="muted">${escapeHtml(this.t("Select a course first."))}</p>`;
+    }
+    if (course.kind === "military") {
+      return this.militaryOrienteeringPanelHtml(eventModel, course, ui);
     }
     if (course.kind === "score") {
       return `<p class="muted">${escapeHtml(this.t("Variations cannot be added to score courses."))}</p>`;
@@ -390,6 +412,61 @@ export function createAppShellVariationMethods(deps) {
         <div class="variation-tree variation-tree-inline">${topologyHtml || `<p class="muted">${escapeHtml(this.t("This course has no controls."))}</p>`}</div>
       </div>
     `;
+  },
+
+  militaryOrienteeringPanelHtml(eventModel, course, ui) {
+    const grid = militaryGrid(eventModel);
+    const hasGrid = !!militaryGridBounds(grid);
+    const windows = militaryTimeWindowRows(eventModel, course.id);
+    const windowRows = windows.map(row => {
+      const item = row.control;
+      const courseControl = row.courseControl;
+      return `
+        <div class="military-window-row" data-military-window-id="${Number(item.id) || 0}" data-military-course-control-id="${Number(courseControl.id) || 0}">
+          <input data-military-window-field="code" value="${escapeAttr(item.code || "")}" aria-label="${escapeAttr(this.t("Window code"))}">
+          <input data-military-window-field="windowStartTime" type="text" inputmode="numeric" maxlength="5" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" value="${escapeAttr(courseControl.windowStartTime || "00:00")}" aria-label="${escapeAttr(this.t("Start time"))}">
+          <input data-military-window-field="windowEndTime" type="text" inputmode="numeric" maxlength="5" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" value="${escapeAttr(courseControl.windowEndTime || "00:00")}" aria-label="${escapeAttr(this.t("End time"))}">
+          <input class="military-window-score" data-military-window-field="points" type="number" min="0" step="1" value="${Math.max(0, Number(courseControl.points) || 0)}" aria-label="${escapeAttr(this.t("Points"))}">
+        </div>`;
+    }).join("");
+    return `
+      <div class="variation-tree variation-tree-inline military-orienteering-panel">
+        <header class="military-panel-header">
+          <div><strong>${escapeHtml(this.t("Military orienteering"))}</strong><small>${escapeHtml(this.t("Score course with hidden time-window points"))}</small></div>
+          <label class="military-preview-toggle"><input type="checkbox" data-military-window-preview ${ui.militaryWindowPreview ? "checked" : ""}> <span>${escapeHtml(this.t("Preview"))}</span></label>
+        </header>
+        <section class="military-panel-section">
+          <div class="military-section-heading"><strong>${escapeHtml(this.t("Coordinate grid"))}</strong><span>${hasGrid ? escapeHtml(this.t("Grid defined")) : escapeHtml(this.t("No grid defined"))}</span></div>
+          <div class="military-grid-form">
+            <label>${escapeHtml(this.t("Horizontal spacing (cm)"))}<input data-military-grid-field="spacingXcm" type="number" min="0.01" step="0.1" value="${Number(grid.spacingXcm) || 1}"></label>
+            <label>${escapeHtml(this.t("Vertical spacing (cm)"))}<input data-military-grid-field="spacingYcm" type="number" min="0.01" step="0.1" value="${Number(grid.spacingYcm) || 1}"></label>
+            <label>${escapeHtml(this.t("Line width (mm)"))}<input data-military-grid-field="lineWidthMm" type="number" min="0.01" step="0.01" value="${Number(grid.lineWidthMm) || 0.18}"></label>
+            <label>${escapeHtml(this.t("Coordinate font size (mm)"))}<input data-military-grid-field="fontSizeMm" type="number" min="0.2" step="0.1" value="${Number(grid.fontSizeMm) || 1.8}"></label>
+            <label>${escapeHtml(this.t("Starting X"))}<input data-military-grid-field="startX" type="number" step="1" value="${Math.round(Number(grid.startX) || 0)}"></label>
+            <label>${escapeHtml(this.t("Starting Y"))}<input data-military-grid-field="startY" type="number" step="1" value="${Math.round(Number(grid.startY) || 0)}"></label>
+          </div>
+          <div class="military-panel-actions">
+            <button type="button" data-draw-military-grid>${iconSvg("polygon")} <span>${escapeHtml(this.t(hasGrid ? "Redraw grid boundary" : "Draw grid boundary"))}</span></button>
+            ${hasGrid ? `<button type="button" class="danger" data-delete-military-grid>${iconSvg("trash")} <span>${escapeHtml(this.t("Delete grid"))}</span></button>` : ""}
+          </div>
+          <p class="muted">${escapeHtml(this.t("Click polygon vertices on the map; right-click or press Esc to finish."))}</p>
+        </section>
+        <section class="military-panel-section">
+          <div class="military-section-heading"><strong>${escapeHtml(this.t("Current course time-window points"))}</strong><span>${windows.length}</span></div>
+          <button type="button" data-add-military-window ${hasGrid ? "" : "disabled"}>${iconSvg("plus")} <span>${escapeHtml(this.t("Add time-window point"))}</span></button>
+          <div class="military-window-list">
+            ${windows.length ? `
+              <div class="military-window-row military-window-row-header" role="row">
+                <span>${escapeHtml(this.t("Control number"))}</span>
+                <span>${escapeHtml(this.t("Start time"))}</span>
+                <span>${escapeHtml(this.t("End time"))}</span>
+                <span>${escapeHtml(this.t("Score"))}</span>
+              </div>
+              ${windowRows}` : `<p class="muted">${escapeHtml(this.t("No time-window points."))}</p>`}
+          </div>
+          <p class="muted">${escapeHtml(this.t("A control is hidden only when used as a time-window point in this course; it remains reusable as a normal control in other courses."))}</p>
+        </section>
+      </div>`;
   },
 
   variationLegCountControl(eventModel, course, variations) {
@@ -701,10 +778,10 @@ export function createAppShellVariationMethods(deps) {
           const labelX = labelPosition.x;
           const labelY = labelPosition.y;
           includeCenteredTextBounds(labelX, labelY, `(${code})`, 16, 8.5);
-          labels.push(`<text class="variation-topology-code ${branchSelected ? "selected" : ""}" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY)}" text-anchor="middle"${branchAttrs}>(${escapeHtml(code)})</text>`);
+          labels.push(`<text class="variation-topology-code ${branchSelected ? "selected" : ""}" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY)}" font-size="16" text-anchor="middle" dominant-baseline="middle"${branchAttrs}>(${escapeHtml(code)})</text>`);
           if (legLabel) {
             includeCenteredTextBounds(labelX, labelY + 16, legLabel, 13, 7.5);
-            labels.push(`<text class="variation-topology-branch-legs" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY + 16)}" text-anchor="middle"${branchAttrs}>${escapeHtml(legLabel)}</text>`);
+            labels.push(`<text class="variation-topology-branch-legs" x="${formatSvgNumber(labelX)}" y="${formatSvgNumber(labelY + 16)}" font-size="13" text-anchor="middle" dominant-baseline="middle"${branchAttrs}>${escapeHtml(legLabel)}</text>`);
           }
         }
       }
@@ -810,7 +887,7 @@ export function createAppShellVariationMethods(deps) {
     const width = contentWidth;
     const height = Math.max(120, Math.ceil(viewBoxHeight * (width / viewBoxWidth)));
     return `
-      <svg class="variation-topology" width="${width}" height="${height}" viewBox="${viewMinX} ${viewMinY} ${viewBoxWidth} ${viewBoxHeight}" role="img" aria-label="${escapeAttr(this.t("Variation"))}">
+      <svg class="variation-topology" width="${width}" height="${height}" viewBox="${viewMinX} ${viewMinY} ${viewBoxWidth} ${viewBoxHeight}" preserveAspectRatio="xMidYMin meet" role="img" aria-label="${escapeAttr(this.t("Variation"))}">
         <g>${junctions.join("")}</g>
         <g>${paths.join("")}</g>
         <g>${priorityHits.join("")}</g>
@@ -823,6 +900,29 @@ export function createAppShellVariationMethods(deps) {
   },
 
   handleVariationPanelClick(event) {
+    if (event.target.closest("[data-draw-military-grid]")) {
+      const courseId = this.store.snapshot().ui.selectedCourseId;
+      this.store.updateUi(ui => {
+        ui.tool = "special:military-grid";
+        ui.specialToolOptions = { courseId };
+        ui.status = this.t("Click polygon vertices on the map; right-click or press Esc to finish.");
+      }, "Draw military grid");
+      return;
+    }
+    if (event.target.closest("[data-delete-military-grid]")) {
+      this.store.updateEvent(model => {
+        ensureMilitaryGrid(model).locations = [];
+      }, "Delete military grid");
+      return;
+    }
+    if (event.target.closest("[data-add-military-window]")) {
+      this.store.updateUi(ui => {
+        ui.tool = "military:window";
+        ui.specialToolOptions = null;
+        ui.status = this.t("Click the map to set the hidden time-window point.");
+      }, "Add military time window");
+      return;
+    }
     const addButton = event.target.closest("[data-add-variation]");
     if (addButton) {
       this.addVariationFromPanel();
@@ -929,6 +1029,52 @@ export function createAppShellVariationMethods(deps) {
   },
 
   handleVariationPanelChange(event) {
+    const previewToggle = event.target.closest("[data-military-window-preview]");
+    if (previewToggle) {
+      const status = this.t(previewToggle.checked
+        ? "Preview hides time-window points."
+        : "Time-window points are shown in blue for editing.");
+      this.store.updateUi(ui => {
+        ui.militaryWindowPreview = !!previewToggle.checked;
+        ui.status = status;
+      }, status);
+      return;
+    }
+    const gridField = event.target.closest("[data-military-grid-field]");
+    if (gridField) {
+      const courseId = this.store.snapshot().ui.selectedCourseId;
+      const field = gridField.dataset.militaryGridField;
+      this.store.updateEvent(model => {
+        if (getCourse(model, courseId)?.kind !== "military") return;
+        const grid = ensureMilitaryGrid(model);
+        const value = Number(gridField.value);
+        if (["startX", "startY"].includes(field)) grid[field] = Math.round(value || 0);
+        else grid[field] = Math.max(0.01, value || (field === "lineWidthMm" ? 0.18 : 1));
+      }, "Update military grid");
+      return;
+    }
+    const windowField = event.target.closest("[data-military-window-field]");
+    if (windowField) {
+      const row = windowField.closest("[data-military-window-id]");
+      const windowId = Number(row?.dataset.militaryWindowId);
+      const courseControlId = Number(row?.dataset.militaryCourseControlId);
+      const field = windowField.dataset.militaryWindowField;
+      this.store.updateEvent(model => {
+        const control = model.controls.find(candidate => Number(candidate.id) === windowId);
+        const courseControl = getCourseControl(model, courseControlId);
+        if (!control || !courseControl) return;
+        if (field === "code") {
+          const value = String(windowField.value || "").trim();
+          const duplicate = model.controls.some(candidate => Number(candidate.id) !== windowId && String(candidate.code || "").trim().toLowerCase() === value.toLowerCase());
+          if (value && !duplicate) control.code = value;
+        }
+        else if (["windowStartTime", "windowEndTime"].includes(field)) {
+          courseControl[field] = normalizeMilitaryWindowTime(windowField.value, courseControl[field] || "00:00");
+        }
+        else if (field === "points") courseControl.points = Math.max(0, Math.round(Number(windowField.value) || 0));
+      }, "Update military time window");
+      return;
+    }
     const branchesInput = event.target.closest("[data-variation-add-branches]");
     const branchLegInput = event.target.closest("[data-variation-branch-leg]");
     const relayField = event.target.closest("[data-relay-settings-field]");

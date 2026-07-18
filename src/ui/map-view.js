@@ -7,16 +7,16 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260716-41";
+} from "../domain/course-service.js?v=20260718-75";
 import {
   createDescriptionSpecialOptions,
   descriptionBounds,
   drawControlDescriptionBlock,
   resizedDescriptionSpecial,
   specialVisibleForCourse
-} from "../domain/control-descriptions.js?v=20260716-41";
-import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js?v=20260716-41";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260716-41";
+} from "../domain/control-descriptions.js?v=20260718-75";
+import { effectivePrintArea, printAreaCenter } from "../domain/print-area.js?v=20260718-75";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260718-75";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
@@ -28,15 +28,15 @@ import {
   drawCourseLeg,
   drawPointSpecialSymbol,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260716-41";
-import { drawOmapMap } from "./omap-renderer.js?v=20260716-41";
+} from "./course-symbols.js?v=20260718-75";
+import { drawOmapMap } from "./omap-renderer.js?v=20260718-75";
 import {
   effectiveCanvasPixelRatio,
   effectiveOmapPixelRatio,
   omapPaddingMultiplier,
   renderQualityHighQuality,
   renderQualityImageSmoothingQuality
-} from "./render-quality.js?v=20260716-41";
+} from "./render-quality.js?v=20260718-75";
 
 import {
   ADDABLE_CONTROL_SNAP_PIXELS,
@@ -106,6 +106,7 @@ import {
   pointInRect,
   orientation,
   drawFallbackSpecialPoint,
+  drawMilitaryGrid,
   isDragSpecialTool,
   isAreaSpecialTool,
   specialShapeForDrag,
@@ -123,13 +124,13 @@ import {
   specialCategoryForHitTest,
   symbolApparentRadiusControl,
   clamp
-} from "./map-view-helpers.js?v=20260716-41";
-import { createMapViewRenderMethods } from "./map-view-render-methods.js?v=20260716-41";
-import { createMapViewOmapMethods } from "./map-view-omap-methods.js?v=20260716-41";
-import { createMapViewPointerMethods } from "./map-view-pointer-methods.js?v=20260716-41";
-import { createMapViewHitTestMethods } from "./map-view-hit-test-methods.js?v=20260716-41";
-import { createMapViewCoordinateMethods } from "./map-view-coordinate-methods.js?v=20260716-41";
-import { debugLog, installDebugLogDownloadButton } from "./debug-log.js?v=20260716-41";
+} from "./map-view-helpers.js?v=20260718-75";
+import { createMapViewRenderMethods } from "./map-view-render-methods.js?v=20260718-75";
+import { createMapViewOmapMethods } from "./map-view-omap-methods.js?v=20260718-75";
+import { createMapViewPointerMethods } from "./map-view-pointer-methods.js?v=20260718-75";
+import { createMapViewHitTestMethods } from "./map-view-hit-test-methods.js?v=20260718-75";
+import { createMapViewCoordinateMethods } from "./map-view-coordinate-methods.js?v=20260718-75";
+import { debugLog, installDebugLogDownloadButton } from "./debug-log.js?v=20260718-75";
 export class MapView {
   constructor(canvas, store, callbacks = {}) {
     this.canvas = canvas;
@@ -359,6 +360,7 @@ const MAP_VIEW_METHOD_DEPS = {
   pointInRect,
   orientation,
   drawFallbackSpecialPoint,
+  drawMilitaryGrid,
   isDragSpecialTool,
   isAreaSpecialTool,
   specialShapeForDrag,

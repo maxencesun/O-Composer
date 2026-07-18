@@ -1,4 +1,4 @@
-import { Store } from "../state/store.js?v=20260716-41";
+import { Store } from "../state/store.js?v=20260718-75";
 import {
   acceptCookieConsent,
   hasCookieConsent,
@@ -6,19 +6,20 @@ import {
   loadCachedSession,
   saveCachedPdfBasemap,
   saveCachedSession
-} from "../state/cookie-cache.js?v=20260716-41";
-import { parseOmap } from "../domain/omap-parser.js?v=20260716-41";
-import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260716-41";
+} from "../state/cookie-cache.js?v=20260718-75";
+import { parseOmap } from "../domain/omap-parser.js?v=20260718-75";
+import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260718-75";
+import { migrateLegacyMilitaryData } from "../domain/military-orienteering.js?v=20260718-75";
 import {
   preloadPythonPageRuntime,
   subscribePythonPageResults
-} from "../domain/python-page-script.js?v=20260716-41";
+} from "../domain/python-page-script.js?v=20260718-75";
 import {
   CONTROL_KINDS,
   cloneEvent,
   createBlankEvent,
   findById
-} from "../domain/event-model.js?v=20260716-41";
+} from "../domain/event-model.js?v=20260718-75";
 import {
   addControlAt,
   addExistingControlToCourse,
@@ -35,8 +36,9 @@ import {
   replaceSpecial,
   removeUnusedControls,
   setCourseOrder,
+  updateControlCode,
   updateControlDescription
-} from "../domain/actions.js?v=20260716-41";
+} from "../domain/actions.js?v=20260718-75";
 import {
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
@@ -56,7 +58,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=20260716-41";
+} from "../domain/control-descriptions.js?v=20260718-75";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -67,16 +69,16 @@ import {
   printAreaFromPoints,
   printAreaTargetLabel,
   setPrintArea
-} from "../domain/print-area.js?v=20260716-41";
-import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260716-41";
-import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260716-41";
+} from "../domain/print-area.js?v=20260718-75";
+import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260718-75";
+import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260718-75";
 import {
   measurementMetrics,
   formatGroundLength,
   formatPaperLength,
   formatGroundArea,
   formatPaperArea
-} from "../domain/measurement.js?v=20260716-41";
+} from "../domain/measurement.js?v=20260718-75";
 import {
   allControlsView,
   controlKindLabel,
@@ -99,18 +101,18 @@ import {
   getCourseControl,
   isTeamFreeCourseControl,
   sortedCourses
-} from "../domain/course-service.js?v=20260716-41";
+} from "../domain/course-service.js?v=20260718-75";
 import {
   exportCourseSvg,
   exportGpx,
   exportIofXml,
   exportKml,
   exportRouteGadgetXml
-} from "../domain/exporters.js?v=20260716-41";
+} from "../domain/exporters.js?v=20260718-75";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance
-} from "./course-symbols.js?v=20260716-41";
+} from "./course-symbols.js?v=20260718-75";
 import {
   allCourseVariations,
   courseHasVariations,
@@ -130,29 +132,29 @@ import {
   variationBranchCodeMap,
   variationDisplayLabel,
   variationForCode
-} from "../domain/relay-variations.js?v=20260716-41";
-import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260716-41";
-import { iconSvg } from "./icons.js?v=20260716-41";
-import { MapView } from "./map-view.js?v=20260716-41";
-import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260716-41";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260716-41";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260716-41";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260716-41";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260716-41";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260716-41";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260716-41";
-import { createAppShellMapImportMethods } from "./app-shell-map-import-methods.js?v=20260716-41";
-import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260716-41";
-import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260716-41";
+} from "../domain/relay-variations.js?v=20260718-75";
+import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260718-75";
+import { iconSvg } from "./icons.js?v=20260718-75";
+import { MapView } from "./map-view.js?v=20260718-75";
+import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260718-75";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260718-75";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260718-75";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260718-75";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260718-75";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260718-75";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260718-75";
+import { createAppShellMapImportMethods } from "./app-shell-map-import-methods.js?v=20260718-75";
+import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260718-75";
+import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260718-75";
 import {
   RENDER_QUALITIES,
   isRenderQualityId,
   readRenderQualityPreference,
   setRenderQualityPreference,
   renderQualityHighQuality
-} from "./render-quality.js?v=20260716-41";
-import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260716-41";
-import { debugWarn } from "./debug-log.js?v=20260716-41";
+} from "./render-quality.js?v=20260718-75";
+import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260718-75";
+import { debugWarn } from "./debug-log.js?v=20260718-75";
 
 import {
   PAPER_SIZES,
@@ -180,7 +182,7 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260716-41";
+} from "./app-shell-config.js?v=20260718-75";
 import {
   teamAddControlRoleFromSelection,
   objectForSelection,
@@ -324,7 +326,7 @@ import {
   formatBytes,
   escapeHtml,
   escapeAttr
-} from "./app-shell-helpers.js?v=20260716-41";
+} from "./app-shell-helpers.js?v=20260718-75";
 
 function updateBootLoadingProgress(percent, detail) {
   const determinate = percent !== null && percent !== undefined && Number.isFinite(Number(percent));
@@ -374,6 +376,8 @@ export class OComposerApp extends HTMLElement {
       onLegBendMove: (selection, point) => this.moveLegBend(selection, point),
       onDeleteLegBend: selection => this.deleteLegBend(selection),
       onBackgroundCalibrationPointMove: (selection, point, options) => this.moveBackgroundCalibrationPoint(selection, point, options),
+      onBackgroundMove: (point, options) => this.moveBackground(point, options),
+      onCancelTool: () => this.runCommand("cancel"),
       onMeasurementPoint: point => this.addMeasurementPoint(point),
       onMeasurementFinish: options => this.finishMeasurement(options),
       onMeasurementSelect: index => this.selectMeasurement(index),
@@ -1045,6 +1049,7 @@ export class OComposerApp extends HTMLElement {
       this.cacheReady = true;
       return;
     }
+    migrateLegacyMilitaryData(cached.eventModel);
     this.store.setEventModel(cached.eventModel, "Loaded cached session", false);
     this.store.resetHistory("Loaded cached session");
     this.store.updateUi(ui => {
@@ -1162,6 +1167,7 @@ const APP_SHELL_METHOD_DEPS = {
   replaceSpecial,
   removeUnusedControls,
   setCourseOrder,
+  updateControlCode,
   updateControlDescription,
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,

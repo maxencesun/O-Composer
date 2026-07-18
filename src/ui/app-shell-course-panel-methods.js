@@ -1,5 +1,6 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260716-41";
-import { coursePageCount } from "../domain/course-service.js?v=20260716-41";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260718-75";
+import { coursePageCount } from "../domain/course-service.js?v=20260718-75";
+import { militaryWindowDescriptionRows } from "../domain/military-orienteering.js?v=20260718-75";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -30,6 +31,7 @@ export function createAppShellCoursePanelMethods(deps) {
     replaceSpecial,
     removeUnusedControls,
     setCourseOrder,
+    updateControlCode,
     updateControlDescription,
     DESCRIPTION_KINDS,
     ISCD_COLUMNS,
@@ -607,7 +609,7 @@ export function createAppShellCoursePanelMethods(deps) {
     const courseId = ui.selectedCourseId;
     const showingCourseRows = courseId !== "all";
     const course = showingCourseRows ? getCourse(eventModel, courseId) : null;
-    const isScoreCourse = course?.kind === "score";
+    const isScoreCourse = ["score", "military"].includes(course?.kind);
     const isTeamCourse = course?.kind === "team";
     let rows = !showingCourseRows
       ? allControlsView(eventModel)
@@ -618,8 +620,21 @@ export function createAppShellCoursePanelMethods(deps) {
     if (isTeamCourse) {
       rows = teamCourseDescriptionPanelRows(rows, course);
     }
-    const mode = isTeamCourse ? "team" : (isScoreCourse ? "score" : "normal");
+    const timeWindowRows = rows.filter(row => row.courseControl?.timeWindow);
+    rows = rows.filter(row => !row.courseControl?.timeWindow);
+    const mode = !showingCourseRows ? "all" : isTeamCourse ? "team" : (isScoreCourse ? "score" : "normal");
     const typeHeader = "";
+    const militaryRows = militaryWindowDescriptionRows(eventModel, timeWindowRows, descriptionLanguageForEvent(eventModel));
+    const militaryHtml = militaryRows.map(row => {
+      if (row.kind === "military-window-section") {
+        return `<tr class="military-description-section"><th colspan="8">${escapeHtml(this.t(row.text))}</th></tr>`;
+      }
+      if (row.kind === "military-window-header") {
+        const values = row.boxes || [];
+        return `<tr class="military-description-header"><th colspan="3">${escapeHtml(this.t(values[0] || ""))}</th><th colspan="4">${escapeHtml(this.t(values[1] || ""))}</th><th>${escapeHtml(this.t(values[2] || ""))}</th></tr>`;
+      }
+      return `<tr class="military-description-window" data-control-id="${Number(row.control?.id) || 0}"><td colspan="3">${escapeHtml(row.timeRange)}</td><td colspan="4">${escapeHtml(row.coordinates)}</td><td>${escapeHtml(row.score)}</td></tr>`;
+    }).join("");
     const addRole = ui.teamAddControlRole === "free" ? "free" : "mandatory";
     const teamToolbar = isTeamCourse ? `
       <div class="panel-inline-toolbar team-add-control-toolbar">
@@ -633,9 +648,10 @@ export function createAppShellCoursePanelMethods(deps) {
     const html = `
       ${teamToolbar}
       <table class="description-table">
-        <thead><tr><th>#</th><th>${escapeHtml(this.t("Code"))}</th>${typeHeader}<th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th></tr></thead>
+        <thead><tr><th class="description-order-column">#</th><th class="description-code-column">${escapeHtml(this.t("Code"))}</th>${typeHeader}<th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th></tr></thead>
         <tbody>
           ${rows.map(row => this.descriptionRow(row, mode)).join("")}
+          ${militaryHtml}
         </tbody>
       </table>
     `;
@@ -653,7 +669,11 @@ export function createAppShellCoursePanelMethods(deps) {
     const typeCell = "";
     return `<tr data-control-id="${row.control.id}" class="${selected ? "selected" : ""}">
       <td>${isScoreCourse || isTeamFree ? "" : escapeHtml(row.ordinal || "")}</td>
-      <td>${escapeHtml(row.control.code || this.t(controlKindLabel(row.control.kind)))}</td>
+      <td class="description-code-cell">${row.control.kind === "normal"
+        ? `<input class="description-code-input" data-control-code data-control-id="${row.control.id}" value="${escapeAttr(row.control.code || "")}" aria-label="${escapeAttr(this.t("Control code"))}" autocomplete="off" spellcheck="false">`
+        : mode === "all" && ["start", "finish"].includes(row.control.kind)
+          ? escapeHtml(row.control.code || this.t(controlKindLabel(row.control.kind)))
+        : escapeHtml(this.t(controlKindLabel(row.control.kind)))}</td>
       ${typeCell}
       ${["C", "D", "E", "F", "G", "H"].map(box => {
         if (isScoreCourse && box === "H") {
@@ -705,6 +725,9 @@ export function createAppShellCoursePanelMethods(deps) {
   },
 
   handleDescriptionPanelClick(event) {
+    if (event.target.closest("[data-control-code]")) {
+      return;
+    }
     if (event.target.closest("[data-field='courseControl.points']")) {
       return;
     }
@@ -728,6 +751,11 @@ export function createAppShellCoursePanelMethods(deps) {
       this.store.updateUi(ui => {
         ui.teamAddControlRole = newControlRoleInput.value === "free" ? "free" : "mandatory";
       }, "Team add control role");
+      return;
+    }
+    const codeInput = event.target.closest("[data-control-code]");
+    if (codeInput) {
+      this.updateDescriptionControlCode(codeInput);
       return;
     }
     const columnFInput = event.target.closest("[data-column-f-text]");
@@ -756,6 +784,38 @@ export function createAppShellCoursePanelMethods(deps) {
       const existing = control.descriptions?.find(description => description.box === "F");
       updateControlDescription(control, "F", existing?.ref || "", value);
     }, "Change column F text");
+  },
+
+  updateDescriptionControlCode(input) {
+    const controlId = Number(input.dataset.controlId);
+    if (!controlId || typeof updateControlCode !== "function") return false;
+    const state = this.store.snapshot();
+    const current = getControl(state.eventModel, controlId);
+    if (!current) return false;
+    const proposed = String(input.value ?? "").trim();
+    const duplicate = (state.eventModel.controls || []).find(control =>
+      Number(control.id) !== controlId
+      && control.kind === "normal"
+      && String(control.code || "").trim().toLocaleLowerCase() === proposed.toLocaleLowerCase()
+    );
+    const reason = !proposed ? "empty" : duplicate ? "duplicate" : "";
+    if (reason) {
+      const message = reason === "empty"
+        ? this.t("Control code cannot be empty.")
+        : this.t("Control code {code} is already used by another control.", { code: proposed });
+      input.value = String(current.code || "");
+      input.setCustomValidity?.(message);
+      input.classList?.add?.("collision");
+      input.reportValidity?.();
+      this.store.updateUi(ui => { ui.status = message; }, "Control code rejected");
+      return false;
+    }
+    input.setCustomValidity?.("");
+    input.classList?.remove?.("collision");
+    this.store.updateEvent(model => {
+      updateControlCode(model, controlId, proposed);
+    }, "Change control code");
+    return true;
   }
 
   };

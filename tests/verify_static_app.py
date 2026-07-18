@@ -52,6 +52,7 @@ def verify_app_files() -> None:
     assert (ROOT / "tests" / "background-calibration-smoke.js").exists()
     assert (ROOT / "tests" / "constants-smoke.js").exists()
     assert (ROOT / "tests" / "course-editing-smoke.js").exists()
+    assert (ROOT / "tests" / "pdf-compression-smoke.js").exists()
     assert (ROOT / "tests" / "python-page-worker-smoke.js").exists()
     assert (ROOT / "tests" / "special-symbols-smoke.js").exists()
     assert (ROOT / "assets" / "iscd-symbols.xml").exists()
@@ -195,9 +196,9 @@ def verify_app_files() -> None:
         assert token in app_shell + map_view, f"mandatory and optional crossing points must support interactive rotation: {token}"
     assert "ctx.ellipse(center.x, center.y - rim.y * u" in (ROOT / "src" / "ui" / "course-symbols.js").read_text(encoding="utf-8"), "water symbol must include the complete cup-rim ellipse"
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
-    assert 'export const APP_VERSION = "0.0.3"' in app_config, "app version should be centrally maintained at 0.0.3"
+    assert 'export const APP_VERSION = "0.0.4"' in app_config, "app version should be centrally maintained at 0.0.4"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CODE_VERSION = "20260716-41"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CODE_VERSION = "20260718-75"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
@@ -320,6 +321,18 @@ def verify_app_files() -> None:
     assert "applyBackgroundCalibration" not in calibration_tool_flow, "choosing the second point must not scale the background before distance confirmation"
     for token in ['["map-info", "Map Info"]', 'ui.selection = { type: "background" }', 'selection.type === "background"']:
         assert token in app_shell, f"map background info should be activated from the Event menu: {token}"
+    for token in ["const omap = ui.omap", 'omap.sourceKind === "ocd"', 'data-background-field="mapScale"', 'this.t("Objects")', 'this.t("Symbols")']:
+        assert token in app_shell, f"OMAP/OCAD backgrounds should expose map settings from the Settings menu: {token}"
+    for token in ["data-background-move", '"background-move"', "onBackgroundMove", "moveBackground(point", "backgroundOrigin", "omapRenderUi", "ui.omap.offset"]:
+        assert token in app_shell + map_view, f"bitmap and OMAP/OCAD backgrounds should be draggable independently of course objects: {token}"
+    for token in ["Finish moving background", 'wasMoving ? "select" : "background-move"', 'event.key === "Escape"', 'this.runCommand("cancel")']:
+        assert token in app_shell, f"background movement should have button and Escape exit paths: {token}"
+    for token in ["backgroundMoveModeBanner", "Background move mode — press Esc or right-click to exit", 'ui.tool !== "background-move"', "onCancelTool", 'ui.tool === "background-move"']:
+        assert token in app_shell + map_view, f"background movement should show an obvious mode banner and support right-click exit: {token}"
+    for token in [".background-move-mode-banner", "background: #ffd76a", "pointer-events: none"]:
+        assert token in styles, f"background move mode banner should remain prominent without blocking canvas input: {token}"
+    for token in ["Keep it out of the shared view", "centerX: 0", "centerY: 0"]:
+        assert token in map_view, f"moving a background must not recenter the grid or course overlay: {token}"
     for token in ["backgroundImagePointForMap", "backgroundCalibrationDistance", "baseDistanceMeters", "resetBackgroundCalibrationBase", "imagePoints"]:
         assert token in app_shell, f"map background calibration should preserve image aspect while scaling: {token}"
     for token in ["Map width (m)", "Map height (m)", "Printed width (cm)", "Calibration distance (m)", "Calibration printed length (cm)", "Click two points on the map to calibrate the background.", "Enter the real distance for the selected map line.", "Could not import map image {name}. Convert PDF maps to an image if your browser cannot preview them directly."]:
@@ -333,6 +346,38 @@ def verify_app_files() -> None:
         assert token in app_shell, f"canvas descriptions should redraw after project fonts load: {token}"
     for token in ["bitmapBackground", "hasBitmapBackground", "includePageBackground: false", "/DCTDecode"]:
         assert token in app_shell + map_view + pdf_exporter, f"non-OMAP bitmap PDF export should rasterize without the default page background: {token}"
+    for token in ["PDFFlateStream", "PDFDict", "PDFContext", "Lossless PDF compression failed", "compressPdfStreamBytes"]:
+        assert token in pdf_exporter, f"lossless PDF compression should have a bundled JavaScript fallback: {token}"
+    for token in ["const streamObject = async", "const encoded = await pdfStreamData", "encoded.dict", "encoded.data"]:
+        assert token in pdf_exporter, f"PDF stream objects must write the compressed bytes and FlateDecode dictionary: {token}"
+    assert 'selectedCourseId: target.uiCourseId || "all"' in app_shell, "all-controls PDF export should always receive a non-null UI state"
+    assert "ui ||= {};\n  const courseId = ui.selectedCourseId;" in map_view, "course display options should tolerate legacy null UI callers"
+    for token in ['nextAvailablePrefixedCode(eventModel, "S")', 'nextAvailablePrefixedCode(eventModel, "F")', '["normal", "start", "finish"].includes(control.kind)']:
+        assert token in app_shell + actions + event_model + map_view, f"starts and finishes should receive editable S/F codes: {token}"
+    assert 'row.control.kind === "finish" && !showEndpointCode ? ""' in control_descriptions, "finish codes should stay hidden in course descriptions by default"
+    for token in ['selectedCourseId === "all" && row.control.kind === "finish"', "showEndpointCode", 'mode === "all" && ["start", "finish"].includes(row.control.kind)']:
+        assert token in app_shell + control_descriptions, f"All Controls descriptions should show start and finish codes: {token}"
+    assert 'const showEndpointCode = allControls && ["start", "finish"].includes(row.control.kind);' in map_view, "ordinary course maps must hide start and finish codes"
+    assert 'const showEndpointCode = !selectedCourse && ["start", "finish"].includes(row.control.kind);' in exporters, "ordinary course SVG exports must hide start and finish codes"
+    for token in ["centeredTextBaseline", "actualBoundingBoxAscent", "actualBoundingBoxDescent", 'textBaseline = "alphabetic"']:
+        assert token in control_descriptions + pdf_exporter, f"description text should use measured vertical centering at every size: {token}"
+    for token in ["16 * scale * outputScale", "13 * scale * outputScale", '(control.kind === "normal" ? 26 : 12) * scale * outputScale']:
+        assert token in control_descriptions, f"map topology text must scale with a 1.5mm description block: {token}"
+    for token in ["Math.max(5, 16 * scale)", "Math.max(4, 13 * scale)", 'Math.max(6, (control.kind === "normal" ? 26 : 12) * scale)']:
+        assert token not in control_descriptions, f"fixed topology font floors cause labels to overlap in small description blocks: {token}"
+    for token in ["controlCircleSizeRatio", "numberSizeRatio", "labelFontSize", "dominant-baseline=\"central\""]:
+        assert token in exporters, f"SVG symbols and labels should scale with course appearance: {token}"
+    for token in ['font-size="${fontSize}"', 'font-size="16"', 'font-size="13"']:
+        assert token in app_shell, f"in-page topology SVG text should use scalable viewBox units: {token}"
+    for token in [".variation-topology-number {", ".variation-topology-code {", ".variation-topology-branch-legs {"]:
+        block = styles.split(token, 1)[1].split("}", 1)[0]
+        assert "font-size:" not in block, f"CSS pixels must not override scalable SVG text size: {token}"
+    topology_style = styles.split(".variation-topology {", 1)[1].split("}", 1)[0]
+    for token in ["width: 100%", "max-width: 100%", "min-height: 0"]:
+        assert token in topology_style, f"topology SVG must keep its intrinsic layout instead of squeezing labels together: {token}"
+    assert 'preserveAspectRatio="xMidYMin meet"' in app_shell, "topology SVG text and geometry should scale together without distortion"
+    topology_column_tree = styles.split(".variation-topology-column .variation-tree {", 1)[1].split("}", 1)[0]
+    assert "overflow: auto" in topology_column_tree, "wide topology SVGs should scroll instead of overflowing or shrinking"
     assert app_shell.count("includePageBackground: false") >= 2, "both raster and vector PDF export paths should omit the default beige page background"
     assert "PdfCanvasContext" in pdf_exporter
     for token in ["bezierCurveTo", "ellipse", "measureText", "clip", "fillText"]:
@@ -353,7 +398,7 @@ def verify_app_files() -> None:
     for token in ["scoreCourseDescriptionRows", "compareScoreDescriptionRows", "normal: 2", "finish: 5"]:
         assert token in app_shell + control_descriptions, f"score course descriptions should sort by control code: {token}"
     assert "number_points" not in control_descriptions, "score course description header should show control count, not points total"
-    for token in ['box === "H"', 'scoreDescriptionCell(row)', 'data-field="courseControl.points"', 'class="points-input"', "row.HScore !== undefined", "fitSingleLineText(ctx, row.HScore", 'scoreColumn: kind === "score" ? 7 : -1', 'row.course?.kind === "score" || isTeamFreeCourseControl']:
+    for token in ['box === "H"', 'scoreDescriptionCell(row)', 'data-field="courseControl.points"', 'class="points-input"', "row.HScore !== undefined", "fitSingleLineText(ctx, row.HScore", 'scoreColumn: scoreLike ? 7 : -1', '["score", "military"].includes(row.course?.kind) || isTeamFreeCourseControl']:
         assert token in app_shell + control_descriptions + event_model, f"score course descriptions should use the H column for points: {token}"
     assert 'event.target.closest("[data-field=\'courseControl.points\']")' in app_shell, "clicking score points input should not re-render and steal focus"
     assert '<th>${escapeHtml(this.t("Points"))}</th>' not in app_shell, "score points should not add an extra description-table column"
@@ -361,9 +406,9 @@ def verify_app_files() -> None:
         assert token in app_shell + control_descriptions + course_service + event_model + ppen_parser + i18n, f"missing score course flagged finish leg support: {token}"
     for token in ['"map-issue": 0', "mapIssue && start", "from: mapIssue", "to: start"]:
         assert token in control_descriptions + course_service, f"score course map issue should precede and connect to start: {token}"
-    for token in ['course?.kind === "score" && control.kind === "finish"', '? ""', 'leg.flagging = { kind: "all", point: null }']:
+    for token in ['["score", "military"].includes(course?.kind) && control.kind === "finish"', '? ""', 'leg.flagging = { kind: "all", point: null }']:
         assert token in app_shell + control_descriptions, f"score finish description distance should depend on selected flagged leg: {token}"
-    for token in ['"code-and-score-brackets"', '"code-and-score-dash"', '"code-and-score"', "`${code}[${score}]`", "`${code}-${score}`", "`${code}(${score})`", 'labelKind: kind === "score" ? "code-and-score" : "sequence"', '"code-and-score-brackets": "点号[分数]"', '"code-and-score-dash": "点号-分数"', '"code-and-score": "点号(分数)"']:
+    for token in ['"code-and-score-brackets"', '"code-and-score-dash"', '"code-and-score"', "`${code}[${score}]`", "`${code}-${score}`", "`${code}(${score})`", 'labelKind: scoreLike ? "code-and-score" : "sequence"', '"code-and-score-brackets": "点号[分数]"', '"code-and-score-dash": "点号-分数"', '"code-and-score": "点号(分数)"']:
         assert token in app_shell + course_service + event_model + ppen_parser + i18n, f"missing score course map label format option: {token}"
     assert 'toolButton("tool-description", "Add Control Description Table", "descriptions", "Descriptions")' in app_shell
     assert 'toolButton("tool-map-issue", "Map Issue", "map-issue")' in app_shell
@@ -406,7 +451,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260716-41", "ocd-convert-worker.js?v=20260716-41", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260718-75", "ocd-convert-worker.js?v=20260718-75", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")

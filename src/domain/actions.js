@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260716-41";
-import { cloneDeep } from "./clone.js?v=20260716-41";
+} from "./event-model.js?v=20260718-75";
+import { cloneDeep } from "./clone.js?v=20260718-75";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,13 +15,13 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260716-41";
+} from "./course-service.js?v=20260718-75";
 import {
   courseControlMapChangeKind,
   remapPageBreakFormulaCourseControls,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260716-41";
-import { isPythonPageScript } from "./python-page-script.js?v=20260716-41";
+} from "./course-pages.js?v=20260718-75";
+import { isPythonPageScript } from "./python-page-script.js?v=20260718-75";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const automaticCoursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -33,7 +33,13 @@ export function addControlAt(eventModel, kind, location, selectedCourseId = null
   );
   const coursePlacement = hasExplicitCourseInsertion ? null : automaticCoursePlacement;
   const id = nextId(eventModel.controls);
-  const code = kind === "normal" ? nextAvailableCode(eventModel) : "";
+  const code = kind === "normal"
+    ? nextAvailableCode(eventModel)
+    : kind === "start"
+      ? nextAvailablePrefixedCode(eventModel, "S")
+      : kind === "finish"
+        ? nextAvailablePrefixedCode(eventModel, "F")
+        : "";
   const control = createControl(id, kind, location, code);
   if (kind === "crossing-point") {
     control.orientation = options.orientation ?? 0;
@@ -408,7 +414,7 @@ export function controlCoursePlacement(kind, eventModel, selectedCourseId) {
     return null;
   }
   const course = getCourse(eventModel, selectedCourseId);
-  if (kind === "map-exchange" && course?.kind === "score") {
+  if (kind === "map-exchange" && ["score", "military"].includes(course?.kind)) {
     throw new Error("Standalone map exchanges cannot be added to score courses.");
   }
   if (kind === "start" || kind === "finish") {
@@ -622,6 +628,44 @@ export function autoNumberControls(eventModel, startCode = eventModel.event.numb
   eventModel.event.numbering.disallowInvertible = !!disallowInvertible;
 }
 
+export function validateControlCode(eventModel, controlId, value) {
+  const control = (eventModel.controls || []).find(item => Number(item.id) === Number(controlId));
+  const previousCode = String(control?.code || "");
+  const code = String(value ?? "").trim();
+  if (!control || !["normal", "start", "finish"].includes(control.kind)) {
+    return { ok: false, reason: "not-numbered", code: previousCode, previousCode, conflict: null };
+  }
+  if (!code) {
+    return { ok: false, reason: "empty", code: previousCode, previousCode, conflict: null };
+  }
+  const normalized = code.toLocaleLowerCase();
+  const conflict = (eventModel.controls || []).find(item =>
+    Number(item.id) !== Number(control.id)
+    && ["normal", "start", "finish"].includes(item.kind)
+    && String(item.code || "").trim().toLocaleLowerCase() === normalized
+  ) || null;
+  if (conflict) {
+    return { ok: false, reason: "duplicate", code: previousCode, previousCode, conflict };
+  }
+  return { ok: true, reason: "", code, previousCode, conflict: null };
+}
+
+export function updateControlCode(eventModel, controlId, value) {
+  const result = validateControlCode(eventModel, controlId, value);
+  if (!result.ok) return result;
+  const control = (eventModel.controls || []).find(item => Number(item.id) === Number(controlId));
+  control.code = result.code;
+  return result;
+}
+
+function nextAvailablePrefixedCode(eventModel, prefix) {
+  const normalizedPrefix = String(prefix || "").toUpperCase();
+  const used = new Set((eventModel.controls || []).map(control => String(control.code || "").trim().toUpperCase()).filter(Boolean));
+  let suffix = 1;
+  while (used.has(`${normalizedPrefix}${suffix}`)) suffix += 1;
+  return `${normalizedPrefix}${suffix}`;
+}
+
 export function removeUnusedControls(eventModel) {
   const used = new Set();
   for (const course of eventModel.courses) {
@@ -643,6 +687,20 @@ export function moveAllControls(eventModel, dx, dy) {
   }
   for (const special of eventModel.specials) {
     special.locations = special.locations.map(point => ({ x: point.x + dx, y: point.y + dy }));
+  }
+  if (eventModel.event?.militaryGrid?.locations) {
+    eventModel.event.militaryGrid.locations = eventModel.event.militaryGrid.locations
+      .map(point => ({ x: point.x + dx, y: point.y + dy }));
+  }
+  for (const course of eventModel.courses || []) {
+    const military = course.options?.military;
+    if (!military) continue;
+    military.grid ||= { locations: [] };
+    military.grid.locations = (military.grid?.locations || []).map(point => ({ x: point.x + dx, y: point.y + dy }));
+    military.timeWindows = (military.timeWindows || []).map(item => ({
+      ...item,
+      location: { x: item.location.x + dx, y: item.location.y + dy }
+    }));
   }
   for (const leg of eventModel.legs) {
     leg.bends = leg.bends.map(point => ({ x: point.x + dx, y: point.y + dy }));
@@ -677,7 +735,7 @@ export function addVariationAtCourseControl(eventModel, courseId, courseControlI
   const course = getCourse(eventModel, courseId);
   const forkCourseControl = getCourseControl(eventModel, courseControlId);
   const joinCourseControl = getCourseControl(eventModel, forkCourseControl?.nextCourseControl);
-  if (!course || course.kind === "score" || course.kind === "team" || !forkCourseControl || forkCourseControl.variation) return null;
+  if (!course || ["score", "military", "team"].includes(course.kind) || !forkCourseControl || forkCourseControl.variation) return null;
   // A fork may be created at the current end of a course. Its branches remain
   // open until real controls are added; no synthetic map control is needed.
   // If nextCourseControl is set, however, it must still resolve to a valid join.

@@ -3,7 +3,7 @@ const IMPOSSIBLE_BRANCH_CODE = "__no_allowed_branch__";
 
 export function courseHasVariations(eventModel, courseId) {
   const course = getCourse(eventModel, courseId);
-  if (!course || course.kind === "score") return false;
+  if (!course || ["score", "military"].includes(course.kind)) return false;
   return courseControlIdsInVariationOrder(eventModel, course)
     .some(id => !!getCourseControl(eventModel, id)?.variation);
 }

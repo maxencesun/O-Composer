@@ -3,12 +3,13 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260716-41";
+} from "./event-model.js?v=20260718-75";
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260716-41";
-import { isPythonPageScript } from "./python-page-script.js?v=20260716-41";
+} from "./course-pages.js?v=20260718-75";
+import { isPythonPageScript } from "./python-page-script.js?v=20260718-75";
+import { migrateLegacyMilitaryData } from "./military-orienteering.js?v=20260718-75";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
@@ -65,6 +66,7 @@ export function parsePpen(text, sourceName = "Untitled.ocp") {
   }
 
   model.courses.sort((a, b) => (a.order || 0) - (b.order || 0) || a.name.localeCompare(b.name));
+  migrateLegacyMilitaryData(model);
   if (model.metadata.ocp?.measurements) model.metadata.measurements = model.metadata.ocp.measurements;
   return model;
 }
@@ -191,6 +193,14 @@ function parseEvent(node) {
       case "livelox":
         event.liveloxImportableEventId = attr(child, "importable-event-id", "");
         break;
+      case "military-grid":
+        try {
+          event.militaryGrid = JSON.parse(text(child));
+        }
+        catch {
+          event.militaryGrid = null;
+        }
+        break;
     }
   }
 
@@ -313,6 +323,7 @@ function parseControl(node) {
 
 function parseCourse(node) {
   const kind = attr(node, "kind", "normal");
+  const scoreLike = kind === "score" || kind === "military";
   const course = {
     id: intAttr(node, "id", 0),
     kind,
@@ -320,7 +331,7 @@ function parseCourse(node) {
     name: "",
     secondaryTitle: "",
     hideVariationsOnMap: false,
-    labelKind: kind === "score" ? "code-and-score" : "sequence",
+    labelKind: scoreLike ? "code-and-score" : "sequence",
     firstCourseControl: null,
     firstControlOrdinal: 1,
     pageBreakFormula: "",
@@ -332,7 +343,7 @@ function parseCourse(node) {
       load: -1,
       courseLength: null,
       descriptionKind: "symbols",
-      scoreColumn: kind === "score" ? 7 : -1,
+      scoreColumn: scoreLike ? 7 : -1,
       scoreFinishControl: null,
       hideFromReports: false
     },
@@ -385,9 +396,19 @@ function parseCourse(node) {
           courseLength: attr(child, "course-length", "") === "" ? null : numAttr(child, "course-length", null),
           descriptionKind: attr(child, "description-kind", attr(child, "description", "symbols")),
           scoreColumn: scoreColumnFromNode(child, kind),
-          scoreFinishControl: kind === "score" ? nullableIntAttr(child, "score-finish-control") : null,
+          scoreFinishControl: scoreLike ? nullableIntAttr(child, "score-finish-control") : null,
           hideFromReports: boolAttr(child, "hide-from-reports", false)
         };
+        break;
+      case "military":
+        if (kind === "military") {
+          try {
+            course.options.military = JSON.parse(text(child));
+          }
+          catch {
+            course.options.military = null;
+          }
+        }
         break;
       case "part-options":
         course.partOptions.push({
@@ -431,6 +452,9 @@ function parseCourseControl(node) {
     mapExchange: false,
     mapFlip: false,
     points: intAttr(node, "points", 0),
+    timeWindow: boolAttr(node, "time-window", false),
+    windowStartTime: attr(node, "window-start", "00:00"),
+    windowEndTime: attr(node, "window-end", "00:00"),
     teamRole: attr(node, "team-role", "mandatory") === "free" ? "free" : "mandatory",
     numberLocation: null,
     descTextBefore: "",
@@ -625,7 +649,7 @@ function parseOcpData(node) {
 }
 
 function scoreColumnFromNode(node, kind) {
-  if (kind !== "score") {
+  if (!["score", "military"].includes(kind)) {
     return -1;
   }
   const raw = attr(node, "score-column", "");
@@ -754,6 +778,9 @@ function writeEvent(lines, event, level, options = {}) {
   if (event.liveloxImportableEventId) {
     empty(lines, level + 1, "livelox", { "importable-event-id": event.liveloxImportableEventId });
   }
+  if (!options.nativePpen && event.militaryGrid?.locations?.length >= 3) {
+    node(lines, level + 1, "military-grid", JSON.stringify(event.militaryGrid));
+  }
   close(lines, level, "event");
 }
 
@@ -846,10 +873,13 @@ function writeCourse(lines, course, level, saveOptions = {}) {
     load: courseOptions.load >= 0 ? courseOptions.load : undefined,
     "course-length": courseOptions.courseLength || undefined,
     "hide-from-reports": !!courseOptions.hideFromReports,
-    "score-column": course.kind === "score" ? scoreColumnForSave(courseOptions.scoreColumn ?? 7) : undefined,
-    "score-finish-control": !saveOptions.nativePpen && course.kind === "score" ? courseOptions.scoreFinishControl || undefined : undefined,
+    "score-column": ["score", "military"].includes(course.kind) ? scoreColumnForSave(courseOptions.scoreColumn ?? 7) : undefined,
+    "score-finish-control": !saveOptions.nativePpen && ["score", "military"].includes(course.kind) ? courseOptions.scoreFinishControl || undefined : undefined,
     "description-kind": courseOptions.descriptionKind || "symbols"
   });
+  if (!saveOptions.nativePpen && course.kind === "military" && courseOptions.military) {
+    node(lines, level + 1, "military", JSON.stringify(courseOptions.military));
+  }
   if ((course.relay?.teams || 0) > 0
     || (Number(course.relay?.legs) || 0) > 0
     || (!saveOptions.nativePpen && (
@@ -883,8 +913,8 @@ function writeCourse(lines, course, level, saveOptions = {}) {
 }
 
 function courseKindForSave(course, options = {}) {
-  if (options.nativePpen && course.kind === "team") {
-    return "normal";
+  if (options.nativePpen && ["team", "military"].includes(course.kind)) {
+    return course.kind === "military" ? "score" : "normal";
   }
   return course.kind || "normal";
 }
@@ -953,6 +983,11 @@ function writeCourseControl(lines, courseControl, level, options = {}) {
   if (mapChangeKind === "flip") attrs["map-flip"] = true;
   if (courseControl.points && courseControl.teamRole !== "free") attrs.points = courseControl.points;
   if (!options.nativePpen && courseControl.teamRole === "free") attrs["team-role"] = "free";
+  if (!options.nativePpen && courseControl.timeWindow) {
+    attrs["time-window"] = true;
+    attrs["window-start"] = courseControl.windowStartTime || "00:00";
+    attrs["window-end"] = courseControl.windowEndTime || "00:00";
+  }
 
   open(lines, level, "course-control", attrs);
   if (courseControl.nextCourseControl) {

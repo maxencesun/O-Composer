@@ -23,16 +23,16 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260716-41";
-import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260716-41";
-import { findById } from "../domain/event-model.js?v=20260716-41";
+} from "./app-shell-config.js?v=20260718-75";
+import { saveCachedPdfBasemap } from "../state/cookie-cache.js?v=20260718-75";
+import { findById } from "../domain/event-model.js?v=20260718-75";
 import {
   descriptionLanguageForEvent,
   getIscdSymbolOptions,
   resizedDescriptionSpecial,
   scoreCourseDescriptionRows
-} from "../domain/control-descriptions.js?v=20260716-41";
-import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260716-41";
+} from "../domain/control-descriptions.js?v=20260718-75";
+import { PRINT_AREA_SCOPES, effectivePrintArea, normalizePrintArea } from "../domain/print-area.js?v=20260718-75";
 import {
   controlKindLabel,
   controlsUsedByCourse,
@@ -42,9 +42,9 @@ import {
   getCourse,
   getCourseControl,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260716-41";
-import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260716-41";
-import { t } from "./i18n.js?v=20260716-41";
+} from "../domain/course-service.js?v=20260718-75";
+import { relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260718-75";
+import { t } from "./i18n.js?v=20260718-75";
 
 export function isAppleTouchDevice() {
   const nav = window.navigator || {};

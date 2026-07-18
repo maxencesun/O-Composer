@@ -1,0 +1,94 @@
+import assert from "node:assert/strict";
+import { createBlankEvent, createCourse } from "../src/domain/event-model.js";
+import { addControlAt, addExistingControlToCourse } from "../src/domain/actions.js";
+import { buildControlDescriptionRows } from "../src/domain/control-descriptions.js";
+import {
+  ensureMilitaryGrid,
+  militaryGridSpacingMap,
+  militaryTimeWindowRows,
+  militaryWindowCoordinates
+} from "../src/domain/military-orienteering.js";
+import { serializePpen } from "../src/domain/ppen-parser.js";
+import { normalizeMilitaryWindowTime } from "../src/ui/app-shell-variation-methods.js";
+
+const model = createBlankEvent();
+assert.equal(normalizeMilitaryWindowTime("8:05"), "08:05");
+assert.equal(normalizeMilitaryWindowTime("24:00", "09:30"), "09:30");
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  value: { getItem: key => key === "oComposerLanguage" ? "zh" : null }
+});
+model.event.map.scale = 10000;
+model.event.descriptions.lang = "en"; // Stale file metadata must not override the current Chinese app language.
+const course = createCourse(1, "Military", "military", 1);
+course.options.printScale = 10000;
+const secondCourse = createCourse(2, "Military 2", "military", 2);
+model.courses = [course, secondCourse];
+Object.assign(ensureMilitaryGrid(model), {
+  locations: [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 200 }, { x: 0, y: 200 }],
+  spacingXcm: 1,
+  spacingYcm: 2,
+  lineWidthMm: 0.2,
+  startX: 10,
+  startY: 20,
+  fontSizeMm: 2.2
+});
+
+const selection = addControlAt(model, "normal", { x: 150, y: 100 });
+const control = model.controls.find(item => item.id === selection.id);
+const firstReference = addExistingControlToCourse(model, course.id, control.id);
+const secondReference = addExistingControlToCourse(model, secondCourse.id, control.id);
+const firstCourseControl = model.courseControls.find(item => item.id === firstReference.courseControl);
+const secondCourseControl = model.courseControls.find(item => item.id === secondReference.courseControl);
+firstCourseControl.timeWindow = true;
+firstCourseControl.windowStartTime = "08:15";
+firstCourseControl.windowEndTime = "08:30";
+firstCourseControl.points = 25;
+
+assert.equal(control.kind, "normal", "a time-window point remains a normal global control");
+assert.equal(secondCourseControl.timeWindow, false, "window identity belongs only to one course reference");
+assert.equal(militaryGridSpacingMap(model, "x"), 100);
+assert.equal(militaryGridSpacingMap(model, "y"), 200);
+assert.deepEqual(militaryWindowCoordinates(model, control), { y: 20.5, x: 11.5 });
+assert.equal(militaryTimeWindowRows(model, course.id).length, 1);
+assert.equal(militaryTimeWindowRows(model, secondCourse.id).length, 0);
+
+const rows = buildControlDescriptionRows(model, course.id);
+assert.ok(rows.some(row => row.kind === "military-window-section" && row.text === "时间窗口点"));
+assert.ok(rows.some(row => row.kind === "military-window-header"
+  && row.boxes.join("|") === "时间窗口|坐标（纵，横）|分数"));
+assert.ok(rows.some(row => row.kind === "military-window"
+  && row.startTime === "08:15"
+  && row.endTime === "08:30"
+  && row.timeRange === "08:15 - 08:30"
+  && row.coordinateY === "20.5"
+  && row.coordinateX === "11.5"
+  && row.coordinates === "(20.5, 11.5)"
+  && row.score === "25"));
+assert.ok(!rows.some(row => row.kind === "control" && row.code === control.code),
+  "the window is hidden from the ordinary section of its military course");
+
+const secondRows = buildControlDescriptionRows(model, secondCourse.id);
+assert.ok(secondRows.some(row => row.kind === "control" && row.code === control.code),
+  "the same point is an ordinary control in another course");
+assert.ok(!secondRows.some(row => row.kind.startsWith("military-window")));
+
+const allRows = buildControlDescriptionRows(model, "all");
+assert.ok(allRows.some(row => row.kind === "control" && row.code === control.code),
+  "All Controls includes the point as an ordinary global control");
+assert.ok(!allRows.some(row => row.kind.startsWith("military-window")));
+assert.equal(model.controls.filter(item => item.id === control.id).length, 1);
+assert.equal(model.courseControls.filter(item => item.control === control.id).length, 2);
+
+const saved = serializePpen(model);
+assert.match(saved, /kind="military"/);
+assert.match(saved, /<military-grid>/);
+assert.doesNotMatch(saved, /kind="time-window"/);
+assert.match(saved, /time-window="true"[^>]*window-start="08:15"[^>]*window-end="08:30"[^>]*points="25"|points="25"[^>]*time-window="true"[^>]*window-start="08:15"[^>]*window-end="08:30"/);
+
+assert.equal((saved.match(new RegExp(`<course-control[^>]*control="${control.id}"`, "g")) || []).length, 2,
+  "both course references are serialized");
+assert.equal((saved.match(/time-window="true"/g) || []).length, 1,
+  "only the military-course reference is serialized as a time window");
+
+console.log("military orienteering smoke test passed");

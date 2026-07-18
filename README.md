@@ -1,6 +1,6 @@
 # O-Composer
 
-Current version: **0.0.3**
+Current version: **0.0.4**
 
 O-Composer is a browser-based orienteering course setting tool. It runs as a static web app, keeps event editing local to the browser, and focuses on `.ocp` and compatible `.ppen` course planning workflows: controls, courses, score events, relay variations, control descriptions, printable export areas, and downloadable event/export files.
 

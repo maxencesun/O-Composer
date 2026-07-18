@@ -5,17 +5,22 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260716-41";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260716-41";
-import { resolveTextConstants } from "../domain/constants.js?v=20260716-41";
-import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260716-41";
+} from "../domain/course-service.js?v=20260718-75";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260718-75";
+import { resolveTextConstants } from "../domain/constants.js?v=20260718-75";
+import {
+  militaryGrid,
+  militaryGridBounds,
+  militaryGridSpacingMap
+} from "../domain/military-orienteering.js?v=20260718-75";
+import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260718-75";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260716-41";
+} from "./course-symbols.js?v=20260718-75";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
@@ -444,6 +449,7 @@ export function selectedControlNumberRow(eventModel, ui) {
 }
 
 export function mapCourseDisplayOptions(eventModel, ui = {}) {
+  ui ||= {};
   const courseId = ui.selectedCourseId;
   if (!courseId || courseId === "all") return {};
   if (ui.variationMode === "all") return { allBranches: true };
@@ -1444,7 +1450,97 @@ export function isDragSpecialTool(tool) {
 }
 
 export function isAreaSpecialTool(tool) {
-  return ["special:out-of-bounds", "special:dangerous-area", "special:temporary-construction", "special:white-out"].includes(tool);
+  return ["special:out-of-bounds", "special:dangerous-area", "special:temporary-construction", "special:white-out", "special:military-grid"].includes(tool);
+}
+
+export function drawMilitaryGrid(ctx, eventModel, course, project, screenScale) {
+  if (course ? course.kind !== "military" : !(eventModel?.courses || []).some(item => item.kind === "military")) return;
+  const grid = militaryGrid(eventModel);
+  const bounds = militaryGridBounds(grid);
+  if (!bounds) return;
+  const points = grid.locations.map(project);
+  const spacingX = militaryGridSpacingMap(eventModel, "x");
+  const spacingY = militaryGridSpacingMap(eventModel, "y");
+  if (!(spacingX > 0) || !(spacingY > 0)) return;
+  const printScale = Math.max(1, Number(eventModel?.event?.map?.scale) || 15000);
+  const lineWidthMap = Math.max(0.001, Number(grid.lineWidthMm) || 0.18) / 1000 * printScale;
+  const fontMap = Math.max(0.2, Number(grid.fontSizeMm) || 1.8) / 1000 * printScale;
+  const purple = "rgba(109, 40, 217, 0.82)";
+  const verticals = [];
+  const horizontals = [];
+  for (let index = 0, x = bounds.left; x <= bounds.right + spacingX * 0.001 && index < 2000; index += 1, x += spacingX) {
+    verticals.push({ index, value: Math.round(Number(grid.startX || 0)) + index, x });
+  }
+  for (let index = 0, y = bounds.bottom; y <= bounds.top + spacingY * 0.001 && index < 2000; index += 1, y += spacingY) {
+    horizontals.push({ index, value: Math.round(Number(grid.startY || 0)) + index, y });
+  }
+  ctx.save();
+  pathLines(ctx, points, true);
+  ctx.clip();
+  ctx.strokeStyle = purple;
+  ctx.lineWidth = Math.max(0.25, lineWidthMap * Math.max(0.001, screenScale));
+  for (const lineItem of verticals) {
+    const from = project({ x: lineItem.x, y: bounds.bottom });
+    const to = project({ x: lineItem.x, y: bounds.top });
+    line(ctx, from.x, from.y, to.x, to.y);
+  }
+  for (const lineItem of horizontals) {
+    const from = project({ x: bounds.left, y: lineItem.y });
+    const to = project({ x: bounds.right, y: lineItem.y });
+    line(ctx, from.x, from.y, to.x, to.y);
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = purple;
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.lineWidth = Math.max(2, fontMap * Math.max(0.001, screenScale) * 0.22);
+  ctx.font = `600 ${Math.max(7, fontMap * Math.max(0.001, screenScale))}px Arial, sans-serif`;
+  ctx.textAlign = "center";
+  for (const lineItem of verticals) {
+    const intersections = polygonAxisIntersections(grid.locations, lineItem.x, "x");
+    if (intersections.length < 2) continue;
+    const bottom = project({ x: lineItem.x, y: Math.min(...intersections) });
+    const top = project({ x: lineItem.x, y: Math.max(...intersections) });
+    ctx.textBaseline = "top";
+    ctx.strokeText(String(lineItem.value), bottom.x, bottom.y + 4);
+    ctx.fillText(String(lineItem.value), bottom.x, bottom.y + 4);
+    ctx.textBaseline = "bottom";
+    ctx.strokeText(String(lineItem.value), top.x, top.y - 4);
+    ctx.fillText(String(lineItem.value), top.x, top.y - 4);
+  }
+  ctx.textBaseline = "middle";
+  for (const lineItem of horizontals) {
+    const intersections = polygonAxisIntersections(grid.locations, lineItem.y, "y");
+    if (intersections.length < 2) continue;
+    const left = project({ x: Math.min(...intersections), y: lineItem.y });
+    const right = project({ x: Math.max(...intersections), y: lineItem.y });
+    ctx.textAlign = "right";
+    ctx.strokeText(String(lineItem.value), left.x - 5, left.y);
+    ctx.fillText(String(lineItem.value), left.x - 5, left.y);
+    ctx.textAlign = "left";
+    ctx.strokeText(String(lineItem.value), right.x + 5, right.y);
+    ctx.fillText(String(lineItem.value), right.x + 5, right.y);
+  }
+  ctx.restore();
+}
+
+function polygonAxisIntersections(points, coordinate, axis) {
+  const values = [];
+  for (let index = 0; index < points.length; index += 1) {
+    const a = points[index];
+    const b = points[(index + 1) % points.length];
+    const aAxis = Number(a[axis]);
+    const bAxis = Number(b[axis]);
+    if (!Number.isFinite(aAxis) || !Number.isFinite(bAxis) || Math.abs(aAxis - bAxis) < 1e-9) continue;
+    const low = Math.min(aAxis, bAxis);
+    const high = Math.max(aAxis, bAxis);
+    if (coordinate < low || coordinate >= high) continue;
+    const ratio = (coordinate - aAxis) / (bAxis - aAxis);
+    const otherAxis = axis === "x" ? "y" : "x";
+    values.push(Number(a[otherAxis]) + ratio * (Number(b[otherAxis]) - Number(a[otherAxis])));
+  }
+  return [...new Set(values.map(value => Math.round(value * 1000000) / 1000000))].sort((a, b) => a - b);
 }
 
 export function specialShapeForDrag(tool, start, end, state) {

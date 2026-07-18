@@ -682,6 +682,7 @@ export function createAppShellPrintCourseDialogMethods(deps) {
             <select id="addCourseKind">
               <option value="normal">${escapeHtml(this.t("Normal course"))}</option>
               <option value="score">${escapeHtml(this.t("Score course"))}</option>
+              <option value="military">${escapeHtml(this.t("Military orienteering"))}</option>
               <option value="team">${escapeHtml(this.t("Team course"))}</option>
             </select>
           </label>

@@ -393,6 +393,8 @@ export function createAppShellMenuMethods(deps) {
     const variationTopologyColumn = this.querySelector("#variationTopologyColumn");
     const variationTopologyScroller = this.querySelector("#variationTopologyColumnContent");
     variationTopologyColumn?.addEventListener("click", event => this.handleVariationPanelClick(event));
+    variationTopologyColumn?.addEventListener("input", event => this.handleVariationPanelInput(event));
+    variationTopologyColumn?.addEventListener("change", event => this.handleVariationPanelChange(event));
     if (variationTopologyColumn && variationTopologyScroller) {
       this.bindContainedScroll(variationTopologyColumn, variationTopologyScroller);
     }

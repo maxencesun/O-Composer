@@ -1,4 +1,4 @@
-import { cloneDeep } from "./clone.js?v=20260716-41";
+import { cloneDeep } from "./clone.js?v=20260718-75";
 
 const DEFAULT_PRINT_AREA = Object.freeze({
   automatic: true,
@@ -102,6 +102,10 @@ export function createBlankEvent() {
         lang: "en",
         color: "black"
       },
+      militaryGrid: {
+        locations: [], spacingXcm: 1, spacingYcm: 1,
+        lineWidthMm: 0.18, fontSizeMm: 1.8, startX: 0, startY: 0
+      },
       ocad: {
         overprintColors: false
       },
@@ -121,11 +125,11 @@ export function createBlankEvent() {
 }
 
 export function createControl(id, kind = "normal", location = { x: 0, y: 0 }, code = "") {
-  const normal = kind === "normal";
+  const numbered = ["normal", "start", "finish"].includes(kind);
   return {
     id,
     kind,
-    code: normal ? code : "",
+    code: numbered ? code : "",
     location: { x: Number(location.x) || 0, y: Number(location.y) || 0 },
     orientation: 0,
     stretch: 0,
@@ -142,6 +146,7 @@ export function createControl(id, kind = "normal", location = { x: 0, y: 0 }, co
 }
 
 export function createCourse(id, name = `Course ${id}`, kind = "normal", order = id) {
+  const scoreLike = kind === "score" || kind === "military";
   return {
     id,
     kind,
@@ -149,7 +154,7 @@ export function createCourse(id, name = `Course ${id}`, kind = "normal", order =
     name,
     secondaryTitle: "",
     hideVariationsOnMap: false,
-    labelKind: kind === "score" ? "code-and-score" : "sequence",
+    labelKind: scoreLike ? "code-and-score" : "sequence",
     firstCourseControl: null,
     firstControlOrdinal: 1,
     // O-Composer extension for conditional map exchanges/flips on concrete
@@ -163,7 +168,7 @@ export function createCourse(id, name = `Course ${id}`, kind = "normal", order =
       load: -1,
       courseLength: null,
       descriptionKind: "symbols",
-      scoreColumn: kind === "score" ? 7 : -1,
+      scoreColumn: scoreLike ? 7 : -1,
       scoreFinishControl: null,
       hideFromReports: false
     },
@@ -191,6 +196,9 @@ export function createCourseControl(id, controlId, nextCourseControl = null) {
     mapExchange: false,
     mapFlip: false,
     points: 0,
+    timeWindow: false,
+    windowStartTime: "00:00",
+    windowEndTime: "00:00",
     teamRole: "mandatory",
     numberLocation: null,
     descTextBefore: "",

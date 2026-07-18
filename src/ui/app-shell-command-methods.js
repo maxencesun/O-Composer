@@ -1,7 +1,8 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260716-41";
+} from "../domain/course-pages.js?v=20260718-75";
+import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260718-75";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -32,6 +33,7 @@ export function createAppShellCommandMethods(deps) {
     replaceSpecial,
     removeUnusedControls,
     setCourseOrder,
+    updateControlCode,
     updateControlDescription,
     DESCRIPTION_KINDS,
     ISCD_COLUMNS,
@@ -881,6 +883,57 @@ export function createAppShellCommandMethods(deps) {
       if (shouldPromptForDistance) this.promptBackgroundCalibrationDistance();
       return;
     }
+    if (tool === "military:window") {
+      const course = getCourse(state.eventModel, selectedCourseId);
+      if (course?.kind !== "military") return;
+      const snapped = snappedControlForPlacement(state, "normal", point, this.mapView);
+      let windowId = Number(snapped?.control?.id) || null;
+      this.store.updateEvent(model => {
+        let row = windowId
+          ? courseView(model, selectedCourseId, { allBranches: true })
+            .find(item => Number(item.control?.id) === windowId)
+          : null;
+        if (!row && windowId) {
+          const selection = addExistingControlToCourse(model, selectedCourseId, windowId, { beforeFinish: true });
+          row = selection ? {
+            control: getControl(model, windowId),
+            courseControl: getCourseControl(model, selection.courseControl)
+          } : null;
+        }
+        if (!row) {
+          const selection = addControlAt(model, "normal", point, selectedCourseId);
+          windowId = selection.id;
+          row = {
+            control: getControl(model, selection.id),
+            courseControl: getCourseControl(model, selection.courseControl)
+          };
+        }
+        if (!row?.courseControl) return;
+        row.courseControl.timeWindow = true;
+        row.courseControl.windowStartTime ||= "00:00";
+        row.courseControl.windowEndTime ||= "00:00";
+      }, "Add military time window");
+      this.store.updateUi(ui => {
+        ui.tool = "select";
+        ui.selection = windowId ? { type: "control", id: windowId } : null;
+        ui.status = this.t(snapped ? "Existing control used as a time-window point." : "Hidden time-window point added.");
+      }, "Select military time window");
+      return;
+    }
+    if (tool === "special:military-grid") {
+      const courseId = state.ui.specialToolOptions?.courseId || selectedCourseId;
+      this.store.updateEvent(model => {
+        const course = getCourse(model, courseId);
+        if (course?.kind !== "military") return;
+        ensureMilitaryGrid(model).locations = (toolOptions.locations || []).map(location => ({ x: location.x, y: location.y }));
+      }, "Set military grid boundary");
+      this.store.updateUi(ui => {
+        ui.tool = "select";
+        ui.specialToolOptions = null;
+        ui.status = this.t("Coordinate grid created.");
+      }, "Finish military grid");
+      return;
+    }
     if (tool.startsWith("control:")) {
       const kind = tool.split(":")[1];
       const selectedCourse = selectedCourseId && selectedCourseId !== "all" ? getCourse(state.eventModel, selectedCourseId) : null;
@@ -1190,6 +1243,19 @@ export function createAppShellCommandMethods(deps) {
       }
     }, "Move calibration point");
     this.syncBackgroundMeasurement();
+  },
+
+  moveBackground(point, options = {}) {
+    this.store.updateUi(ui => {
+      if (ui.background) {
+        ui.background.centerX = Number(point?.x) || 0;
+        ui.background.centerY = Number(point?.y) || 0;
+      }
+      else if (ui.omap) {
+        ui.omap.offset = { x: Number(point?.x) || 0, y: Number(point?.y) || 0 };
+      }
+      if (!options.transient) ui.status = this.t("Drag the background on the canvas.");
+    }, "Move map background");
   },
 
   deleteLegBend(selection) {
@@ -1587,6 +1653,30 @@ export function createAppShellCommandMethods(deps) {
     const field = target.dataset.field;
     if (!field) return;
     if (field === "special.kind") return;
+    if (field === "control.code" && selection?.type === "control") {
+      const current = getControl(state.eventModel, selection.id);
+      const proposed = String(target.value ?? "").trim();
+      const duplicate = (state.eventModel.controls || []).find(control =>
+        Number(control.id) !== Number(selection.id)
+        && ["normal", "start", "finish"].includes(control.kind)
+        && String(control.code || "").trim().toLocaleLowerCase() === proposed.toLocaleLowerCase()
+      );
+      if (!proposed || duplicate) {
+        const message = !proposed
+          ? this.t("Control code cannot be empty.")
+          : this.t("Control code {code} is already used by another control.", { code: proposed });
+        target.value = String(current?.code || "");
+        target.setCustomValidity?.(message);
+        target.reportValidity?.();
+        this.store.updateUi(ui => { ui.status = message; }, "Control code rejected");
+        return;
+      }
+      target.setCustomValidity?.("");
+      this.store.updateEvent(model => {
+        updateControlCode(model, selection.id, proposed);
+      }, "Change control code");
+      return;
+    }
     if (field === "special.descriptionTarget" && selection?.type === "special") {
       const existing = existingDescriptionSpecialForTarget(this.store.snapshot().eventModel, target.value, selection.id);
       if (existing) {

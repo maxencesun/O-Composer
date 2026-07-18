@@ -836,17 +836,17 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   width: 100%;
   min-width: 0;
   min-height: 100%;
-  overflow: visible;
+  overflow: auto;
   border-top: 0;
   padding: 0 0 8px;
 }
 
 .variation-topology {
   display: block;
-  width: auto;
+  width: 100%;
   height: auto;
   max-width: 100%;
-  min-height: 220px;
+  min-height: 0;
   background: #fff;
 }
 
@@ -881,7 +881,6 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
 
 .variation-topology-code {
   fill: #8a9198;
-  font-size: 16px;
   dominant-baseline: middle;
   cursor: pointer;
 }
@@ -893,7 +892,6 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
 
 .variation-topology-branch-legs {
   fill: #dc2626;
-  font-size: 13px;
   font-weight: 700;
   dominant-baseline: middle;
   cursor: pointer;
@@ -934,7 +932,6 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   stroke: #fff;
   stroke-width: 5px;
   paint-order: stroke fill;
-  font-size: 26px;
   dominant-baseline: central;
 }
 
@@ -943,13 +940,144 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   stroke: #fff;
   stroke-width: 4px;
   paint-order: stroke fill;
-  font-size: 12px;
   dominant-baseline: central;
 }
 
 .variation-topology-node.selected text {
   fill: var(--accent);
   font-weight: 700;
+}
+
+.military-orienteering-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px;
+  border-top: 0;
+  background: #fff;
+}
+
+.military-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f2ecff;
+  color: #4c1d95;
+}
+
+.military-preview-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.military-preview-toggle input {
+  margin: 0;
+}
+
+.military-panel-header small {
+  display: block;
+  margin-top: 3px;
+  color: #6d5b86;
+}
+
+.military-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.military-section-heading,
+.military-panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.military-section-heading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.military-grid-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.military-grid-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.military-grid-form input,
+.military-window-row input {
+  width: 100%;
+  min-width: 0;
+}
+
+.military-window-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.military-window-row {
+  display: grid;
+  grid-template-columns: 30px 62px 62px 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  width: 100%;
+  min-width: 202px;
+}
+
+.military-window-row input {
+  height: 25px;
+  padding: 2px 3px;
+  font-size: 12px;
+}
+
+.military-window-score {
+  appearance: textfield;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.military-window-score::-webkit-inner-spin-button,
+.military-window-score::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.military-window-row-header {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.variation-topology-column[data-mode="military"] .variation-tree,
+.variation-topology-column[data-mode="military"] .military-orienteering-panel {
+  min-height: 0;
+  overflow: visible;
 }
 
 .variation-branch-hint {
@@ -1049,6 +1177,26 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   font-size: 13px;
 }
 
+.description-table {
+  table-layout: fixed;
+}
+
+.description-table:has(.military-description-section) {
+  min-width: 0;
+}
+
+.military-description-section th {
+  text-align: center;
+}
+
+.military-description-header th,
+.military-description-window td {
+  padding-right: 2px;
+  padding-left: 2px;
+  text-align: center;
+  font-size: 11px;
+}
+
 .description-table th,
 .description-table td,
 .report-table th,
@@ -1059,12 +1207,35 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
 }
 
 .description-table th,
+.description-table td {
+  padding-right: 3px;
+  padding-left: 3px;
+}
+
+.description-table th,
 .report-table th {
   position: sticky;
   top: 0;
   background: #f1f5f7;
   text-align: left;
   z-index: 1;
+}
+
+.description-table .description-order-column {
+  width: 7%;
+}
+
+.description-table .description-code-column {
+  width: 21%;
+}
+
+.description-table th:last-child {
+  width: 17%;
+}
+
+.description-table .description-code-cell {
+  padding-right: 3px;
+  padding-left: 3px;
 }
 
 .description-table tr.selected td {
@@ -1126,9 +1297,45 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
 }
 
 .points-input {
-  width: 4em;
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+  height: 24px;
   box-sizing: border-box;
+  appearance: textfield;
+  border: 1px solid #cfd6dc;
+  border-radius: 3px;
+  padding: 1px 4px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.points-input::-webkit-inner-spin-button,
+.points-input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+
+.description-code-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 24px;
+  box-sizing: border-box;
+  border: 1px solid #cfd6dc;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font: inherit;
+}
+
+.description-code-input:focus {
+  border-color: var(--accent);
+  outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.description-code-input.collision {
+  border-color: #b42318;
+  background: #fff4f2;
 }
 
 .map-panel {
@@ -1137,7 +1344,31 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  position: relative;
   background: var(--canvas);
+}
+
+.background-move-mode-banner {
+  position: absolute;
+  z-index: 12;
+  top: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 9px 16px;
+  border: 2px solid #8a4b00;
+  border-radius: 8px;
+  color: #3f2400;
+  background: #ffd76a;
+  box-shadow: 0 3px 12px rgba(63, 36, 0, 0.28);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+
+.background-move-mode-banner[hidden] {
+  display: none;
 }
 
 .course-banner {
@@ -2264,7 +2495,7 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   }
 
   .left-panel.has-variation-branch-adjustment .variation-topology {
-    min-height: 160px;
+    min-height: 0;
   }
 
   .map-panel {

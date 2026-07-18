@@ -166,8 +166,13 @@ export function createMapViewCoordinateMethods(deps) {
   },
 
   visibleBounds(eventModel, ui = this.store.snapshot().ui) {
+    // Basemap movement is a layer transform. Keep it out of the shared view
+    // bounds so moving a basemap never recenters the grid or course overlay.
     const omapBounds = this.omapMap?.bounds;
-    const bgBounds = this.backgroundImage ? backgroundMapBounds(ui.background, this.backgroundImage) : null;
+    const boundsBackground = ui.background
+      ? { ...ui.background, centerX: 0, centerY: 0 }
+      : null;
+    const bgBounds = this.backgroundImage ? backgroundMapBounds(boundsBackground, this.backgroundImage) : null;
     let bounds = eventBounds(eventModel);
     if (bgBounds) {
       bounds = hasEventGeometry(eventModel) ? mergeBounds(bounds, paddedBounds(bgBounds)) : paddedBounds(bgBounds);

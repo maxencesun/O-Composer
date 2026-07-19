@@ -5,22 +5,22 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260718-75";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260718-75";
-import { resolveTextConstants } from "../domain/constants.js?v=20260718-75";
+} from "../domain/course-service.js?v=20260718-78";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260718-78";
+import { resolveTextConstants } from "../domain/constants.js?v=20260718-78";
 import {
   militaryGrid,
   militaryGridBounds,
   militaryGridSpacingMap
-} from "../domain/military-orienteering.js?v=20260718-75";
-import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260718-75";
+} from "../domain/military-orienteering.js?v=20260718-78";
+import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260718-78";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260718-75";
+} from "./course-symbols.js?v=20260718-78";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
@@ -1477,6 +1477,8 @@ export function drawMilitaryGrid(ctx, eventModel, course, project, screenScale) 
   ctx.save();
   pathLines(ctx, points, true);
   ctx.clip();
+  ctx.setLineDash([]);
+  ctx.lineCap = "butt";
   ctx.strokeStyle = purple;
   ctx.lineWidth = Math.max(0.25, lineWidthMap * Math.max(0.001, screenScale));
   for (const lineItem of verticals) {

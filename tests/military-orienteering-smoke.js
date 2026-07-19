@@ -10,6 +10,7 @@ import {
 } from "../src/domain/military-orienteering.js";
 import { serializePpen } from "../src/domain/ppen-parser.js";
 import { normalizeMilitaryWindowTime } from "../src/ui/app-shell-variation-methods.js";
+import { militaryGridEdgeHit, militaryGridVertexHit } from "../src/ui/map-view-pointer-methods.js";
 
 const model = createBlankEvent();
 assert.equal(normalizeMilitaryWindowTime("8:05"), "08:05");
@@ -33,6 +34,24 @@ Object.assign(ensureMilitaryGrid(model), {
   startY: 20,
   fontSizeMm: 2.2
 });
+assert.equal(militaryGridVertexHit({ x: 4, y: 3 }, model.event.militaryGrid.locations, 6)?.index, 0,
+  "grid boundary editing should hit the nearest existing vertex");
+assert.equal(militaryGridVertexHit({ x: 30, y: 30 }, model.event.militaryGrid.locations, 6), null,
+  "grid boundary editing should ignore empty map space");
+assert.deepEqual(militaryGridEdgeHit({ x: 48, y: 4 }, model.event.militaryGrid.locations, 6), {
+  segmentIndex: 0,
+  insertIndex: 1,
+  point: { x: 48, y: 0 },
+  distance: 4
+}, "double-clicking a grid edge should project the new vertex onto that edge");
+assert.deepEqual(militaryGridEdgeHit({ x: -3, y: 40 }, model.event.militaryGrid.locations, 6), {
+  segmentIndex: 3,
+  insertIndex: 4,
+  point: { x: 0, y: 40 },
+  distance: 3
+}, "the closing grid edge should accept a new vertex");
+assert.equal(militaryGridEdgeHit({ x: 40, y: 40 }, model.event.militaryGrid.locations, 6), null,
+  "double-clicking away from a grid edge should make no change");
 
 const selection = addControlAt(model, "normal", { x: 150, y: 100 });
 const control = model.controls.find(item => item.id === selection.id);

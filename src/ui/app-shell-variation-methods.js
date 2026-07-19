@@ -1,10 +1,10 @@
-import { debugError } from "./debug-log.js?v=20260718-75";
+import { debugError } from "./debug-log.js?v=20260718-78";
 import {
   ensureMilitaryGrid,
   militaryGridBounds,
   militaryGrid,
   militaryTimeWindowRows
-} from "../domain/military-orienteering.js?v=20260718-75";
+} from "../domain/military-orienteering.js?v=20260718-78";
 
 export function normalizeMilitaryWindowTime(value, fallback = "00:00") {
   const match = String(value || "").trim().match(/^(\d{1,2}):(\d{1,2})$/);
@@ -417,6 +417,7 @@ export function createAppShellVariationMethods(deps) {
   militaryOrienteeringPanelHtml(eventModel, course, ui) {
     const grid = militaryGrid(eventModel);
     const hasGrid = !!militaryGridBounds(grid);
+    const editingGrid = hasGrid && ui.tool === "military-grid-edit";
     const windows = militaryTimeWindowRows(eventModel, course.id);
     const windowRows = windows.map(row => {
       const item = row.control;
@@ -446,10 +447,13 @@ export function createAppShellVariationMethods(deps) {
             <label>${escapeHtml(this.t("Starting Y"))}<input data-military-grid-field="startY" type="number" step="1" value="${Math.round(Number(grid.startY) || 0)}"></label>
           </div>
           <div class="military-panel-actions">
+            ${hasGrid ? `<button type="button" class="${editingGrid ? "primary" : "secondary"}" data-edit-military-grid>${iconSvg("move")} <span>${escapeHtml(this.t(editingGrid ? "Finish editing grid boundary" : "Edit grid boundary"))}</span></button>` : ""}
             <button type="button" data-draw-military-grid>${iconSvg("polygon")} <span>${escapeHtml(this.t(hasGrid ? "Redraw grid boundary" : "Draw grid boundary"))}</span></button>
             ${hasGrid ? `<button type="button" class="danger" data-delete-military-grid>${iconSvg("trash")} <span>${escapeHtml(this.t("Delete grid"))}</span></button>` : ""}
           </div>
-          <p class="muted">${escapeHtml(this.t("Click polygon vertices on the map; right-click or press Esc to finish."))}</p>
+          <p class="muted">${escapeHtml(this.t(editingGrid
+            ? "Drag vertices; double-click an edge to add a vertex or a vertex to delete it; press Esc or right-click to finish."
+            : "Click polygon vertices on the map; right-click or press Esc to finish."))}</p>
         </section>
         <section class="military-panel-section">
           <div class="military-section-heading"><strong>${escapeHtml(this.t("Current course time-window points"))}</strong><span>${windows.length}</span></div>
@@ -900,8 +904,22 @@ export function createAppShellVariationMethods(deps) {
   },
 
   handleVariationPanelClick(event) {
+    if (event.target.closest("[data-edit-military-grid]")) {
+      const state = this.store.snapshot();
+      const wasEditing = state.ui.tool === "military-grid-edit";
+      this.mapView?.cancelDrag?.();
+      this.store.updateUi(ui => {
+        ui.tool = wasEditing ? "select" : "military-grid-edit";
+        ui.specialToolOptions = wasEditing ? null : { courseId: ui.selectedCourseId };
+        ui.status = this.t(wasEditing
+          ? "Grid boundary editing finished."
+          : "Drag vertices; double-click an edge to add a vertex or a vertex to delete it; press Esc or right-click to finish.");
+      }, wasEditing ? "Finish military grid editing" : "Edit military grid");
+      return;
+    }
     if (event.target.closest("[data-draw-military-grid]")) {
       const courseId = this.store.snapshot().ui.selectedCourseId;
+      this.mapView?.cancelDrag?.();
       this.store.updateUi(ui => {
         ui.tool = "special:military-grid";
         ui.specialToolOptions = { courseId };
@@ -910,9 +928,14 @@ export function createAppShellVariationMethods(deps) {
       return;
     }
     if (event.target.closest("[data-delete-military-grid]")) {
+      this.mapView?.cancelDrag?.();
       this.store.updateEvent(model => {
         ensureMilitaryGrid(model).locations = [];
       }, "Delete military grid");
+      this.store.updateUi(ui => {
+        ui.tool = "select";
+        ui.specialToolOptions = null;
+      }, "Select mode");
       return;
     }
     if (event.target.closest("[data-add-military-window]")) {

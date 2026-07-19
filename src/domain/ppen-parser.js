@@ -3,13 +3,13 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260718-75";
+} from "./event-model.js?v=20260718-78";
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260718-75";
-import { isPythonPageScript } from "./python-page-script.js?v=20260718-75";
-import { migrateLegacyMilitaryData } from "./military-orienteering.js?v=20260718-75";
+} from "./course-pages.js?v=20260718-78";
+import { isPythonPageScript } from "./python-page-script.js?v=20260718-78";
+import { migrateLegacyMilitaryData } from "./military-orienteering.js?v=20260718-78";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 

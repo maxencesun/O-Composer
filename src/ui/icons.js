@@ -26,6 +26,7 @@ const ICONS = {
   text: '<path d="M5 5h14"/><path d="M12 5v14"/><path d="M9 19h6"/>',
   line: '<path d="M5 18 19 6"/>',
   cut: '<path d="M5 18 19 6"/><path d="m8 6 8 12"/><circle cx="8" cy="6" r="1.5"/><circle cx="16" cy="18" r="1.5"/>',
+  move: '<path d="M12 3v18M3 12h18"/><path d="m8 7 4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
   measure: '<path d="M4 18 9 9l5 5 6-9"/><circle cx="4" cy="18" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="14" cy="14" r="1.5"/><circle cx="20" cy="5" r="1.5"/>',
   rectangle: '<rect x="5" y="6" width="14" height="12"/>',
   ellipse: '<ellipse cx="12" cy="12" rx="8" ry="5.5"/>',

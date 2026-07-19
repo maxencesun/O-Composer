@@ -1,8 +1,8 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260718-75";
-import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260718-75";
+} from "../domain/course-pages.js?v=20260718-78";
+import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260718-78";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -351,9 +351,11 @@ export function createAppShellCommandMethods(deps) {
         this.setSelection(null);
         break;
       case "cancel":
+        this.mapView?.cancelDrag?.();
         this.store.updateUi(ui => {
           ui.tool = "select";
           ui.printAreaEdit = null;
+          ui.specialToolOptions = null;
         }, "Select mode");
         break;
       case "measure-finish":
@@ -1256,6 +1258,26 @@ export function createAppShellCommandMethods(deps) {
       }
       if (!options.transient) ui.status = this.t("Drag the background on the canvas.");
     }, "Move map background");
+  },
+
+  updateMilitaryGridBoundary(locations, options = {}) {
+    if (options.operation === "delete-blocked") {
+      this.store.updateUi(ui => {
+        ui.status = this.t("A grid boundary must keep at least three vertices.");
+      }, "Keep military grid boundary");
+      return;
+    }
+    const points = (locations || [])
+      .map(point => ({ x: Number(point?.x), y: Number(point?.y) }))
+      .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+    if (points.length < 3) return;
+    this.store.updateEvent(model => {
+      ensureMilitaryGrid(model).locations = points;
+    }, this.t(options.operation === "add"
+      ? "Grid boundary vertex added."
+      : options.operation === "delete"
+        ? "Grid boundary vertex deleted."
+        : "Coordinate grid boundary updated."));
   },
 
   deleteLegBend(selection) {

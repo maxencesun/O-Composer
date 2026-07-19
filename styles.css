@@ -1002,6 +1002,7 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
 }
 

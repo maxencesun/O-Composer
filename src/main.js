@@ -345,7 +345,7 @@ requestAnimationFrame(() => {
   updateBootLoadingProgress({ detail: text.moduleDetail, indeterminate: true });
 });
 
-import("./ui/app-shell.js?v=20260718-75")
+import("./ui/app-shell.js?v=20260718-78")
   .then(({ OComposerApp }) => {
     updateBootLoadingProgress({ detail: text.initializeDetail, indeterminate: true });
     customElements.define("o-composer-app", OComposerApp);

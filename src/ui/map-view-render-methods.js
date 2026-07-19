@@ -1,5 +1,6 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260718-75";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260718-75";
+import { resolveTextConstants } from "../domain/constants.js?v=20260718-78";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260718-78";
+import { militaryGrid } from "../domain/military-orienteering.js?v=20260718-78";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -126,6 +127,7 @@ export function createMapViewRenderMethods(deps) {
     drawFallbackSpecialPoint,
     drawMilitaryGrid,
     isDragSpecialTool,
+    pathLines,
     specialShapeForDrag,
     drawSpecialObject,
     drawAreaSpecial,
@@ -153,25 +155,33 @@ export function createMapViewRenderMethods(deps) {
     const height = this.canvas.clientHeight;
     ctx.clearRect(0, 0, width, height);
     ctx.save();
-    ctx.fillStyle = "#f8f7f2";
-    ctx.fillRect(0, 0, width, height);
-    this.drawGrid(ctx, width, height, ui);
-    this.drawBackground(ctx, width, height, ui);
-    this.drawOmap(ctx, ui);
-    this.drawSpecials(ctx, eventModel, ui);
-    if (ui.showPrintArea) {
-      this.drawPrintArea(ctx, eventModel, ui);
+    try {
+      // Every editor frame starts from a solid-line baseline. Canvas line
+      // dashes are stateful, so a failed preview must not affect later drawing.
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#f8f7f2";
+      ctx.fillRect(0, 0, width, height);
+      this.drawGrid(ctx, width, height, ui);
+      this.drawBackground(ctx, width, height, ui);
+      this.drawOmap(ctx, ui);
+      this.drawSpecials(ctx, eventModel, ui);
+      if (ui.showPrintArea) {
+        this.drawPrintArea(ctx, eventModel, ui);
+      }
+      this.drawCourse(ctx, eventModel, ui);
+      this.drawMeasurement(ctx, ui);
+      this.drawAddableControls(ctx, eventModel, ui);
+      this.drawSelection(ctx, eventModel, ui);
+      this.drawBackgroundCalibration(ctx, ui);
+      this.drawSpecialHandles(ctx, eventModel, ui);
+      this.drawMovePreview(ctx, eventModel, ui);
+      this.drawResizePreview(ctx, eventModel, ui);
+      this.drawToolPreview(ctx, eventModel, ui);
+      this.drawMilitaryGridEditOverlay(ctx, eventModel, ui);
     }
-    this.drawCourse(ctx, eventModel, ui);
-    this.drawMeasurement(ctx, ui);
-    this.drawAddableControls(ctx, eventModel, ui);
-    this.drawSelection(ctx, eventModel, ui);
-    this.drawBackgroundCalibration(ctx, ui);
-    this.drawSpecialHandles(ctx, eventModel, ui);
-    this.drawMovePreview(ctx, eventModel, ui);
-    this.drawResizePreview(ctx, eventModel, ui);
-    this.drawToolPreview(ctx, eventModel, ui);
-    ctx.restore();
+    finally {
+      ctx.restore();
+    }
   },
 
   renderAreaToCanvas(eventModel, ui, area, size, options = {}) {
@@ -403,7 +413,17 @@ export function createMapViewRenderMethods(deps) {
     const selectedCourse = ui.selectedCourseId === "all" ? null : getCourse(eventModel, ui.selectedCourseId);
     const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), false);
     const coursePage = mapCourseDisplayOptions(eventModel, ui).page || "global";
-    drawMilitaryGrid(ctx, eventModel, selectedCourse, point => this.toScreen(point, ui), this.scale(ui));
+    const editLocations = ui.tool === "military-grid-edit" && this.militaryGridEditPreview?.length >= 3
+      ? this.militaryGridEditPreview
+      : null;
+    const gridEventModel = editLocations ? {
+      ...eventModel,
+      event: {
+        ...eventModel.event,
+        militaryGrid: { ...(eventModel.event?.militaryGrid || {}), locations: editLocations }
+      }
+    } : eventModel;
+    drawMilitaryGrid(ctx, gridEventModel, selectedCourse, point => this.toScreen(point, ui), this.scale(ui));
     for (const special of eventModel.specials) {
       if (!specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls, coursePage)) {
         continue;
@@ -440,6 +460,33 @@ export function createMapViewRenderMethods(deps) {
       }
       ctx.restore();
     }
+  },
+
+  drawMilitaryGridEditOverlay(ctx, eventModel, ui) {
+    if (ui.tool !== "military-grid-edit" || ui.__exporting) return;
+    const locations = this.militaryGridEditPreview?.length >= 3
+      ? this.militaryGridEditPreview
+      : militaryGrid(eventModel).locations;
+    const points = locations.map(point => this.toScreen(point, ui));
+    if (points.length < 3) return;
+    ctx.save();
+    ctx.setLineDash([]);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    // This is drawn after the map, course and descriptions so the editable
+    // range cannot disappear beneath another object.
+    pathLines(ctx, points, true);
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.96)";
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    pathLines(ctx, points, true);
+    ctx.strokeStyle = "#2477c9";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    for (const point of points) {
+      drawSquareHandle(ctx, point, true, 1);
+    }
+    ctx.restore();
   },
 
   drawCourse(ctx, eventModel, ui) {

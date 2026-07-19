@@ -1,4 +1,44 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260718-75";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260718-78";
+import { militaryGrid } from "../domain/military-orienteering.js?v=20260718-78";
+
+export function militaryGridVertexHit(point, locations, threshold) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (let index = 0; index < (locations || []).length; index += 1) {
+    const location = locations[index];
+    const candidateDistance = Math.hypot(Number(location?.x) - Number(point?.x), Number(location?.y) - Number(point?.y));
+    if (candidateDistance <= threshold && candidateDistance < bestDistance) {
+      best = { index, point: location, distance: candidateDistance };
+      bestDistance = candidateDistance;
+    }
+  }
+  return best;
+}
+
+export function militaryGridEdgeHit(point, locations, threshold) {
+  const points = Array.isArray(locations) ? locations : [];
+  if (points.length < 2) return null;
+  let best = null;
+  for (let index = 0; index < points.length; index += 1) {
+    const start = points[index];
+    const end = points[(index + 1) % points.length];
+    const dx = Number(end?.x) - Number(start?.x);
+    const dy = Number(end?.y) - Number(start?.y);
+    const lengthSquared = dx * dx + dy * dy;
+    if (!(lengthSquared > 0)) continue;
+    const ratio = Math.max(0, Math.min(1,
+      ((Number(point?.x) - Number(start?.x)) * dx + (Number(point?.y) - Number(start?.y)) * dy) / lengthSquared));
+    const projected = {
+      x: Number(start.x) + ratio * dx,
+      y: Number(start.y) + ratio * dy
+    };
+    const candidateDistance = Math.hypot(Number(point?.x) - projected.x, Number(point?.y) - projected.y);
+    if (candidateDistance <= threshold && (!best || candidateDistance < best.distance)) {
+      best = { segmentIndex: index, insertIndex: index + 1, point: projected, distance: candidateDistance };
+    }
+  }
+  return best;
+}
 
 export function createMapViewPointerMethods(deps) {
   const {
@@ -117,7 +157,16 @@ export function createMapViewPointerMethods(deps) {
   return {
   pointerDown(event) {
     if (event.button === 2) {
-      if (this.store.snapshot().ui.tool === "measure" && this.store.snapshot().ui.measurement?.adding) {
+      const rightClickState = this.store.snapshot();
+      if (rightClickState.ui.tool === "military-grid-edit") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.suppressNextContextMenu = true;
+        this.cancelDrag();
+        this.callbacks.onCancelTool?.();
+        return;
+      }
+      if (rightClickState.ui.tool === "measure" && rightClickState.ui.measurement?.adding) {
         event.preventDefault();
         this.callbacks.onMeasurementFinish?.();
         return;
@@ -151,6 +200,23 @@ export function createMapViewPointerMethods(deps) {
           measurementIndex: hit?.index ?? null,
           measurementLabelOffset: hit?.labelPoint ? { x: hit.labelPoint.x - mapPoint.x, y: hit.labelPoint.y - mapPoint.y } : { x: 0, y: 0 },
           startScreen: screen,
+          moved: false
+        };
+      }
+      return;
+    }
+    if (state.ui.tool === "military-grid-edit") {
+      const locations = militaryGrid(state.eventModel).locations;
+      const hit = militaryGridVertexHit(mapPoint, locations, 18 / this.scale(state.ui));
+      if (hit) {
+        this.militaryGridEditPreview = locations.map(location => ({ x: location.x, y: location.y }));
+        this.canvas.style.cursor = "grabbing";
+        this.drag = {
+          pointerId: event.pointerId,
+          startScreen: screen,
+          lastScreen: screen,
+          startMap: mapPoint,
+          militaryGridVertexIndex: hit.index,
           moved: false
         };
       }
@@ -294,7 +360,22 @@ export function createMapViewPointerMethods(deps) {
       const rotationHit = state.ui.tool === "select"
         ? this.hitTestSelectedCrossingRotation(mapPoint, state, 16 / this.scale(state.ui))
         : null;
-      this.canvas.style.cursor = state.ui.tool === "background-move" || calibrationHit || rotationHit ? "grab" : "";
+      const gridLocations = state.ui.tool === "military-grid-edit" ? militaryGrid(state.eventModel).locations : [];
+      const gridVertexHit = militaryGridVertexHit(mapPoint, gridLocations, 18 / this.scale(state.ui));
+      const gridEdgeHit = gridVertexHit ? null : militaryGridEdgeHit(mapPoint, gridLocations, 12 / this.scale(state.ui));
+      this.canvas.style.cursor = state.ui.tool === "background-move" || calibrationHit || rotationHit || gridVertexHit
+        ? "grab"
+        : gridEdgeHit ? "copy" : "";
+      return;
+    }
+    if (Number.isInteger(this.drag.militaryGridVertexIndex)) {
+      const total = Math.hypot(screen.x - this.drag.startScreen.x, screen.y - this.drag.startScreen.y);
+      this.drag.moved = this.drag.moved || total > 2;
+      if (this.militaryGridEditPreview?.[this.drag.militaryGridVertexIndex]) {
+        this.militaryGridEditPreview[this.drag.militaryGridVertexIndex] = { x: mapPoint.x, y: mapPoint.y };
+        this.canvas.style.cursor = "grabbing";
+        this.requestDraw(state);
+      }
       return;
     }
     if (this.drag.measurement) {
@@ -416,6 +497,16 @@ export function createMapViewPointerMethods(deps) {
     }
     const state = this.store.snapshot();
     const mapPoint = this.shiftConstrainedPoint(this.toMap(screen, state.ui), state, event);
+    if (Number.isInteger(this.drag.militaryGridVertexIndex)) {
+      const locations = this.militaryGridEditPreview?.map(location => ({ x: location.x, y: location.y })) || [];
+      if (this.drag.moved && locations.length >= 3) {
+        this.callbacks.onMilitaryGridBoundaryChange?.(locations);
+      }
+      this.militaryGridEditPreview = null;
+      this.cancelDrag();
+      this.requestDraw(this.store.snapshot());
+      return;
+    }
     if (this.drag.measurement) {
       if (!this.drag.moved) this.callbacks.onMeasurementPoint?.(mapPoint);
       this.cancelDrag();
@@ -552,6 +643,32 @@ export function createMapViewPointerMethods(deps) {
 
   doubleClick(event) {
     const state = this.store.snapshot();
+    if (state.ui.tool === "military-grid-edit") {
+      event.preventDefault();
+      event.stopPropagation();
+      const mapPoint = this.toMap({ x: event.offsetX, y: event.offsetY }, state.ui);
+      const locations = militaryGrid(state.eventModel).locations.map(location => ({ x: location.x, y: location.y }));
+      const vertex = militaryGridVertexHit(mapPoint, locations, 14 / Math.max(0.001, this.scale(state.ui)));
+      if (vertex) {
+        if (locations.length > 3) {
+          locations.splice(vertex.index, 1);
+          this.callbacks.onMilitaryGridBoundaryChange?.(locations, { operation: "delete" });
+        }
+        else {
+          this.callbacks.onMilitaryGridBoundaryChange?.(null, { operation: "delete-blocked" });
+        }
+      }
+      else {
+        const edge = militaryGridEdgeHit(mapPoint, locations, 12 / Math.max(0.001, this.scale(state.ui)));
+        if (edge) {
+          locations.splice(edge.insertIndex, 0, edge.point);
+          this.callbacks.onMilitaryGridBoundaryChange?.(locations, { operation: "add" });
+        }
+      }
+      this.cancelDrag();
+      this.requestDraw(this.store.snapshot());
+      return;
+    }
     if (state.ui.tool === "measure") {
       event.preventDefault();
       if (state.ui.measurement?.adding) {
@@ -617,7 +734,7 @@ export function createMapViewPointerMethods(deps) {
       event.stopPropagation();
       return;
     }
-    if (this.store.snapshot().ui.tool === "background-move") {
+    if (["background-move", "military-grid-edit"].includes(this.store.snapshot().ui.tool)) {
       event.preventDefault();
       event.stopPropagation();
       this.cancelDrag();
@@ -641,6 +758,7 @@ export function createMapViewPointerMethods(deps) {
     }
     this.descriptionDragPreview = null;
     this.specialShapePreview = null;
+    this.militaryGridEditPreview = null;
     if (!this.store.snapshot().ui.tool || !isAreaSpecialTool(this.store.snapshot().ui.tool)) {
       this.areaSpecialDraft = null;
     }

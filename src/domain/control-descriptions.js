@@ -1,5 +1,5 @@
-import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260718-75";
-import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260718-75";
+import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260718-78";
+import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260718-78";
 import {
   alignTopologySharedJoinPoints,
   layoutVariationTopology,
@@ -12,8 +12,8 @@ import {
   topologyCommonJoinPointMap,
   topologyEdgeKey,
   topologySharedJoinParentMap
-} from "./variation-topology-layout.js?v=20260718-75";
-import { militaryWindowDescriptionRows } from "./military-orienteering.js?v=20260718-75";
+} from "./variation-topology-layout.js?v=20260718-78";
+import { militaryWindowDescriptionRows } from "./military-orienteering.js?v=20260718-78";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([

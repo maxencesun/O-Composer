@@ -1,19 +1,19 @@
-import { debugError } from "./debug-log.js?v=20260718-78";
+import { debugError } from "./debug-log.js?v=20260721-79";
 import {
   ensureMilitaryGrid,
   militaryGridBounds,
   militaryGrid,
   militaryTimeWindowRows
-} from "../domain/military-orienteering.js?v=20260718-78";
+} from "../domain/military-orienteering.js?v=20260721-79";
 
 export function normalizeMilitaryWindowTime(value, fallback = "00:00") {
   const match = String(value || "").trim().match(/^(\d{1,2}):(\d{1,2})$/);
   if (!match) return fallback;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (!Number.isInteger(hours) || hours < 0 || hours > 23
-    || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) return fallback;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 99
+    || !Number.isInteger(seconds) || seconds < 0 || seconds > 59) return fallback;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 export function createAppShellVariationMethods(deps) {
@@ -425,8 +425,8 @@ export function createAppShellVariationMethods(deps) {
       return `
         <div class="military-window-row" data-military-window-id="${Number(item.id) || 0}" data-military-course-control-id="${Number(courseControl.id) || 0}">
           <input data-military-window-field="code" value="${escapeAttr(item.code || "")}" aria-label="${escapeAttr(this.t("Window code"))}">
-          <input data-military-window-field="windowStartTime" type="text" inputmode="numeric" maxlength="5" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" value="${escapeAttr(courseControl.windowStartTime || "00:00")}" aria-label="${escapeAttr(this.t("Start time"))}">
-          <input data-military-window-field="windowEndTime" type="text" inputmode="numeric" maxlength="5" pattern="[0-2][0-9]:[0-5][0-9]" placeholder="HH:MM" value="${escapeAttr(courseControl.windowEndTime || "00:00")}" aria-label="${escapeAttr(this.t("End time"))}">
+          <input data-military-window-field="windowStartTime" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{1,2}:[0-5][0-9]" placeholder="MM:ss" value="${escapeAttr(courseControl.windowStartTime || "00:00")}" aria-label="${escapeAttr(this.t("Start time (MM:ss)"))}">
+          <input data-military-window-field="windowEndTime" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{1,2}:[0-5][0-9]" placeholder="MM:ss" value="${escapeAttr(courseControl.windowEndTime || "00:00")}" aria-label="${escapeAttr(this.t("End time (MM:ss)"))}">
           <input class="military-window-score" data-military-window-field="points" type="number" min="0" step="1" value="${Math.max(0, Number(courseControl.points) || 0)}" aria-label="${escapeAttr(this.t("Points"))}">
         </div>`;
     }).join("");
@@ -462,8 +462,8 @@ export function createAppShellVariationMethods(deps) {
             ${windows.length ? `
               <div class="military-window-row military-window-row-header" role="row">
                 <span>${escapeHtml(this.t("Control number"))}</span>
-                <span>${escapeHtml(this.t("Start time"))}</span>
-                <span>${escapeHtml(this.t("End time"))}</span>
+                <span>${escapeHtml(this.t("Start time (MM:ss)"))}</span>
+                <span>${escapeHtml(this.t("End time (MM:ss)"))}</span>
                 <span>${escapeHtml(this.t("Score"))}</span>
               </div>
               ${windowRows}` : `<p class="muted">${escapeHtml(this.t("No time-window points."))}</p>`}

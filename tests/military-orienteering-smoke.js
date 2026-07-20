@@ -14,7 +14,9 @@ import { militaryGridEdgeHit, militaryGridVertexHit } from "../src/ui/map-view-p
 
 const model = createBlankEvent();
 assert.equal(normalizeMilitaryWindowTime("8:05"), "08:05");
-assert.equal(normalizeMilitaryWindowTime("24:00", "09:30"), "09:30");
+assert.equal(normalizeMilitaryWindowTime("65:30"), "65:30", "the first field is elapsed minutes, not hours");
+assert.equal(normalizeMilitaryWindowTime("05:60", "09:30"), "09:30", "seconds must stay below 60");
+assert.equal(normalizeMilitaryWindowTime("100:00", "09:30"), "09:30", "MM is stored as a two-digit field");
 Object.defineProperty(globalThis, "localStorage", {
   configurable: true,
   value: { getItem: key => key === "oComposerLanguage" ? "zh" : null }

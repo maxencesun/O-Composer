@@ -1,5 +1,5 @@
-import { createControl, nextId } from "./event-model.js?v=20260718-78";
-import { courseView } from "./course-service.js?v=20260718-78";
+import { createControl, nextId } from "./event-model.js?v=20260721-79";
+import { courseView } from "./course-service.js?v=20260721-79";
 
 export const MILITARY_COURSE_KIND = "military";
 

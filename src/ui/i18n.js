@@ -818,6 +818,8 @@ const ZH = Object.freeze({
   "Control number": "点号",
   "Start time": "开始时间",
   "End time": "结束时间",
+  "Start time (MM:ss)": "开始时间 (MM:ss)",
+  "End time (MM:ss)": "结束时间 (MM:ss)",
   "Delete time window": "删除时间窗口",
   "Add to course": "加入当前路线",
   "Remove from course": "从当前路线移除",

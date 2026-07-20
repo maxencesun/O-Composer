@@ -1,7 +1,7 @@
-import { debugLog } from "./debug-log.js?v=20260718-78";
-import { coursePageCount } from "../domain/course-service.js?v=20260718-78";
-import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260718-78";
-import { preparePythonPageLayout, validatePageBreakFormula } from "../domain/course-pages.js?v=20260718-78";
+import { debugLog } from "./debug-log.js?v=20260721-79";
+import { coursePageCount } from "../domain/course-service.js?v=20260721-79";
+import { mergePdfBlobs } from "../domain/pdf-exporter.js?v=20260721-79";
+import { preparePythonPageLayout, validatePageBreakFormula } from "../domain/course-pages.js?v=20260721-79";
 
 export function createAppShellFileExportMethods(deps) {
   const {

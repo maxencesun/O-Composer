@@ -1,8 +1,8 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260718-78";
-import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260718-78";
+} from "../domain/course-pages.js?v=20260721-79";
+import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260721-79";
 
 export function createAppShellCommandMethods(deps) {
   const {

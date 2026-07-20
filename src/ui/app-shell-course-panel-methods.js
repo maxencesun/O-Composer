@@ -1,6 +1,6 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260718-78";
-import { coursePageCount } from "../domain/course-service.js?v=20260718-78";
-import { militaryWindowDescriptionRows } from "../domain/military-orienteering.js?v=20260718-78";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260721-79";
+import { coursePageCount } from "../domain/course-service.js?v=20260721-79";
+import { militaryWindowDescriptionRows } from "../domain/military-orienteering.js?v=20260721-79";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {

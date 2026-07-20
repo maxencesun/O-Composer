@@ -198,7 +198,7 @@ def verify_app_files() -> None:
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.4"' in app_config, "app version should be centrally maintained at 0.0.4"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CODE_VERSION = "20260718-78"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CODE_VERSION = "20260721-79"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
@@ -335,6 +335,9 @@ def verify_app_files() -> None:
         assert token in map_view, f"moving a background must not recenter the grid or course overlay: {token}"
     for token in ["data-edit-military-grid", '"military-grid-edit"', "militaryGridVertexHit", "militaryGridEdgeHit", "militaryGridEditPreview", "onMilitaryGridBoundaryChange", "updateMilitaryGridBoundary", "double-click an edge to add a vertex", 'operation: "add"', 'operation: "delete"', 'operation: "delete-blocked"', "Grid boundary vertex added", "Grid boundary vertex deleted", "must keep at least three vertices", "Coordinate grid boundary updated"]:
         assert token in app_shell + map_view + i18n, f"military coordinate-grid boundaries should support interactive vertex editing: {token}"
+    for token in ['placeholder="MM:ss"', 'pattern="[0-9]{1,2}:[0-5][0-9]"', "Start time (MM:ss)", "End time (MM:ss)", "minutes > 99", "seconds > 59"]:
+        assert token in app_shell + i18n, f"military time windows should use MM:ss rather than HH:MM: {token}"
+    assert "HH:MM" not in app_shell, "military time-window inputs must not present an hours/minutes format"
     assert 'ui.tool !== "military-grid-edit" || ui.__exporting' in map_view, "grid edit handles must remain editor-only"
     for token in ["this.drawMilitaryGridEditOverlay(ctx, eventModel, ui)", "drawMilitaryGridEditOverlay(ctx, eventModel, ui)", ": militaryGrid(eventModel).locations", 'ctx.setLineDash([])', 'ctx.lineWidth = 6', 'ctx.lineWidth = 3', 'drawSquareHandle(ctx, point, true, 1)', "drawMilitaryGrid,\n    isDragSpecialTool,\n    pathLines,", "finally {\n      ctx.restore();"]:
         assert token in map_view, f"military grid boundary editing should remain visible and must not leak dashed canvas state: {token}"
@@ -456,7 +459,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260718-78", "ocd-convert-worker.js?v=20260718-78", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260721-79", "ocd-convert-worker.js?v=20260721-79", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")

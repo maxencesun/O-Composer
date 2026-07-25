@@ -1,6 +1,6 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260725-80";
-import { coursePageCount } from "../domain/course-service.js?v=20260725-80";
-import { militaryWindowDescriptionRows } from "../domain/military-orienteering.js?v=20260725-80";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260726-81";
+import { coursePageCount } from "../domain/course-service.js?v=20260726-81";
+import { militaryWindowDescriptionRows } from "../domain/military-orienteering.js?v=20260726-81";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -46,6 +46,7 @@ export function createAppShellCoursePanelMethods(deps) {
     isColumnFTextValue,
     iscdSymbolLabel,
     normalizeColumnFText,
+    scoreCourseTotal,
     scoreCourseDescriptionRows,
     storageForIscdSelection,
     resizedDescriptionSpecial,
@@ -620,6 +621,8 @@ export function createAppShellCoursePanelMethods(deps) {
     if (isTeamCourse) {
       rows = teamCourseDescriptionPanelRows(rows, course);
     }
+    const totalScore = isScoreCourse ? scoreCourseTotal(rows) : null;
+    const normalControlCount = rows.filter(row => row.control?.kind === "normal").length;
     const timeWindowRows = rows.filter(row => row.courseControl?.timeWindow);
     rows = rows.filter(row => !row.courseControl?.timeWindow);
     const mode = !showingCourseRows ? "all" : isTeamCourse ? "team" : (isScoreCourse ? "score" : "normal");
@@ -635,6 +638,9 @@ export function createAppShellCoursePanelMethods(deps) {
       }
       return `<tr class="military-description-window" data-control-id="${Number(row.control?.id) || 0}"><td colspan="3">${escapeHtml(row.timeRange)}</td><td colspan="4">${escapeHtml(row.coordinates)}</td><td>${escapeHtml(row.score)}</td></tr>`;
     }).join("");
+    const scoreSummaryHtml = isScoreCourse
+      ? `<tr class="score-summary-row"><td colspan="3">${escapeHtml(course?.name || "")}</td><td colspan="3">${escapeHtml(`${normalControlCount} ${this.t("controls")}`)}</td><td colspan="2">${escapeHtml(this.t("{score} points", { score: totalScore }))}</td></tr>`
+      : "";
     const addRole = ui.teamAddControlRole === "free" ? "free" : "mandatory";
     const teamToolbar = isTeamCourse ? `
       <div class="panel-inline-toolbar team-add-control-toolbar">
@@ -650,6 +656,7 @@ export function createAppShellCoursePanelMethods(deps) {
       <table class="description-table">
         <thead><tr><th class="description-order-column">#</th><th class="description-code-column">${escapeHtml(this.t("Code"))}</th>${typeHeader}<th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th></tr></thead>
         <tbody>
+          ${scoreSummaryHtml}
           ${rows.map(row => this.descriptionRow(row, mode)).join("")}
           ${militaryHtml}
         </tbody>

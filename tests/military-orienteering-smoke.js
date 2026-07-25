@@ -62,6 +62,7 @@ const firstReference = addExistingControlToCourse(model, course.id, control.id);
 const secondReference = addExistingControlToCourse(model, secondCourse.id, control.id);
 const firstCourseControl = model.courseControls.find(item => item.id === firstReference.courseControl);
 const secondCourseControl = model.courseControls.find(item => item.id === secondReference.courseControl);
+secondCourseControl.points = 40;
 firstCourseControl.timeWindow = true;
 firstCourseControl.windowStartTime = "08:15";
 firstCourseControl.windowEndTime = "08:30";
@@ -96,6 +97,8 @@ assert.equal(militaryTimeWindowRows(model, secondCourse.id).length, 0);
 const rows = buildControlDescriptionRows(model, course.id);
 assert.deepEqual(rows.filter(row => row.kind === "military-window").map(row => row.control.id), [laterControl.id, control.id],
   "the control description should use the configured window order");
+assert.deepEqual(rows.find(row => row.kind === "header3")?.boxes, ["Military", "2 个检查点", "55分"],
+  "the score total should share the course summary row and include every time-window point once");
 assert.ok(rows.some(row => row.kind === "military-window-section" && row.text === "时间窗口点"));
 assert.ok(rows.some(row => row.kind === "military-window-header"
   && row.boxes.join("|") === "时间窗口|坐标（纵，横）|分数"));
@@ -114,11 +117,15 @@ const secondRows = buildControlDescriptionRows(model, secondCourse.id);
 assert.ok(secondRows.some(row => row.kind === "control" && row.code === control.code),
   "the same point is an ordinary control in another course");
 assert.ok(!secondRows.some(row => row.kind.startsWith("military-window")));
+assert.deepEqual(secondRows.find(row => row.kind === "header3")?.boxes, ["Military 2", "1 个检查点", "40分"],
+  "ordinary scored controls should contribute to the total in the course summary row");
 
 const allRows = buildControlDescriptionRows(model, "all");
 assert.ok(allRows.some(row => row.kind === "control" && row.code === control.code),
   "All Controls includes the point as an ordinary global control");
 assert.ok(!allRows.some(row => row.kind.startsWith("military-window")));
+assert.ok(!allRows.some(row => row.kind === "score-total"),
+  "All Controls is not a scored course and should not show a total");
 assert.equal(model.controls.filter(item => item.id === control.id).length, 1);
 assert.equal(model.courseControls.filter(item => item.control === control.id).length, 2);
 

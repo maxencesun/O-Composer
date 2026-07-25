@@ -835,6 +835,8 @@ const ZH = Object.freeze({
   "Y coordinate": "纵坐标",
   "X coordinate": "横坐标",
   "Score": "分数",
+  "Total score": "总分",
+  "{score} points": "{score}分",
   "Time-window point": "时间窗口点",
   "time-window": "时间窗口点",
   "Click the map to set the hidden time-window point.": "点击地图设置隐藏的时间窗口点。",

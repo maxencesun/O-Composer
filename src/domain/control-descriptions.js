@@ -1,5 +1,5 @@
-import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260725-80";
-import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260725-80";
+import { courseLength, courseLengthRange, courseTopology, courseView, findLeg, getCourse, legLength, legPath, naturalCode, isTeamFreeCourseControl } from "./course-service.js?v=20260726-81";
+import { relayBranchGroups, relayBranchLegLabel, variationBranchCodeMap } from "./relay-variations.js?v=20260726-81";
 import {
   alignTopologySharedJoinPoints,
   layoutVariationTopology,
@@ -12,8 +12,8 @@ import {
   topologyCommonJoinPointMap,
   topologyEdgeKey,
   topologySharedJoinParentMap
-} from "./variation-topology-layout.js?v=20260725-80";
-import { militaryWindowDescriptionRows } from "./military-orienteering.js?v=20260725-80";
+} from "./variation-topology-layout.js?v=20260726-81";
+import { militaryWindowDescriptionRows } from "./military-orienteering.js?v=20260726-81";
 
 export const DESCRIPTION_KINDS = Object.freeze(["symbols", "text", "symbols-and-text"]);
 export const ISCD_COLUMNS = Object.freeze([
@@ -206,6 +206,7 @@ const FALLBACK_SYMBOL_TEXT = Object.freeze({
   en: Object.freeze({
     all_controls: "All controls",
     number_controls: "{0} controls",
+    score_points: "{0} points",
     course_length: "Length {0}",
     course_length_climb: "{0}, climb {1}",
     team_course_length: "{0}, {1} mandatory + {2} free",
@@ -222,6 +223,7 @@ const FALLBACK_SYMBOL_TEXT = Object.freeze({
   zh: Object.freeze({
     all_controls: "全部检查点",
     number_controls: "{0} 个检查点",
+    score_points: "{0}分",
     course_length: "长度 {0}",
     course_length_climb: "{0}，爬升 {1}",
     team_course_length: "{0}，{1} 个必访 + {2} 个自由",
@@ -426,7 +428,12 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
     : view;
   const summaryNormalControlCount = summaryView.filter(row => row.control.kind === "normal").length;
   const pageCount = view[0]?.coursePageCount || summaryView[0]?.coursePageCount || 1;
-  const headerOptions = { ...summaryOptions, page: Number(options.page) || null, pageCount };
+  const headerOptions = {
+    ...summaryOptions,
+    page: Number(options.page) || null,
+    pageCount,
+    totalScore: ["score", "military"].includes(course?.kind) ? scoreCourseTotal(summaryView) : null
+  };
   const rows = [];
   rows.push(...titleRows("title", eventModel.event?.title || ""));
   if (displayOptions.relayLabel) rows.push(...titleRows("subtitle", displayOptions.relayLabel));
@@ -469,6 +476,22 @@ export function buildControlDescriptionRows(eventModel, selectedCourseId = "all"
   }
   rows.push(...militaryWindowDescriptionRows(eventModel, timeWindowRows, language));
   return rows;
+}
+
+export function scoreCourseTotal(view = []) {
+  const countedCourseControls = new Set();
+  let total = 0;
+  for (const row of view || []) {
+    if (row.control?.kind !== "normal" || !["score", "military"].includes(row.course?.kind)) continue;
+    const courseControlId = Number(row.courseControl?.id);
+    const key = Number.isFinite(courseControlId) && courseControlId > 0
+      ? `course-control:${courseControlId}`
+      : `control:${Number(row.control?.id) || 0}`;
+    if (countedCourseControls.has(key)) continue;
+    countedCourseControls.add(key);
+    total += Math.max(0, Number(row.courseControl?.points) || 0);
+  }
+  return Math.round(total * 1000000) / 1000000;
 }
 
 function buildTeamControlDescriptionRows(eventModel, course, selectedCourseId, view, descriptionKind, language, displayOptions = {}) {
@@ -1127,10 +1150,11 @@ function courseHeaderRow(eventModel, course, normalControlCount, language, displ
   }
   if (["score", "military"].includes(course.kind)) {
     return {
-      kind: "header2",
+      kind: "header3",
       boxes: [
         course.name || "",
-        formatSymbolText("number_controls", normalControlCount, `${normalControlCount} controls`, language)
+        formatSymbolText("number_controls", normalControlCount, `${normalControlCount} controls`, language),
+        formatSymbolText("score_points", displayOptions.totalScore ?? 0, `${displayOptions.totalScore ?? 0} points`, language)
       ]
     };
   }

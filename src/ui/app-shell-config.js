@@ -33,7 +33,7 @@ export const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 export const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 export const APP_VERSION = "0.0.4";
-export const APP_CODE_VERSION = "20260725-80";
+export const APP_CODE_VERSION = "20260726-81";
 // Keep the existing cache generation so returning users retain the 9.7 MB
 // fonts/symbols and only fetch the newly added Pyodide runtime entries.
 export const APP_CACHE_VERSION = "20260711-4";

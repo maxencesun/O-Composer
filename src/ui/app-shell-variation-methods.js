@@ -1,11 +1,11 @@
-import { debugError } from "./debug-log.js?v=20260725-80";
+import { debugError } from "./debug-log.js?v=20260726-81";
 import {
   ensureMilitaryGrid,
   militaryGridBounds,
   militaryGrid,
   militaryTimeWindowRows,
   moveMilitaryTimeWindow
-} from "../domain/military-orienteering.js?v=20260725-80";
+} from "../domain/military-orienteering.js?v=20260726-81";
 
 export function normalizeMilitaryWindowTime(value, fallback = "00:00") {
   const match = String(value || "").trim().match(/^(\d{1,2}):(\d{1,2})$/);

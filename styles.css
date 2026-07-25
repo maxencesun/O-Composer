@@ -1300,6 +1300,13 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   text-align: center;
 }
 
+.score-summary-row td {
+  background: #f1f5f7;
+  font-weight: 700;
+  vertical-align: middle;
+  text-align: center;
+}
+
 .iscd-cell-with-input {
   display: grid;
   grid-template-columns: 28px minmax(38px, 1fr);

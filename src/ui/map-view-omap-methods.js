@@ -1,4 +1,4 @@
-import { debugLog, debugWarn, debugError } from "./debug-log.js?v=20260726-81";
+import { debugLog, debugWarn, debugError } from "./debug-log.js?v=20260726-83";
 export function createMapViewOmapMethods(deps) {
   const {
     allControlsView,
@@ -670,7 +670,7 @@ export function createMapViewOmapMethods(deps) {
       return this.omapWorker;
     }
     try {
-      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260726-81", import.meta.url), { type: "module" });
+      const worker = new Worker(new URL("../workers/omap-render-worker.js?v=20260726-83", import.meta.url), { type: "module" });
       worker.onmessage = event => this.handleOmapWorkerMessage(event.data);
       worker.onerror = error => {
         this.disableOmapWorker(error?.message || "OMAP worker failed");

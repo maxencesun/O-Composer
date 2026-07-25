@@ -1,5 +1,5 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260726-81";
-import { militaryGrid } from "../domain/military-orienteering.js?v=20260726-81";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260726-83";
+import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260726-83";
 
 export function militaryGridVertexHit(point, locations, threshold) {
   let best = null;
@@ -205,8 +205,9 @@ export function createMapViewPointerMethods(deps) {
       }
       return;
     }
-    if (state.ui.tool === "military-grid-edit") {
-      const locations = militaryGrid(state.eventModel).locations;
+    if (state.ui.tool === "military-grid-edit"
+      && militaryGridBelongsToCourse(state.eventModel, state.ui.selectedCourseId)) {
+      const locations = militaryGrid(state.eventModel, state.ui.selectedCourseId).locations;
       const hit = militaryGridVertexHit(mapPoint, locations, 18 / this.scale(state.ui));
       if (hit) {
         this.militaryGridEditPreview = locations.map(location => ({ x: location.x, y: location.y }));
@@ -360,7 +361,9 @@ export function createMapViewPointerMethods(deps) {
       const rotationHit = state.ui.tool === "select"
         ? this.hitTestSelectedCrossingRotation(mapPoint, state, 16 / this.scale(state.ui))
         : null;
-      const gridLocations = state.ui.tool === "military-grid-edit" ? militaryGrid(state.eventModel).locations : [];
+      const gridLocations = state.ui.tool === "military-grid-edit"
+        && militaryGridBelongsToCourse(state.eventModel, state.ui.selectedCourseId)
+        ? militaryGrid(state.eventModel, state.ui.selectedCourseId).locations : [];
       const gridVertexHit = militaryGridVertexHit(mapPoint, gridLocations, 18 / this.scale(state.ui));
       const gridEdgeHit = gridVertexHit ? null : militaryGridEdgeHit(mapPoint, gridLocations, 12 / this.scale(state.ui));
       this.canvas.style.cursor = state.ui.tool === "background-move" || calibrationHit || rotationHit || gridVertexHit
@@ -643,11 +646,13 @@ export function createMapViewPointerMethods(deps) {
 
   doubleClick(event) {
     const state = this.store.snapshot();
-    if (state.ui.tool === "military-grid-edit") {
+    if (state.ui.tool === "military-grid-edit"
+      && militaryGridBelongsToCourse(state.eventModel, state.ui.selectedCourseId)) {
       event.preventDefault();
       event.stopPropagation();
       const mapPoint = this.toMap({ x: event.offsetX, y: event.offsetY }, state.ui);
-      const locations = militaryGrid(state.eventModel).locations.map(location => ({ x: location.x, y: location.y }));
+      const locations = militaryGrid(state.eventModel, state.ui.selectedCourseId).locations
+        .map(location => ({ x: location.x, y: location.y }));
       const vertex = militaryGridVertexHit(mapPoint, locations, 14 / Math.max(0.001, this.scale(state.ui)));
       if (vertex) {
         if (locations.length > 3) {

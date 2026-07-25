@@ -1,11 +1,16 @@
-import { debugError } from "./debug-log.js?v=20260726-81";
+import { debugError } from "./debug-log.js?v=20260726-83";
 import {
+  addMilitaryGrid,
   ensureMilitaryGrid,
+  militaryGridBelongsToCourse,
   militaryGridBounds,
   militaryGrid,
+  militaryGrids,
   militaryTimeWindowRows,
-  moveMilitaryTimeWindow
-} from "../domain/military-orienteering.js?v=20260726-81";
+  moveMilitaryTimeWindow,
+  removeMilitaryGrid,
+  setMilitaryCourseGrid
+} from "../domain/military-orienteering.js?v=20260726-83";
 
 export function normalizeMilitaryWindowTime(value, fallback = "00:00") {
   const match = String(value || "").trim().match(/^(\d{1,2}):(\d{1,2})$/);
@@ -416,7 +421,9 @@ export function createAppShellVariationMethods(deps) {
   },
 
   militaryOrienteeringPanelHtml(eventModel, course, ui) {
-    const grid = militaryGrid(eventModel);
+    const grids = militaryGrids(eventModel);
+    const selectedGridId = Number(course.options?.military?.gridId) || null;
+    const grid = militaryGrid(eventModel, course);
     const hasGrid = !!militaryGridBounds(grid);
     const editingGrid = hasGrid && ui.tool === "military-grid-edit";
     const windows = militaryTimeWindowRows(eventModel, course.id);
@@ -445,18 +452,27 @@ export function createAppShellVariationMethods(deps) {
         </header>
         <section class="military-panel-section">
           <div class="military-section-heading"><strong>${escapeHtml(this.t("Coordinate grid"))}</strong><span>${hasGrid ? escapeHtml(this.t("Grid defined")) : escapeHtml(this.t("No grid defined"))}</span></div>
-          <div class="military-grid-form">
-            <label>${escapeHtml(this.t("Horizontal spacing (cm)"))}<input data-military-grid-field="spacingXcm" type="number" min="0.01" step="0.1" value="${Number(grid.spacingXcm) || 1}"></label>
-            <label>${escapeHtml(this.t("Vertical spacing (cm)"))}<input data-military-grid-field="spacingYcm" type="number" min="0.01" step="0.1" value="${Number(grid.spacingYcm) || 1}"></label>
-            <label>${escapeHtml(this.t("Line width (mm)"))}<input data-military-grid-field="lineWidthMm" type="number" min="0.01" step="0.01" value="${Number(grid.lineWidthMm) || 0.18}"></label>
-            <label>${escapeHtml(this.t("Coordinate font size (mm)"))}<input data-military-grid-field="fontSizeMm" type="number" min="0.2" step="0.1" value="${Number(grid.fontSizeMm) || 1.8}"></label>
-            <label>${escapeHtml(this.t("Starting X"))}<input data-military-grid-field="startX" type="number" step="1" value="${Math.round(Number(grid.startX) || 0)}"></label>
-            <label>${escapeHtml(this.t("Starting Y"))}<input data-military-grid-field="startY" type="number" step="1" value="${Math.round(Number(grid.startY) || 0)}"></label>
-          </div>
+          <label>${escapeHtml(this.t("Grid selection"))}
+            <select data-military-course-grid>
+              <option value="" ${selectedGridId ? "" : "selected"}>${escapeHtml(this.t("Do not use a grid"))}</option>
+              ${grids.map(item => `<option value="${Number(item.id)}" ${Number(item.id) === selectedGridId ? "selected" : ""}>${escapeHtml(item.name || `Grid ${item.id}`)}</option>`).join("")}
+            </select>
+          </label>
+          ${selectedGridId ? `
+            <div class="military-grid-form">
+              <label>${escapeHtml(this.t("Grid name"))}<input data-military-grid-field="name" type="text" value="${escapeAttr(grid.name || `Grid ${selectedGridId}`)}"></label>
+              <label>${escapeHtml(this.t("Horizontal spacing (cm)"))}<input data-military-grid-field="spacingXcm" type="number" min="0.01" step="0.1" value="${Number(grid.spacingXcm) || 1}"></label>
+              <label>${escapeHtml(this.t("Vertical spacing (cm)"))}<input data-military-grid-field="spacingYcm" type="number" min="0.01" step="0.1" value="${Number(grid.spacingYcm) || 1}"></label>
+              <label>${escapeHtml(this.t("Line width (mm)"))}<input data-military-grid-field="lineWidthMm" type="number" min="0.01" step="0.01" value="${Number(grid.lineWidthMm) || 0.18}"></label>
+              <label>${escapeHtml(this.t("Coordinate font size (mm)"))}<input data-military-grid-field="fontSizeMm" type="number" min="0.2" step="0.1" value="${Number(grid.fontSizeMm) || 1.8}"></label>
+              <label>${escapeHtml(this.t("Starting X"))}<input data-military-grid-field="startX" type="number" step="1" value="${Math.round(Number(grid.startX) || 0)}"></label>
+              <label>${escapeHtml(this.t("Starting Y"))}<input data-military-grid-field="startY" type="number" step="1" value="${Math.round(Number(grid.startY) || 0)}"></label>
+            </div>` : ""}
           <div class="military-panel-actions">
+            <button type="button" data-add-military-grid>${iconSvg("plus")} <span>${escapeHtml(this.t("Add grid"))}</span></button>
             ${hasGrid ? `<button type="button" class="${editingGrid ? "primary" : "secondary"}" data-edit-military-grid>${iconSvg("move")} <span>${escapeHtml(this.t(editingGrid ? "Finish editing grid boundary" : "Edit grid boundary"))}</span></button>` : ""}
-            <button type="button" data-draw-military-grid>${iconSvg("polygon")} <span>${escapeHtml(this.t(hasGrid ? "Redraw grid boundary" : "Draw grid boundary"))}</span></button>
-            ${hasGrid ? `<button type="button" class="danger" data-delete-military-grid>${iconSvg("trash")} <span>${escapeHtml(this.t("Delete grid"))}</span></button>` : ""}
+            ${selectedGridId ? `<button type="button" data-draw-military-grid>${iconSvg("polygon")} <span>${escapeHtml(this.t(hasGrid ? "Redraw grid boundary" : "Draw grid boundary"))}</span></button>` : ""}
+            ${selectedGridId ? `<button type="button" class="danger" data-delete-military-grid>${iconSvg("trash")} <span>${escapeHtml(this.t("Delete grid"))}</span></button>` : ""}
           </div>
           <p class="muted">${escapeHtml(this.t(editingGrid
             ? "Drag vertices; double-click an edge to add a vertex or a vertex to delete it; press Esc or right-click to finish."
@@ -928,13 +944,28 @@ export function createAppShellVariationMethods(deps) {
       this.store.updateUi(ui => { ui.status = status; }, status);
       return;
     }
+    if (event.target.closest("[data-add-military-grid]")) {
+      const courseId = this.store.snapshot().ui.selectedCourseId;
+      let gridId = null;
+      this.mapView?.cancelDrag?.();
+      this.store.updateEvent(model => {
+        gridId = addMilitaryGrid(model, courseId).id;
+      }, "Add military grid");
+      this.store.updateUi(ui => {
+        ui.tool = "special:military-grid";
+        ui.specialToolOptions = { courseId, gridId };
+        ui.status = this.t("Click polygon vertices on the map; right-click or press Esc to finish.");
+      }, "Draw new military grid");
+      return;
+    }
     if (event.target.closest("[data-edit-military-grid]")) {
       const state = this.store.snapshot();
       const wasEditing = state.ui.tool === "military-grid-edit";
+      const gridId = Number(getCourse(state.eventModel, state.ui.selectedCourseId)?.options?.military?.gridId) || null;
       this.mapView?.cancelDrag?.();
       this.store.updateUi(ui => {
         ui.tool = wasEditing ? "select" : "military-grid-edit";
-        ui.specialToolOptions = wasEditing ? null : { courseId: ui.selectedCourseId };
+        ui.specialToolOptions = wasEditing ? null : { courseId: ui.selectedCourseId, gridId };
         ui.status = this.t(wasEditing
           ? "Grid boundary editing finished."
           : "Drag vertices; double-click an edge to add a vertex or a vertex to delete it; press Esc or right-click to finish.");
@@ -942,19 +973,23 @@ export function createAppShellVariationMethods(deps) {
       return;
     }
     if (event.target.closest("[data-draw-military-grid]")) {
-      const courseId = this.store.snapshot().ui.selectedCourseId;
+      const state = this.store.snapshot();
+      const courseId = state.ui.selectedCourseId;
+      const gridId = Number(getCourse(state.eventModel, courseId)?.options?.military?.gridId) || null;
       this.mapView?.cancelDrag?.();
       this.store.updateUi(ui => {
         ui.tool = "special:military-grid";
-        ui.specialToolOptions = { courseId };
+        ui.specialToolOptions = { courseId, gridId };
         ui.status = this.t("Click polygon vertices on the map; right-click or press Esc to finish.");
       }, "Draw military grid");
       return;
     }
     if (event.target.closest("[data-delete-military-grid]")) {
+      const state = this.store.snapshot();
+      const gridId = Number(getCourse(state.eventModel, state.ui.selectedCourseId)?.options?.military?.gridId) || null;
       this.mapView?.cancelDrag?.();
       this.store.updateEvent(model => {
-        ensureMilitaryGrid(model).locations = [];
+        removeMilitaryGrid(model, gridId);
       }, "Delete military grid");
       this.store.updateUi(ui => {
         ui.tool = "select";
@@ -1087,13 +1122,26 @@ export function createAppShellVariationMethods(deps) {
       }, status);
       return;
     }
+    const courseGrid = event.target.closest("[data-military-course-grid]");
+    if (courseGrid) {
+      const courseId = this.store.snapshot().ui.selectedCourseId;
+      const gridId = Number(courseGrid.value) || null;
+      this.store.updateEvent(model => {
+        setMilitaryCourseGrid(model, courseId, gridId);
+      }, gridId ? "Select military grid" : "Clear military grid selection");
+      return;
+    }
     const gridField = event.target.closest("[data-military-grid-field]");
     if (gridField) {
       const courseId = this.store.snapshot().ui.selectedCourseId;
       const field = gridField.dataset.militaryGridField;
       this.store.updateEvent(model => {
         if (getCourse(model, courseId)?.kind !== "military") return;
-        const grid = ensureMilitaryGrid(model);
+        const grid = ensureMilitaryGrid(model, courseId);
+        if (field === "name") {
+          grid.name = String(gridField.value || "").trim() || `Grid ${grid.id}`;
+          return;
+        }
         const value = Number(gridField.value);
         if (["startX", "startY"].includes(field)) grid[field] = Math.round(value || 0);
         else grid[field] = Math.max(0.01, value || (field === "lineWidthMm" ? 0.18 : 1));

@@ -5,22 +5,23 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260726-81";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260726-81";
-import { resolveTextConstants } from "../domain/constants.js?v=20260726-81";
+} from "../domain/course-service.js?v=20260726-83";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260726-83";
+import { resolveTextConstants } from "../domain/constants.js?v=20260726-83";
 import {
   militaryGrid,
+  militaryGridBelongsToCourse,
   militaryGridBounds,
   militaryGridSpacingMap
-} from "../domain/military-orienteering.js?v=20260726-81";
-import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260726-81";
+} from "../domain/military-orienteering.js?v=20260726-83";
+import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260726-83";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260726-81";
+} from "./course-symbols.js?v=20260726-83";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";
@@ -1453,14 +1454,14 @@ export function isAreaSpecialTool(tool) {
   return ["special:out-of-bounds", "special:dangerous-area", "special:temporary-construction", "special:white-out", "special:military-grid"].includes(tool);
 }
 
-export function drawMilitaryGrid(ctx, eventModel, course, project, screenScale) {
-  if (course ? course.kind !== "military" : !(eventModel?.courses || []).some(item => item.kind === "military")) return;
-  const grid = militaryGrid(eventModel);
+export function drawMilitaryGrid(ctx, eventModel, course, project, screenScale, gridOverride = null) {
+  if (course?.kind !== "military" || !militaryGridBelongsToCourse(eventModel, course)) return;
+  const grid = gridOverride || militaryGrid(eventModel, course);
   const bounds = militaryGridBounds(grid);
   if (!bounds) return;
   const points = grid.locations.map(project);
-  const spacingX = militaryGridSpacingMap(eventModel, "x");
-  const spacingY = militaryGridSpacingMap(eventModel, "y");
+  const spacingX = militaryGridSpacingMap(eventModel, "x", course);
+  const spacingY = militaryGridSpacingMap(eventModel, "y", course);
   if (!(spacingX > 0) || !(spacingY > 0)) return;
   const printScale = Math.max(1, Number(eventModel?.event?.map?.scale) || 15000);
   const lineWidthMap = Math.max(0.001, Number(grid.lineWidthMm) || 0.18) / 1000 * printScale;

@@ -4,16 +4,35 @@ import { addControlAt, addExistingControlToCourse } from "../src/domain/actions.
 import { buildControlDescriptionRows } from "../src/domain/control-descriptions.js";
 import {
   ensureMilitaryGrid,
+  ensureMilitaryGrids,
+  militaryGrid,
+  militaryGridBelongsToCourse,
+  militaryGrids,
   militaryGridSpacingMap,
   militaryTimeWindowRows,
   militaryWindowCoordinates,
-  moveMilitaryTimeWindow
+  moveMilitaryTimeWindow,
+  setMilitaryCourseGrid
 } from "../src/domain/military-orienteering.js";
 import { serializePpen } from "../src/domain/ppen-parser.js";
 import { normalizeMilitaryWindowTime } from "../src/ui/app-shell-variation-methods.js";
+import { drawMilitaryGrid } from "../src/ui/map-view-helpers.js";
 import { militaryGridEdgeHit, militaryGridVertexHit } from "../src/ui/map-view-pointer-methods.js";
 
 const model = createBlankEvent();
+const legacyGridModel = createBlankEvent();
+const legacyGridCourse = createCourse(1, "Legacy military", "military", 1);
+legacyGridModel.courses = [legacyGridCourse];
+legacyGridModel.event.militaryGrid = {
+  courseId: legacyGridCourse.id,
+  locations: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+  spacingXcm: 1, spacingYcm: 1, lineWidthMm: 0.18, fontSizeMm: 1.8, startX: 0, startY: 0
+};
+ensureMilitaryGrids(legacyGridModel);
+assert.equal(legacyGridModel.event.militaryGrids.length, 1,
+  "a legacy event-level grid should migrate into the global grid library");
+assert.equal(legacyGridCourse.options.military.gridId, legacyGridModel.event.militaryGrids[0].id,
+  "the legacy owning course should select the migrated grid");
 assert.equal(normalizeMilitaryWindowTime("8:05"), "08:05");
 assert.equal(normalizeMilitaryWindowTime("65:30"), "65:30", "the first field is elapsed minutes, not hours");
 assert.equal(normalizeMilitaryWindowTime("05:60", "09:30"), "09:30", "seconds must stay below 60");
@@ -27,8 +46,11 @@ model.event.descriptions.lang = "en"; // Stale file metadata must not override t
 const course = createCourse(1, "Military", "military", 1);
 course.options.printScale = 10000;
 const secondCourse = createCourse(2, "Military 2", "military", 2);
+const normalCourse = createCourse(3, "Normal", "normal", 3);
 model.courses = [course, secondCourse];
-Object.assign(ensureMilitaryGrid(model), {
+const firstGrid = ensureMilitaryGrid(model, course.id);
+Object.assign(firstGrid, {
+  name: "Main grid",
   locations: [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 200 }, { x: 0, y: 200 }],
   spacingXcm: 1,
   spacingYcm: 2,
@@ -37,23 +59,71 @@ Object.assign(ensureMilitaryGrid(model), {
   startY: 20,
   fontSizeMm: 2.2
 });
-assert.equal(militaryGridVertexHit({ x: 4, y: 3 }, model.event.militaryGrid.locations, 6)?.index, 0,
+assert.equal(militaryGridBelongsToCourse(model, course.id), true);
+assert.equal(militaryGridBelongsToCourse(model, secondCourse.id), false,
+  "another military course should not reuse the grid until selected");
+assert.equal(militaryGridBelongsToCourse(model, "all"), false,
+  "the coordinate grid must be hidden from All Controls");
+assert.equal(militaryGridBelongsToCourse(model, normalCourse), false,
+  "the coordinate grid must be hidden from non-military courses");
+assert.deepEqual(militaryGrids(model).map(item => item.name), ["Main grid"],
+  "the first grid should be available in the global grid library");
+const gridDrawContext = {
+  strokes: 0,
+  save() {},
+  restore() {},
+  beginPath() {},
+  moveTo() {},
+  lineTo() {},
+  closePath() {},
+  clip() {},
+  setLineDash() {},
+  stroke() { this.strokes += 1; },
+  strokeText() {},
+  fillText() {}
+};
+drawMilitaryGrid(gridDrawContext, model, null, point => point, 1);
+assert.equal(gridDrawContext.strokes, 0, "All Controls must not render the military grid");
+drawMilitaryGrid(gridDrawContext, model, secondCourse, point => point, 1);
+assert.equal(gridDrawContext.strokes, 0, "an independent military course without a grid should render no grid");
+drawMilitaryGrid(gridDrawContext, model, course, point => point, 1);
+assert.ok(gridDrawContext.strokes > 0, "the grid should render in its owning course");
+const secondGrid = ensureMilitaryGrid(model, secondCourse.id);
+Object.assign(secondGrid, {
+  name: "Second grid",
+  locations: [{ x: 400, y: 400 }, { x: 600, y: 400 }, { x: 600, y: 600 }, { x: 400, y: 600 }],
+  startX: 50,
+  startY: 60
+});
+assert.deepEqual(militaryGrids(model).map(item => item.name), ["Main grid", "Second grid"],
+  "multiple grids should coexist in the global grid library");
+assert.equal(setMilitaryCourseGrid(model, secondCourse.id, firstGrid.id), true);
+assert.equal(militaryGridBelongsToCourse(model, secondCourse.id), true,
+  "the second military course should render a selected global grid");
+assert.equal(militaryGrid(model, secondCourse.id).startX, 10);
+assert.equal(setMilitaryCourseGrid(model, secondCourse.id, secondGrid.id), true);
+assert.equal(militaryGrid(model, secondCourse.id).startX, 50,
+  "selecting a different global grid should use that grid independently");
+assert.equal(setMilitaryCourseGrid(model, secondCourse.id, firstGrid.id), true);
+assert.equal(militaryGrid(model, secondCourse.id).startX, 10,
+  "multiple courses can select and share the same global grid");
+assert.equal(militaryGridVertexHit({ x: 4, y: 3 }, firstGrid.locations, 6)?.index, 0,
   "grid boundary editing should hit the nearest existing vertex");
-assert.equal(militaryGridVertexHit({ x: 30, y: 30 }, model.event.militaryGrid.locations, 6), null,
+assert.equal(militaryGridVertexHit({ x: 30, y: 30 }, firstGrid.locations, 6), null,
   "grid boundary editing should ignore empty map space");
-assert.deepEqual(militaryGridEdgeHit({ x: 48, y: 4 }, model.event.militaryGrid.locations, 6), {
+assert.deepEqual(militaryGridEdgeHit({ x: 48, y: 4 }, firstGrid.locations, 6), {
   segmentIndex: 0,
   insertIndex: 1,
   point: { x: 48, y: 0 },
   distance: 4
 }, "double-clicking a grid edge should project the new vertex onto that edge");
-assert.deepEqual(militaryGridEdgeHit({ x: -3, y: 40 }, model.event.militaryGrid.locations, 6), {
+assert.deepEqual(militaryGridEdgeHit({ x: -3, y: 40 }, firstGrid.locations, 6), {
   segmentIndex: 3,
   insertIndex: 4,
   point: { x: 0, y: 40 },
   distance: 3
 }, "the closing grid edge should accept a new vertex");
-assert.equal(militaryGridEdgeHit({ x: 40, y: 40 }, model.event.militaryGrid.locations, 6), null,
+assert.equal(militaryGridEdgeHit({ x: 40, y: 40 }, firstGrid.locations, 6), null,
   "double-clicking away from a grid edge should make no change");
 
 const selection = addControlAt(model, "normal", { x: 150, y: 100 });
@@ -131,7 +201,11 @@ assert.equal(model.courseControls.filter(item => item.control === control.id).le
 
 const saved = serializePpen(model);
 assert.match(saved, /kind="military"/);
-assert.match(saved, /<military-grid>/);
+assert.match(saved, /<military-grids>/);
+assert.match(saved, /"name":"Main grid"/);
+assert.match(saved, /"name":"Second grid"/);
+assert.match(saved, new RegExp(`"gridId":${firstGrid.id}`),
+  "the selected global grid should be serialized with each military course");
 assert.doesNotMatch(saved, /kind="time-window"/);
 assert.match(saved, /time-window="true"[^>]*window-start="08:15"[^>]*window-end="08:30"[^>]*points="25"|points="25"[^>]*time-window="true"[^>]*window-start="08:15"[^>]*window-end="08:30"/);
 assert.ok(saved.includes(`"windowOrder":[${laterCourseControl.id},${firstCourseControl.id}]`),

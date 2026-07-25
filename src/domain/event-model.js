@@ -1,4 +1,4 @@
-import { cloneDeep } from "./clone.js?v=20260726-81";
+import { cloneDeep } from "./clone.js?v=20260726-83";
 
 const DEFAULT_PRINT_AREA = Object.freeze({
   automatic: true,
@@ -103,9 +103,11 @@ export function createBlankEvent() {
         color: "black"
       },
       militaryGrid: {
+        courseId: null,
         locations: [], spacingXcm: 1, spacingYcm: 1,
         lineWidthMm: 0.18, fontSizeMm: 1.8, startX: 0, startY: 0
       },
+      militaryGrids: [],
       ocad: {
         overprintColors: false
       },

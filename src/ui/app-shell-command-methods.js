@@ -1,8 +1,8 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260726-81";
-import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260726-81";
+} from "../domain/course-pages.js?v=20260726-83";
+import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260726-83";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -924,10 +924,11 @@ export function createAppShellCommandMethods(deps) {
     }
     if (tool === "special:military-grid") {
       const courseId = state.ui.specialToolOptions?.courseId || selectedCourseId;
+      const gridId = state.ui.specialToolOptions?.gridId || null;
       this.store.updateEvent(model => {
         const course = getCourse(model, courseId);
         if (course?.kind !== "military") return;
-        ensureMilitaryGrid(model).locations = (toolOptions.locations || []).map(location => ({ x: location.x, y: location.y }));
+        ensureMilitaryGrid(model, courseId, gridId).locations = (toolOptions.locations || []).map(location => ({ x: location.x, y: location.y }));
       }, "Set military grid boundary");
       this.store.updateUi(ui => {
         ui.tool = "select";
@@ -1271,8 +1272,9 @@ export function createAppShellCommandMethods(deps) {
       .map(point => ({ x: Number(point?.x), y: Number(point?.y) }))
       .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
     if (points.length < 3) return;
+    const courseId = this.store.snapshot().ui.selectedCourseId;
     this.store.updateEvent(model => {
-      ensureMilitaryGrid(model).locations = points;
+      ensureMilitaryGrid(model, courseId).locations = points;
     }, this.t(options.operation === "add"
       ? "Grid boundary vertex added."
       : options.operation === "delete"

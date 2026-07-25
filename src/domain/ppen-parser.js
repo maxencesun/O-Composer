@@ -3,13 +3,13 @@ import {
   defaultPrintArea,
   normalizeBool,
   normalizeNumber
-} from "./event-model.js?v=20260726-81";
+} from "./event-model.js?v=20260726-83";
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260726-81";
-import { isPythonPageScript } from "./python-page-script.js?v=20260726-81";
-import { migrateLegacyMilitaryData } from "./military-orienteering.js?v=20260726-81";
+} from "./course-pages.js?v=20260726-83";
+import { isPythonPageScript } from "./python-page-script.js?v=20260726-83";
+import { migrateLegacyMilitaryData } from "./military-orienteering.js?v=20260726-83";
 
 const BOX_ORDER = ["C", "D", "E", "F", "G", "H"];
 
@@ -199,6 +199,14 @@ function parseEvent(node) {
         }
         catch {
           event.militaryGrid = null;
+        }
+        break;
+      case "military-grids":
+        try {
+          event.militaryGrids = JSON.parse(text(child));
+        }
+        catch {
+          event.militaryGrids = [];
         }
         break;
     }
@@ -778,7 +786,10 @@ function writeEvent(lines, event, level, options = {}) {
   if (event.liveloxImportableEventId) {
     empty(lines, level + 1, "livelox", { "importable-event-id": event.liveloxImportableEventId });
   }
-  if (!options.nativePpen && event.militaryGrid?.locations?.length >= 3) {
+  if (!options.nativePpen && event.militaryGrids?.length) {
+    node(lines, level + 1, "military-grids", JSON.stringify(event.militaryGrids));
+  }
+  else if (!options.nativePpen && event.militaryGrid?.locations?.length >= 3) {
     node(lines, level + 1, "military-grid", JSON.stringify(event.militaryGrid));
   }
   close(lines, level, "event");

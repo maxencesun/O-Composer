@@ -1,6 +1,6 @@
-import { findById } from "./event-model.js?v=20260726-81";
-import { allCourseVariations, relayBranchEffectiveLegs, relayBranchGroups, variationBranchCodeMap } from "./relay-variations.js?v=20260726-81";
-import { coursePageLayout, rowsForCoursePage } from "./course-pages.js?v=20260726-81";
+import { findById } from "./event-model.js?v=20260726-83";
+import { allCourseVariations, relayBranchEffectiveLegs, relayBranchGroups, variationBranchCodeMap } from "./relay-variations.js?v=20260726-83";
+import { coursePageLayout, rowsForCoursePage } from "./course-pages.js?v=20260726-83";
 
 export function getControl(eventModel, id) {
   return findById(eventModel.controls, id);
@@ -773,6 +773,9 @@ export function eventBounds(eventModel) {
     points.push(...(special.locations || []));
   }
   points.push(...(eventModel.event?.militaryGrid?.locations || []));
+  for (const grid of eventModel.event?.militaryGrids || []) {
+    points.push(...(grid.locations || []));
+  }
   for (const course of eventModel.courses || []) {
     if (course.kind === "military") {
       points.push(...(course.options?.military?.grid?.locations || []));

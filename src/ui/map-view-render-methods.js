@@ -1,6 +1,6 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260726-81";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260726-81";
-import { militaryGrid } from "../domain/military-orienteering.js?v=20260726-81";
+import { resolveTextConstants } from "../domain/constants.js?v=20260726-83";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260726-83";
+import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260726-83";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -416,14 +416,10 @@ export function createMapViewRenderMethods(deps) {
     const editLocations = ui.tool === "military-grid-edit" && this.militaryGridEditPreview?.length >= 3
       ? this.militaryGridEditPreview
       : null;
-    const gridEventModel = editLocations ? {
-      ...eventModel,
-      event: {
-        ...eventModel.event,
-        militaryGrid: { ...(eventModel.event?.militaryGrid || {}), locations: editLocations }
-      }
-    } : eventModel;
-    drawMilitaryGrid(ctx, gridEventModel, selectedCourse, point => this.toScreen(point, ui), this.scale(ui));
+    const gridOverride = editLocations
+      ? { ...militaryGrid(eventModel, selectedCourse), locations: editLocations }
+      : null;
+    drawMilitaryGrid(ctx, eventModel, selectedCourse, point => this.toScreen(point, ui), this.scale(ui), gridOverride);
     for (const special of eventModel.specials) {
       if (!specialVisibleForCourse(special, ui.selectedCourseId, ui.showAllControls, coursePage)) {
         continue;
@@ -464,9 +460,10 @@ export function createMapViewRenderMethods(deps) {
 
   drawMilitaryGridEditOverlay(ctx, eventModel, ui) {
     if (ui.tool !== "military-grid-edit" || ui.__exporting) return;
+    if (!militaryGridBelongsToCourse(eventModel, ui.selectedCourseId)) return;
     const locations = this.militaryGridEditPreview?.length >= 3
       ? this.militaryGridEditPreview
-      : militaryGrid(eventModel).locations;
+      : militaryGrid(eventModel, ui.selectedCourseId).locations;
     const points = locations.map(point => this.toScreen(point, ui));
     if (points.length < 3) return;
     ctx.save();

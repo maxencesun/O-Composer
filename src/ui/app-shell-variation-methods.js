@@ -1,10 +1,11 @@
-import { debugError } from "./debug-log.js?v=20260721-79";
+import { debugError } from "./debug-log.js?v=20260725-80";
 import {
   ensureMilitaryGrid,
   militaryGridBounds,
   militaryGrid,
-  militaryTimeWindowRows
-} from "../domain/military-orienteering.js?v=20260721-79";
+  militaryTimeWindowRows,
+  moveMilitaryTimeWindow
+} from "../domain/military-orienteering.js?v=20260725-80";
 
 export function normalizeMilitaryWindowTime(value, fallback = "00:00") {
   const match = String(value || "").trim().match(/^(\d{1,2}):(\d{1,2})$/);
@@ -419,15 +420,21 @@ export function createAppShellVariationMethods(deps) {
     const hasGrid = !!militaryGridBounds(grid);
     const editingGrid = hasGrid && ui.tool === "military-grid-edit";
     const windows = militaryTimeWindowRows(eventModel, course.id);
-    const windowRows = windows.map(row => {
+    const windowRows = windows.map((row, index) => {
       const item = row.control;
       const courseControl = row.courseControl;
+      const moveUpLabel = this.t("Move time-window point up");
+      const moveDownLabel = this.t("Move time-window point down");
       return `
         <div class="military-window-row" data-military-window-id="${Number(item.id) || 0}" data-military-course-control-id="${Number(courseControl.id) || 0}">
           <input data-military-window-field="code" value="${escapeAttr(item.code || "")}" aria-label="${escapeAttr(this.t("Window code"))}">
           <input data-military-window-field="windowStartTime" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{1,2}:[0-5][0-9]" placeholder="MM:ss" value="${escapeAttr(courseControl.windowStartTime || "00:00")}" aria-label="${escapeAttr(this.t("Start time (MM:ss)"))}">
           <input data-military-window-field="windowEndTime" type="text" inputmode="numeric" maxlength="5" pattern="[0-9]{1,2}:[0-5][0-9]" placeholder="MM:ss" value="${escapeAttr(courseControl.windowEndTime || "00:00")}" aria-label="${escapeAttr(this.t("End time (MM:ss)"))}">
           <input class="military-window-score" data-military-window-field="points" type="number" min="0" step="1" value="${Math.max(0, Number(courseControl.points) || 0)}" aria-label="${escapeAttr(this.t("Points"))}">
+          <div class="military-window-order" role="group" aria-label="${escapeAttr(this.t("Window order"))}">
+            <button type="button" data-move-military-window="-1" title="${escapeAttr(moveUpLabel)}" aria-label="${escapeAttr(moveUpLabel)}" ${index === 0 ? "disabled" : ""}>${iconSvg("arrow-up")}</button>
+            <button type="button" data-move-military-window="1" title="${escapeAttr(moveDownLabel)}" aria-label="${escapeAttr(moveDownLabel)}" ${index === windows.length - 1 ? "disabled" : ""}>${iconSvg("arrow-down")}</button>
+          </div>
         </div>`;
     }).join("");
     return `
@@ -465,6 +472,7 @@ export function createAppShellVariationMethods(deps) {
                 <span>${escapeHtml(this.t("Start time (MM:ss)"))}</span>
                 <span>${escapeHtml(this.t("End time (MM:ss)"))}</span>
                 <span>${escapeHtml(this.t("Score"))}</span>
+                <span>${escapeHtml(this.t("Order"))}</span>
               </div>
               ${windowRows}` : `<p class="muted">${escapeHtml(this.t("No time-window points."))}</p>`}
           </div>
@@ -904,6 +912,22 @@ export function createAppShellVariationMethods(deps) {
   },
 
   handleVariationPanelClick(event) {
+    const moveWindowButton = event.target.closest("[data-move-military-window]");
+    if (moveWindowButton) {
+      const state = this.store.snapshot();
+      const row = moveWindowButton.closest("[data-military-course-control-id]");
+      const courseControlId = Number(row?.dataset.militaryCourseControlId);
+      const direction = Number(moveWindowButton.dataset.moveMilitaryWindow) < 0 ? -1 : 1;
+      const windows = militaryTimeWindowRows(state.eventModel, state.ui.selectedCourseId);
+      const index = windows.findIndex(item => Number(item.courseControl?.id) === courseControlId);
+      if (index < 0 || index + direction < 0 || index + direction >= windows.length) return;
+      const status = this.t(direction < 0 ? "Time-window point moved up." : "Time-window point moved down.");
+      this.store.updateEvent(model => {
+        moveMilitaryTimeWindow(model, state.ui.selectedCourseId, courseControlId, direction);
+      }, status);
+      this.store.updateUi(ui => { ui.status = status; }, status);
+      return;
+    }
     if (event.target.closest("[data-edit-military-grid]")) {
       const state = this.store.snapshot();
       const wasEditing = state.ui.tool === "military-grid-edit";

@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260721-79";
-import { cloneDeep } from "./clone.js?v=20260721-79";
+} from "./event-model.js?v=20260725-80";
+import { cloneDeep } from "./clone.js?v=20260725-80";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,13 +15,13 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260721-79";
+} from "./course-service.js?v=20260725-80";
 import {
   courseControlMapChangeKind,
   remapPageBreakFormulaCourseControls,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260721-79";
-import { isPythonPageScript } from "./python-page-script.js?v=20260721-79";
+} from "./course-pages.js?v=20260725-80";
+import { isPythonPageScript } from "./python-page-script.js?v=20260725-80";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const automaticCoursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -602,6 +602,11 @@ export function duplicateCourse(eventModel, courseId, name) {
     clone.pageBreakFormula,
     new Map([...idMap].map(([sourceId, copied]) => [Number(sourceId), Number(copied.id)]))
   );
+  if (Array.isArray(clone.options?.military?.windowOrder)) {
+    clone.options.military.windowOrder = clone.options.military.windowOrder
+      .map(id => idMap.get(Number(id))?.id)
+      .filter(Boolean);
+  }
   clone.firstCourseControl = source.firstCourseControl ? idMap.get(source.firstCourseControl)?.id || null : null;
   eventModel.courses.push(clone);
   resequenceCourses(eventModel);

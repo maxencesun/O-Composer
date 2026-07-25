@@ -1042,12 +1042,12 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
 
 .military-window-row {
   display: grid;
-  grid-template-columns: 30px 62px 62px 36px;
+  grid-template-columns: 30px 62px 62px 36px 48px;
   align-items: center;
   justify-content: space-between;
   gap: 4px;
   width: 100%;
-  min-width: 202px;
+  min-width: 254px;
 }
 
 .military-window-row input {
@@ -1073,6 +1073,27 @@ o-composer-app.desktop-ui .left-panel.has-variation-branch-adjustment > .selecti
   font-size: 10px;
   font-weight: 700;
   text-align: center;
+}
+
+.military-window-order {
+  display: grid;
+  grid-template-columns: repeat(2, 22px);
+  gap: 2px;
+}
+
+.military-window-order button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  min-width: 0;
+  height: 25px;
+  padding: 2px;
+}
+
+.military-window-order .tool-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .variation-topology-column[data-mode="military"] .variation-tree,

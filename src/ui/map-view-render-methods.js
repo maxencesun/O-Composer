@@ -1,6 +1,6 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260721-79";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260721-79";
-import { militaryGrid } from "../domain/military-orienteering.js?v=20260721-79";
+import { resolveTextConstants } from "../domain/constants.js?v=20260725-80";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260725-80";
+import { militaryGrid } from "../domain/military-orienteering.js?v=20260725-80";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));

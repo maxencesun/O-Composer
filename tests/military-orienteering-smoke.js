@@ -6,7 +6,8 @@ import {
   ensureMilitaryGrid,
   militaryGridSpacingMap,
   militaryTimeWindowRows,
-  militaryWindowCoordinates
+  militaryWindowCoordinates,
+  moveMilitaryTimeWindow
 } from "../src/domain/military-orienteering.js";
 import { serializePpen } from "../src/domain/ppen-parser.js";
 import { normalizeMilitaryWindowTime } from "../src/ui/app-shell-variation-methods.js";
@@ -65,16 +66,36 @@ firstCourseControl.timeWindow = true;
 firstCourseControl.windowStartTime = "08:15";
 firstCourseControl.windowEndTime = "08:30";
 firstCourseControl.points = 25;
+const laterSelection = addControlAt(model, "normal", { x: 250, y: 150 });
+const laterControl = model.controls.find(item => item.id === laterSelection.id);
+const laterReference = addExistingControlToCourse(model, course.id, laterControl.id);
+const laterCourseControl = model.courseControls.find(item => item.id === laterReference.courseControl);
+laterCourseControl.timeWindow = true;
+laterCourseControl.windowStartTime = "09:00";
+laterCourseControl.windowEndTime = "09:15";
+laterCourseControl.points = 30;
 
 assert.equal(control.kind, "normal", "a time-window point remains a normal global control");
 assert.equal(secondCourseControl.timeWindow, false, "window identity belongs only to one course reference");
 assert.equal(militaryGridSpacingMap(model, "x"), 100);
 assert.equal(militaryGridSpacingMap(model, "y"), 200);
 assert.deepEqual(militaryWindowCoordinates(model, control), { y: 20.5, x: 11.5 });
-assert.equal(militaryTimeWindowRows(model, course.id).length, 1);
+assert.deepEqual(militaryTimeWindowRows(model, course.id).map(row => row.courseControl.id), [firstCourseControl.id, laterCourseControl.id]);
+assert.equal(moveMilitaryTimeWindow(model, course.id, laterCourseControl.id, -1), true);
+assert.deepEqual(militaryTimeWindowRows(model, course.id).map(row => row.courseControl.id), [laterCourseControl.id, firstCourseControl.id],
+  "moving a window up should change the route-specific description order");
+assert.equal(moveMilitaryTimeWindow(model, course.id, laterCourseControl.id, -1), false,
+  "the first window cannot move above the beginning");
+assert.equal(moveMilitaryTimeWindow(model, course.id, laterCourseControl.id, 1), true);
+assert.deepEqual(militaryTimeWindowRows(model, course.id).map(row => row.courseControl.id), [firstCourseControl.id, laterCourseControl.id],
+  "moving a window down should restore the following position");
+assert.equal(moveMilitaryTimeWindow(model, course.id, firstCourseControl.id, 1), true);
+assert.deepEqual(militaryTimeWindowRows(model, course.id).map(row => row.courseControl.id), [laterCourseControl.id, firstCourseControl.id]);
 assert.equal(militaryTimeWindowRows(model, secondCourse.id).length, 0);
 
 const rows = buildControlDescriptionRows(model, course.id);
+assert.deepEqual(rows.filter(row => row.kind === "military-window").map(row => row.control.id), [laterControl.id, control.id],
+  "the control description should use the configured window order");
 assert.ok(rows.some(row => row.kind === "military-window-section" && row.text === "时间窗口点"));
 assert.ok(rows.some(row => row.kind === "military-window-header"
   && row.boxes.join("|") === "时间窗口|坐标（纵，横）|分数"));
@@ -106,10 +127,12 @@ assert.match(saved, /kind="military"/);
 assert.match(saved, /<military-grid>/);
 assert.doesNotMatch(saved, /kind="time-window"/);
 assert.match(saved, /time-window="true"[^>]*window-start="08:15"[^>]*window-end="08:30"[^>]*points="25"|points="25"[^>]*time-window="true"[^>]*window-start="08:15"[^>]*window-end="08:30"/);
+assert.ok(saved.includes(`"windowOrder":[${laterCourseControl.id},${firstCourseControl.id}]`),
+  "the custom window order should persist in the military course extension");
 
 assert.equal((saved.match(new RegExp(`<course-control[^>]*control="${control.id}"`, "g")) || []).length, 2,
   "both course references are serialized");
-assert.equal((saved.match(/time-window="true"/g) || []).length, 1,
-  "only the military-course reference is serialized as a time window");
+assert.equal((saved.match(/time-window="true"/g) || []).length, 2,
+  "only the two military-course references are serialized as time windows");
 
 console.log("military orienteering smoke test passed");

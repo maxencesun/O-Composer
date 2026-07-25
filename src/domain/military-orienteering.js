@@ -1,5 +1,5 @@
-import { createControl, nextId } from "./event-model.js?v=20260721-79";
-import { courseView } from "./course-service.js?v=20260721-79";
+import { createControl, nextId } from "./event-model.js?v=20260725-80";
+import { courseView, getCourse, naturalCode } from "./course-service.js?v=20260725-80";
 
 export const MILITARY_COURSE_KIND = "military";
 
@@ -43,9 +43,10 @@ export function ensureMilitaryGrid(eventModel) {
 export function ensureMilitarySettings(course) {
   if (!course) return null;
   course.options ||= {};
-  course.options.military ||= { grid: defaultMilitaryGrid(), timeWindows: [] };
+  course.options.military ||= { grid: defaultMilitaryGrid(), timeWindows: [], windowOrder: [] };
   course.options.military.grid = { ...defaultMilitaryGrid(), ...(course.options.military.grid || {}) };
   course.options.military.timeWindows = Array.isArray(course.options.military.timeWindows) ? course.options.military.timeWindows : [];
+  course.options.military.windowOrder = normalizedMilitaryWindowOrder(course.options.military.windowOrder);
   return course.options.military;
 }
 
@@ -53,8 +54,29 @@ export function militarySettings(course) {
   const current = course?.options?.military || {};
   return {
     grid: { ...defaultMilitaryGrid(), ...(current.grid || {}) },
-    timeWindows: Array.isArray(current.timeWindows) ? current.timeWindows : []
+    timeWindows: Array.isArray(current.timeWindows) ? current.timeWindows : [],
+    windowOrder: normalizedMilitaryWindowOrder(current.windowOrder)
   };
+}
+
+function normalizedMilitaryWindowOrder(order) {
+  return [...new Set((Array.isArray(order) ? order : [])
+    .map(value => Number(value))
+    .filter(value => Number.isInteger(value) && value > 0))];
+}
+
+export function orderedMilitaryWindowRows(rows = [], course = null) {
+  const windows = [...(rows || [])]
+    .filter(row => row?.control?.kind === "normal" && row.courseControl?.timeWindow)
+    .sort((a, b) => naturalCode(a.control?.code || String(a.control?.id || ""), b.control?.code || String(b.control?.id || ""))
+      || (Number(a.courseControl?.id) || 0) - (Number(b.courseControl?.id) || 0));
+  const effectiveCourse = course || windows[0]?.course || null;
+  const explicitOrder = normalizedMilitaryWindowOrder(effectiveCourse?.options?.military?.windowOrder);
+  if (!explicitOrder.length) return windows;
+  const byCourseControl = new Map(windows.map(row => [Number(row.courseControl.id), row]));
+  const ordered = explicitOrder.map(id => byCourseControl.get(id)).filter(Boolean);
+  const included = new Set(ordered.map(row => Number(row.courseControl.id)));
+  return [...ordered, ...windows.filter(row => !included.has(Number(row.courseControl.id)))];
 }
 
 export function militaryGridBounds(grid) {
@@ -97,12 +119,26 @@ export function formatMilitaryCoordinate(value) {
 
 export function militaryTimeWindowRows(eventModel, courseId) {
   if (!courseId || courseId === "all") return [];
-  return courseView(eventModel, courseId, { allBranches: true })
-    .filter(row => row.control?.kind === "normal" && row.courseControl?.timeWindow);
+  const course = getCourse(eventModel, courseId);
+  return orderedMilitaryWindowRows(courseView(eventModel, courseId, { allBranches: true }), course);
+}
+
+export function moveMilitaryTimeWindow(eventModel, courseId, courseControlId, direction) {
+  const course = getCourse(eventModel, courseId);
+  if (!course || course.kind !== MILITARY_COURSE_KIND) return false;
+  const rows = militaryTimeWindowRows(eventModel, course.id);
+  const index = rows.findIndex(row => Number(row.courseControl?.id) === Number(courseControlId));
+  const offset = Number(direction) < 0 ? -1 : Number(direction) > 0 ? 1 : 0;
+  const targetIndex = index + offset;
+  if (!offset || index < 0 || targetIndex < 0 || targetIndex >= rows.length) return false;
+  const order = rows.map(row => Number(row.courseControl.id));
+  [order[index], order[targetIndex]] = [order[targetIndex], order[index]];
+  ensureMilitarySettings(course).windowOrder = order;
+  return true;
 }
 
 export function militaryWindowDescriptionRows(eventModel, rows = [], language = "") {
-  const windows = (rows || []).filter(row => row?.control?.kind === "normal" && row.courseControl?.timeWindow);
+  const windows = orderedMilitaryWindowRows(rows);
   if (!windows.length) return [];
   const effectiveLanguage = language || eventModel?.event?.descriptions?.lang || "en";
   const chinese = String(effectiveLanguage).toLowerCase().startsWith("zh");

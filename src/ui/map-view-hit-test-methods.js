@@ -168,6 +168,17 @@ export function createMapViewHitTestMethods(deps) {
       .filter(row => !row.suppressControlSymbol)
       .filter(row => !row.courseControl?.timeWindow || showWindowGuides)
       .map(row => Number(row.control?.id)));
+    const selectableCourseControlIds = new Map();
+    if (!allControls) {
+      for (const row of controlRows) {
+        if (row.suppressControlSymbol || (row.courseControl?.timeWindow && !showWindowGuides)) continue;
+        const controlId = Number(row.control?.id);
+        const courseControlId = Number(row.courseControl?.id);
+        if (!controlId || !courseControlId) continue;
+        if (!selectableCourseControlIds.has(controlId)) selectableCourseControlIds.set(controlId, new Set());
+        selectableCourseControlIds.get(controlId).add(courseControlId);
+      }
+    }
     for (const control of state.eventModel.controls) {
       if (!selectableControlIds.has(Number(control.id))) continue;
       const dist = Math.hypot(control.location.x - point.x, control.location.y - point.y);
@@ -179,7 +190,12 @@ export function createMapViewHitTestMethods(deps) {
           effectiveDist -= SELECTION_PRIORITY_BONUS;
         }
         if (effectiveDist < bestDistance) {
-          best = { type: "control", id: control.id };
+          const courseControlIds = [...(selectableCourseControlIds.get(Number(control.id)) || [])];
+          best = {
+            type: "control",
+            id: control.id,
+            ...(courseControlIds.length === 1 ? { courseControl: courseControlIds[0] } : {})
+          };
           bestDistance = effectiveDist;
         }
       }

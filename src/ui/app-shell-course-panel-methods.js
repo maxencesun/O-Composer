@@ -1,6 +1,6 @@
-import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260726-83";
-import { coursePageCount } from "../domain/course-service.js?v=20260726-83";
-import { militaryWindowDescriptionRows } from "../domain/military-orienteering.js?v=20260726-83";
+import { addCustomConstant, constantRowsForView, removeCustomConstant, updateCustomConstant } from "../domain/constants.js?v=20260729-85";
+import { coursePageCount } from "../domain/course-service.js?v=20260729-85";
+import { militaryWindowDescriptionRows } from "../domain/military-orienteering.js?v=20260729-85";
 
 export function createAppShellCoursePanelMethods(deps) {
   const {
@@ -274,17 +274,19 @@ export function createAppShellCoursePanelMethods(deps) {
     let synchronizedSelection = selection;
     let topologyCourseControlId = null;
     if (selection?.type === "control" && courseId && courseId !== "all") {
-      const matchingNodes = courseTopology(state.eventModel, courseId)
+      const matchingNodes = [...new Set(courseTopology(state.eventModel, courseId)
         .filter(view => Number(view.control?.id) === Number(selection.id))
         .map(view => Number(topologyNodeCourseControlId(view)) || null)
-        .filter(Boolean);
+        .filter(Boolean))];
       const requestedCourseControl = Number(selection.courseControl) || null;
       const previousAnchor = Number(state.ui.variationAnchorCourseControl) || null;
       topologyCourseControlId = matchingNodes.includes(requestedCourseControl)
         ? requestedCourseControl
         : matchingNodes.includes(previousAnchor)
           ? previousAnchor
-          : matchingNodes[0] || null;
+          : matchingNodes.length === 1
+            ? matchingNodes[0]
+            : null;
       if (topologyCourseControlId) {
         synchronizedSelection = { ...selection, courseControl: topologyCourseControlId };
       }
@@ -669,12 +671,14 @@ export function createAppShellCoursePanelMethods(deps) {
   descriptionRow(row, mode = "normal", selection = this.store.snapshot().ui.selection) {
     const language = descriptionLanguageForEvent(this.store.snapshot().eventModel);
     const descriptions = new Map((row.control.descriptions || []).map(item => [item.box, item]));
-    const selected = selection?.type === "control" && Number(selection.id) === Number(row.control.id);
+    const selected = selection?.type === "control"
+      && Number(selection.id) === Number(row.control.id)
+      && (!selection.courseControl || Number(selection.courseControl) === Number(row.courseControl?.id));
     const isScoreCourse = mode === "score";
     const isTeamCourse = mode === "team";
     const isTeamFree = isTeamCourse && isTeamFreeCourseControl(row.course, row.courseControl);
     const typeCell = "";
-    return `<tr data-control-id="${row.control.id}" class="${selected ? "selected" : ""}">
+    return `<tr data-control-id="${row.control.id}" data-course-control-id="${Number(row.courseControl?.id) || ""}" class="${selected ? "selected" : ""}">
       <td>${isScoreCourse || isTeamFree ? "" : escapeHtml(row.ordinal || "")}</td>
       <td class="description-code-cell">${row.control.kind === "normal"
         ? `<input class="description-code-input" data-control-code data-control-id="${row.control.id}" value="${escapeAttr(row.control.code || "")}" aria-label="${escapeAttr(this.t("Control code"))}" autocomplete="off" spellcheck="false">`
@@ -745,7 +749,12 @@ export function createAppShellCoursePanelMethods(deps) {
     const row = event.target.closest("[data-control-id]");
     if (!row) return;
     const controlId = Number(row.dataset.controlId);
-    this.setSelection({ type: "control", id: controlId });
+    const courseControlId = Number(row.dataset.courseControlId) || null;
+    this.setSelection({
+      type: "control",
+      id: controlId,
+      ...(courseControlId ? { courseControl: courseControlId } : {})
+    });
     if (cell) {
       event.preventDefault();
       this.openIscdSymbolPicker(controlId, cell.dataset.box, cell.dataset.value || "");

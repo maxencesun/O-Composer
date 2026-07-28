@@ -1,5 +1,5 @@
-import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260726-83";
-import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260726-83";
+import { measurementLabelPoint, measurementPathDistance } from "../domain/measurement.js?v=20260729-85";
+import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260729-85";
 
 export function militaryGridVertexHit(point, locations, threshold) {
   let best = null;

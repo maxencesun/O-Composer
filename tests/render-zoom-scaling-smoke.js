@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { drawCourseControl, screenSize } from "../src/ui/course-symbols.js";
 import { constrainPointToOctants, crossingOrientationForPoint, crossingRotationHandle, drawFallbackSpecialPoint, drawSquareHandle, mapScreenSize, specialLineWidth, textMetrics } from "../src/ui/map-view-helpers.js";
-import { exportAreaCanvasRect, measurementLineDash, zoomScreenSize } from "../src/ui/map-view-render-methods.js";
+import { exportAreaCanvasRect, measurementLineDash, rowStartsAtMapExchange, zoomScreenSize } from "../src/ui/map-view-render-methods.js";
 import { omapScreenSize } from "../src/ui/omap-renderer.js";
 
 const quarter = 0.25;
@@ -91,6 +91,37 @@ drawCourseControl(exchangeContext, { kind: "map-exchange" }, { x: 10, y: 20 }, e
 assert.equal(exchangeArcs.length, 1, "a standalone exchange starts its new map with the IOF 7.15 control circle");
 assert.ok(exchangeLines.some(point => point.x > 10 && Math.abs(point.y - 20) < 1e-9),
   "the IOF 7.15 triangle points along the outgoing course leg");
+const exchangeCircle = exchangeArcs[0];
+const exchangeTriangleRadius = Math.max(...exchangeLines.map(point =>
+  Math.hypot(point.x - exchangeCircle.x, point.y - exchangeCircle.y)
+));
+assert.ok(exchangeTriangleRadius + exchangeContext.lineWidth <= exchangeCircle.radius + 1e-9,
+  "the continuing-point triangle stroke must stay inside its outer control circle");
+assert.equal(rowStartsAtMapExchange({
+  control: { kind: "map-exchange" },
+  courseControl: { mapExchange: false }
+}, { allBranches: true }), true, "standalone exchanges must use the continuing-point symbol in the all-branches relay view");
+assert.equal(rowStartsAtMapExchange({
+  control: { kind: "normal" },
+  courseControl: { mapExchange: true }
+}, { allBranches: true }), true, "checkpoint exchanges must use the continuing-point symbol in the all-branches relay view");
+assert.equal(rowStartsAtMapExchange({
+  control: { kind: "map-exchange" },
+  courseControl: { mapExchange: false }
+}, {}), false, "a plain standalone exchange outside a continuation context remains a start triangle");
+exchangeArcs.length = 0;
+exchangeLines.length = 0;
+exchangeMetrics.mapStandard = "Spr2019";
+drawCourseControl(exchangeContext, { kind: "map-exchange" }, { x: 10, y: 20 }, exchangeMetrics, {
+  exchangeStart: true,
+  directionAngle: 0
+});
+const sprintExchangeCircle = exchangeArcs[0];
+const sprintExchangeTriangleRadius = Math.max(...exchangeLines.map(point =>
+  Math.hypot(point.x - sprintExchangeCircle.x, point.y - sprintExchangeCircle.y)
+));
+assert.ok(sprintExchangeTriangleRadius + exchangeContext.lineWidth <= sprintExchangeCircle.radius + 1e-9,
+  "the sprint continuing-point triangle stroke must stay inside its outer control circle");
 
 const horizontal = constrainPointToOctants({ x: 0, y: 0 }, { x: 10, y: 2 });
 assert.equal(horizontal.y, 0);

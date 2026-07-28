@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260726-83";
+import { debugError } from "./debug-log.js?v=20260729-85";
 import {
   addMilitaryGrid,
   ensureMilitaryGrid,
@@ -10,7 +10,7 @@ import {
   moveMilitaryTimeWindow,
   removeMilitaryGrid,
   setMilitaryCourseGrid
-} from "../domain/military-orienteering.js?v=20260726-83";
+} from "../domain/military-orienteering.js?v=20260729-85";
 
 export function normalizeMilitaryWindowTime(value, fallback = "00:00") {
   const match = String(value || "").trim().match(/^(\d{1,2}):(\d{1,2})$/);
@@ -1454,7 +1454,14 @@ export function createAppShellVariationMethods(deps) {
       updateControlDescription(control, box, storage.ref, storage.text);
     }, "Change description symbol");
     this.store.updateUi(ui => {
-      ui.selection = { type: "control", id: Number(controlId) };
+      const previousCourseControl = Number(ui.selection?.id) === Number(controlId)
+        ? Number(ui.selection?.courseControl) || null
+        : null;
+      ui.selection = {
+        type: "control",
+        id: Number(controlId),
+        ...(previousCourseControl ? { courseControl: previousCourseControl } : {})
+      };
     }, "Select control");
   },
 

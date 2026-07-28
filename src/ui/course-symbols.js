@@ -236,7 +236,12 @@ function drawControlCircle(ctx, center, metrics, control, automaticGaps = []) {
 function drawExchangeStart(ctx, center, metrics, control, direction, automaticGaps = []) {
   drawControlCircle(ctx, center, metrics, control, automaticGaps);
   const lw = lineWidth(metrics);
-  const radius = screenSize((controlOutsideDiameter(metrics) * metrics.unit - lw) / 2);
+  const circleRadius = screenSize((controlOutsideDiameter(metrics) * metrics.unit - lw) / 2);
+  // The circle radius is measured to the centre of its stroke.  If the
+  // triangle vertices use that same radius, their rounded joins protrude
+  // beyond the outside of the circle.  Keep the whole triangle stroke inside
+  // the circle's inner edge by insetting its vertex centreline by one stroke.
+  const radius = Math.max(0.01, circleRadius - lw);
   const points = Array.from({ length: 3 }, (_, index) => {
     const angle = direction + index * Math.PI * 2 / 3;
     return {

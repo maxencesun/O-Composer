@@ -1,6 +1,6 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260726-83";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260726-83";
-import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260726-83";
+import { resolveTextConstants } from "../domain/constants.js?v=20260729-85";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260729-85";
+import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260729-85";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -27,6 +27,12 @@ export function exportAreaCanvasRect(area, size) {
     width: drawWidth,
     height: drawHeight
   };
+}
+
+export function rowStartsAtMapExchange(row, displayOptions = {}) {
+  if (row?.exchangeStart) return true;
+  if (!displayOptions?.allBranches) return false;
+  return row?.control?.kind === "map-exchange" || !!row?.courseControl?.mapExchange;
 }
 
 export function createMapViewRenderMethods(deps) {
@@ -543,7 +549,7 @@ export function createMapViewRenderMethods(deps) {
       if (!row.suppressControlSymbol) {
         drawCourseControl(ctx, renderedControl, point, metrics, {
           directionAngle: outgoingDirection(row, legs),
-          exchangeStart: !!row.exchangeStart,
+          exchangeStart: rowStartsAtMapExchange(row, displayOptions),
           circleGaps: autoCircleGaps.get(String(row.control.id)) || []
         });
       }

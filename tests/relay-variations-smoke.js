@@ -7,8 +7,9 @@ import {
   relayBranchParentAllowedLegs
 } from "../src/domain/relay-variations.js";
 import { descriptionMetrics } from "../src/domain/control-descriptions.js";
-import { addVariationAtCourseControl, appendControlToCourse } from "../src/domain/actions.js";
+import { addVariationAtCourseControl, appendControlToCourse, deleteSelection } from "../src/domain/actions.js";
 import { courseTopology } from "../src/domain/course-service.js";
+import { createAppShellCoursePanelMethods } from "../src/ui/app-shell-course-panel-methods.js";
 import {
   alignTopologySharedJoinPoints,
   layoutVariationTopology,
@@ -141,6 +142,51 @@ emptyBranchModel.courseControls = [
   { id: 5, control: 31, nextCourseControl: 8, variation: "", variationEnd: null, variationCourseControls: [] },
   { id: 8, control: 99, nextCourseControl: null, variation: "", variationEnd: null, variationCourseControls: [] }
 ];
+const emptyBranchAssignments = relayAssignments(emptyBranchModel, 1);
+const emptyBranchCodes = emptyBranchAssignments.variations.map(variation => variation.code);
+if (JSON.stringify(emptyBranchCodes) !== JSON.stringify(["AC", "AD", "B"])
+  || emptyBranchAssignments.rows.some(row => row.assignments.some(variation => !variation))) {
+  throw new Error(`automatic relay assignment must include empty branches: ${JSON.stringify(emptyBranchCodes)}`);
+}
+const restrictedNestedEmptyBranchModel = structuredClone(emptyBranchModel);
+restrictedNestedEmptyBranchModel.courses[0].relay.branches = [
+  { branch: "C", legs: [2, 3] },
+  { branch: "D", legs: [2, 3] }
+];
+const restrictedNestedEmptyRows = relayAssignments(restrictedNestedEmptyBranchModel, 1).rows;
+for (const row of restrictedNestedEmptyRows) {
+  const codes = row.assignments.map(variation => variation?.code || "");
+  if (codes.some(code => !code) || codes[0] !== "B" || codes[3] !== "B") {
+    throw new Error(`legs excluded from a nested fork must use its parent empty branch: ${codes.join(",")}`);
+  }
+  for (let index = 0; index < row.assignments.length; index += 1) {
+    const leg = index + 1;
+    for (const code of row.assignments[index].code) {
+      const rule = restrictedNestedEmptyBranchModel.courses[0].relay.branches
+        .find(branch => branch.branch === code);
+      if (rule && !rule.legs.includes(leg)) {
+        throw new Error(`relay assignment used branch ${code} on disallowed leg ${leg}`);
+      }
+    }
+  }
+}
+const explicitlyRestrictedEmptyBranchModel = structuredClone(emptyBranchModel);
+explicitlyRestrictedEmptyBranchModel.courses[0].relay.branches = [
+  { branch: "A", legs: [2, 3] },
+  { branch: "B", legs: [1, 4] },
+  { branch: "C", legs: [2, 3] },
+  { branch: "D", legs: [2, 3] }
+];
+for (const row of relayAssignments(explicitlyRestrictedEmptyBranchModel, 1).rows) {
+  const codes = row.assignments.map(variation => variation?.code || "");
+  if (codes.some(code => !code)
+    || codes[0] !== "B"
+    || codes[3] !== "B"
+    || !codes[1].startsWith("A")
+    || !codes[2].startsWith("A")) {
+    throw new Error(`explicitly restricted empty branches must fill every relay leg: ${codes.join(",")}`);
+  }
+}
 const emptyTopology = courseTopology(emptyBranchModel, 1);
 const emptyLayout = layoutVariationTopology(emptyTopology, variationBranchCodeMap(emptyBranchModel, 1));
 const emptyJoinPoints = topologyCommonJoinPointMap(emptyTopology, emptyLayout.positions, 16);
@@ -183,6 +229,73 @@ alignTopologySharedJoinPoints(firstPointTopology, firstPointLayout.positions, fi
 const firstPointLocalJoinY = firstPointJoinPoints.get(firstPointForkIndex)?.y;
 if (firstPointLocalJoinY - (firstPointY + TOPOLOGY_NORMAL_CONTROL_RADIUS) !== TOPOLOGY_MIN_VERTICAL_SEGMENT / 2) {
   throw new Error("a checkpoint below a nested fork must use the minimum lower vertical segment");
+}
+
+const relayDeletionModel = structuredClone(eventModel);
+deleteSelection(relayDeletionModel, { type: "control", id: 34, courseControl: 9 }, { selectedCourseId: 1 });
+if (!relayDeletionModel.controls.some(control => Number(control.id) === 34)) {
+  throw new Error("removing a relay-only checkpoint from its course must preserve it in All Controls");
+}
+if (relayDeletionModel.courseControls.some(courseControl => Number(courseControl.id) === 9)) {
+  throw new Error("the selected relay branch checkpoint was not removed from the course");
+}
+const postDeletionVariations = relayAssignments(relayDeletionModel, 1);
+if (!postDeletionVariations.variations.some(variation => variation.code === "AD")
+  || postDeletionVariations.rows.some(row => row.assignments.some(variation => !variation))) {
+  throw new Error("a relay branch that becomes empty after deletion must remain available to automatic assignment");
+}
+
+const repeatedControlDeletionModel = structuredClone(eventModel);
+repeatedControlDeletionModel.courseControls.find(courseControl => Number(courseControl.id) === 9).control = 33;
+deleteSelection(repeatedControlDeletionModel, {
+  type: "control",
+  id: 33,
+  courseControl: 9
+}, { selectedCourseId: 1 });
+if (repeatedControlDeletionModel.courseControls.some(courseControl => Number(courseControl.id) === 9)
+  || !repeatedControlDeletionModel.courseControls.some(courseControl => Number(courseControl.id) === 7)
+  || !repeatedControlDeletionModel.controls.some(control => Number(control.id) === 33)) {
+  throw new Error("relay deletion must remove only the selected occurrence when one global control is reused by branches");
+}
+
+const ambiguousRelayDeletionModel = structuredClone(eventModel);
+ambiguousRelayDeletionModel.courseControls.find(courseControl => Number(courseControl.id) === 9).control = 33;
+deleteSelection(ambiguousRelayDeletionModel, { type: "control", id: 33 }, { selectedCourseId: 1 });
+if (!ambiguousRelayDeletionModel.courseControls.some(courseControl => Number(courseControl.id) === 7)
+  || !ambiguousRelayDeletionModel.courseControls.some(courseControl => Number(courseControl.id) === 9)) {
+  throw new Error("an ambiguous relay occurrence must not delete an arbitrary branch checkpoint");
+}
+
+const selectionState = {
+  eventModel: repeatedControlDeletionModel,
+  ui: {
+    selectedCourseId: 1,
+    selection: null,
+    variationAnchorCourseControl: null
+  }
+};
+const selectionMethods = createAppShellCoursePanelMethods({
+  courseTopology: () => [
+    { control: { id: 33 }, ownerCourseControlId: 7 },
+    { control: { id: 33 }, ownerCourseControlId: 9 }
+  ],
+  topologyNodeCourseControlId: view => view.ownerCourseControlId,
+  teamAddControlRoleFromSelection: () => null
+});
+const selectionContext = {
+  store: {
+    snapshot: () => selectionState,
+    updateUi: updater => updater(selectionState.ui)
+  }
+};
+selectionMethods.setSelection.call(selectionContext, { type: "control", id: 33, courseControl: 9 });
+if (Number(selectionState.ui.selection?.courseControl) !== 9) {
+  throw new Error("relay selection must preserve the exact course-control occurrence");
+}
+selectionState.ui.variationAnchorCourseControl = null;
+selectionMethods.setSelection.call(selectionContext, { type: "control", id: 33 });
+if (selectionState.ui.selection?.courseControl || selectionState.ui.variationAnchorCourseControl) {
+  throw new Error("ambiguous relay selection must not guess the first branch occurrence");
 }
 
 const scopedInsertionModel = structuredClone(eventModel);

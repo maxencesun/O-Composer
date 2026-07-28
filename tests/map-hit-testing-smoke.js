@@ -10,7 +10,8 @@ const eventModel = {
   specials: [],
   courses: [
     { id: 7, kind: "normal" },
-    { id: 8, kind: "military" }
+    { id: 8, kind: "military" },
+    { id: 9, kind: "normal" }
   ],
   rowsByCourse: new Map([
     [7, [
@@ -20,6 +21,10 @@ const eventModel = {
     [8, [
       { control: visibleControl, courseControl: { id: 80, control: 1 } },
       { control: windowControl, courseControl: { id: 81, control: 3, timeWindow: true } }
+    ]],
+    [9, [
+      { control: visibleControl, courseControl: { id: 90, control: 1 } },
+      { control: visibleControl, courseControl: { id: 91, control: 1 } }
     ]]
   ])
 };
@@ -56,7 +61,9 @@ const stateFor = (selectedCourseId, extraUi = {}) => ({
   }
 });
 
-assert.deepEqual(mapView.hitTest(visibleControl.location, stateFor(7)), { type: "control", id: 1 });
+assert.deepEqual(mapView.hitTest(visibleControl.location, stateFor(7)), { type: "control", id: 1, courseControl: 70 });
+assert.deepEqual(mapView.hitTest(visibleControl.location, stateFor(9)), { type: "control", id: 1 },
+  "a control reused by multiple visible relay occurrences must remain occurrence-ambiguous on the map");
 assert.equal(mapView.hitTest(unusedControl.location, stateFor(7)), null,
   "a global control unused by the selected course must not be hit-testable");
 assert.equal(mapView.hitTest(unusedControl.location, stateFor(7, { showAllControls: true })), null,
@@ -65,7 +72,7 @@ assert.equal(mapView.hitTest(suppressedControl.location, stateFor(7)), null,
   "a suppressed course symbol must not leave an invisible hit target");
 assert.deepEqual(mapView.hitTest(unusedControl.location, stateFor("all")), { type: "control", id: 2 },
   "All Controls must keep every global control selectable");
-assert.deepEqual(mapView.hitTest(windowControl.location, stateFor(8)), { type: "control", id: 3 },
+assert.deepEqual(mapView.hitTest(windowControl.location, stateFor(8)), { type: "control", id: 3, courseControl: 81 },
   "a visible military window guide remains selectable while editing");
 assert.equal(mapView.hitTest(windowControl.location, stateFor(8, { militaryWindowPreview: true })), null,
   "a hidden military window guide must not leave an invisible hit target");

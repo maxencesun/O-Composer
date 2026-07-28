@@ -5,8 +5,8 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260726-83";
-import { cloneDeep } from "./clone.js?v=20260726-83";
+} from "./event-model.js?v=20260729-85";
+import { cloneDeep } from "./clone.js?v=20260729-85";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -15,13 +15,13 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260726-83";
+} from "./course-service.js?v=20260729-85";
 import {
   courseControlMapChangeKind,
   remapPageBreakFormulaCourseControls,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260726-83";
-import { isPythonPageScript } from "./python-page-script.js?v=20260726-83";
+} from "./course-pages.js?v=20260729-85";
+import { isPythonPageScript } from "./python-page-script.js?v=20260729-85";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const automaticCoursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);
@@ -459,7 +459,16 @@ export function deleteSelection(eventModel, selection, options = {}) {
     if (restoreStandaloneMapExchange(eventModel, selection.id)) {
       return null;
     }
-    if (!removeControlFromCourse(eventModel, selection.id, options.selectedCourseId)) {
+    const selectedCourseId = options.selectedCourseId;
+    if (selectedCourseId && selectedCourseId !== "all") {
+      // Removing a checkpoint while a course is selected is always a
+      // course-local operation.  In particular, a relay checkpoint can live
+      // only on a non-default branch and therefore be absent from the current
+      // concrete route; failure to find that route entry must never fall back
+      // to deleting the global All Controls object.
+      removeControlFromCourse(eventModel, selection.id, selectedCourseId, selection.courseControl);
+    }
+    else {
       removeControl(eventModel, selection.id);
     }
   }
@@ -524,12 +533,30 @@ export function removeControl(eventModel, controlId) {
   eventModel.legs = eventModel.legs.filter(leg => leg.startControl !== id && leg.endControl !== id);
 }
 
-export function removeControlFromCourse(eventModel, controlId, selectedCourseId) {
+export function removeControlFromCourse(eventModel, controlId, selectedCourseId, selectedCourseControlId = null) {
   if (!selectedCourseId || selectedCourseId === "all") return false;
-  const row = courseView(eventModel, selectedCourseId, { allBranches: false })
-    .find(candidate => Number(candidate.control?.id) === Number(controlId));
-  if (!row?.courseControl) return false;
-  removeCourseControl(eventModel, row.courseControl.id);
+  const courseControlIds = new Set(courseGraphCourseControlIds(eventModel, selectedCourseId).map(Number));
+  const requestedCourseControlId = Number(selectedCourseControlId) || 0;
+  if (requestedCourseControlId) {
+    const requested = getCourseControl(eventModel, requestedCourseControlId);
+    if (!courseControlIds.has(requestedCourseControlId)
+      || Number(requested?.control) !== Number(controlId)) {
+      return false;
+    }
+    removeCourseControl(eventModel, requestedCourseControlId);
+    return true;
+  }
+
+  // A global control may occur more than once in different relay branches.
+  // Without the exact course-control occurrence, deleting the first match can
+  // remove a checkpoint from a different branch than the one the user chose.
+  // Only use the fallback when the occurrence is unambiguous.
+  const matchingCourseControlIds = [...new Set(courseView(eventModel, selectedCourseId, { allBranches: true })
+    .filter(candidate => Number(candidate.control?.id) === Number(controlId))
+    .map(candidate => Number(candidate.courseControl?.id))
+    .filter(Boolean))];
+  if (matchingCourseControlIds.length !== 1) return false;
+  removeCourseControl(eventModel, matchingCourseControlIds[0]);
   return true;
 }
 

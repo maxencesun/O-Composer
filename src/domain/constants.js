@@ -1,6 +1,6 @@
-import { courseLength, courseLengthRange, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js?v=20260726-83";
-import { buildPythonPageCourse } from "./course-pages.js?v=20260726-83";
-import { allCourseVariations, courseHasVariations, relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js?v=20260726-83";
+import { courseLength, courseLengthRange, courseView, formatLength, getCourse, sortedCourses } from "./course-service.js?v=20260729-85";
+import { buildPythonPageCourse } from "./course-pages.js?v=20260729-85";
+import { allCourseVariations, courseHasVariations, relayAssignments, relayLegName, relayVariationForLeg, variationDisplayLabel, variationForCode } from "./relay-variations.js?v=20260729-85";
 
 export const BUILTIN_CONSTANTS = Object.freeze([
   { name: "\\event", description: "Event name" },

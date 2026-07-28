@@ -370,7 +370,19 @@ function chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, 
           legIndex: pos,
           baseLegs
         });
-        const variation = findRelayVariationForSignature(decoratedVariations, signature);
+        const variation = findRelayVariationForSignature(
+          decoratedVariations,
+          signature,
+          branchRules,
+          pos + 1
+        ) || pickRelayVariation(
+          decoratedVariations,
+          branchRules,
+          0,
+          pos + 1,
+          baseLegs,
+          branchGroups
+        );
         score += usedRoutes.get(variation?.code || relaySignatureKey(signature)) || 0;
       }
       if (score < bestScore) {
@@ -388,7 +400,19 @@ function chooseRelayBlockShifts(offsetSpace, decoratedVariations, branchGroups, 
         legIndex: pos,
         baseLegs
       });
-      const variation = findRelayVariationForSignature(decoratedVariations, signature);
+      const variation = findRelayVariationForSignature(
+        decoratedVariations,
+        signature,
+        branchRules,
+        pos + 1
+      ) || pickRelayVariation(
+        decoratedVariations,
+        branchRules,
+        0,
+        pos + 1,
+        baseLegs,
+        branchGroups
+      );
       const key = variation?.code || relaySignatureKey(signature);
       usedRoutes.set(key, (usedRoutes.get(key) || 0) + 1);
     }
@@ -412,10 +436,18 @@ function buildRelayTeamPlan({ offset, blockShifts, decoratedVariations, branchRu
     for (const [groupId, code] of fixed) {
       signature.set(groupId, code);
     }
-    legs.push({
+    const variation = findRelayVariationForSignature(
+      decoratedVariations,
       signature,
-      variation: findRelayVariationForSignature(decoratedVariations, signature)
-        || pickRelayVariation(decoratedVariations, branchRules, 0, legIndex + 1, legsPerTeam, branchGroups)
+      branchRules,
+      legIndex + 1
+    )
+      || pickRelayVariation(decoratedVariations, branchRules, 0, legIndex + 1, legsPerTeam, branchGroups);
+    const actualSignature = decoratedVariations
+      .find(candidate => candidate.variation === variation)?.signature || signature;
+    legs.push({
+      signature: actualSignature,
+      variation
     });
   }
   return { offset, legs };
@@ -466,8 +498,11 @@ function relaySignaturesForBlock({ offset, blockShift, branchGroups, branchRules
   return signatures;
 }
 
-function findRelayVariationForSignature(decoratedVariations, signature) {
-  return decoratedVariations.find(candidate => relaySignatureMatches(candidate.signature, signature))?.variation || null;
+function findRelayVariationForSignature(decoratedVariations, signature, branchRules = new Map(), leg = 1) {
+  return decoratedVariations.find(candidate =>
+    relayVariationAllowedForLeg(candidate, branchRules, leg)
+    && relaySignatureMatches(candidate.signature, signature)
+  )?.variation || null;
 }
 
 function relaySignatureKey(signature) {
@@ -476,28 +511,48 @@ function relaySignatureKey(signature) {
 
 function pickRelayVariation(decoratedVariations, branchRules, teamIndex, leg, legs, branchGroups = []) {
   if (!decoratedVariations.length) return null;
+  const eligibleVariations = decoratedVariations.filter(candidate =>
+    relayVariationAllowedForLeg(candidate, branchRules, leg)
+  );
+  if (!eligibleVariations.length) return null;
   const desired = desiredRelaySignature(branchGroups, branchRules, teamIndex, leg, legs);
   const fixed = fixedRelaySignature(branchGroups, branchRules, leg);
-  if (relaySignatureIsImpossible(desired) || relaySignatureIsImpossible(fixed)) return null;
   const constraints = new Map(desired);
   for (const [groupId, code] of fixed) constraints.set(groupId, code);
 
-  const constrained = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, constraints));
+  const constrained = relaySignatureIsImpossible(constraints)
+    ? []
+    : eligibleVariations.filter(candidate => relaySignatureMatches(candidate.signature, constraints));
   if (constrained.length) {
     return constrained[positiveModulo(teamIndex + leg - 1, constrained.length)].variation;
   }
 
-  const fixedOnly = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, fixed));
+  const fixedOnly = relaySignatureIsImpossible(fixed)
+    ? []
+    : eligibleVariations.filter(candidate => relaySignatureMatches(candidate.signature, fixed));
   if (fixedOnly.length) {
     return fixedOnly[positiveModulo(teamIndex * legs + leg - 1, fixedOnly.length)].variation;
   }
 
-  const desiredOnly = decoratedVariations.filter(candidate => relaySignatureMatches(candidate.signature, desired));
+  const desiredOnly = relaySignatureIsImpossible(desired)
+    ? []
+    : eligibleVariations.filter(candidate => relaySignatureMatches(candidate.signature, desired));
   if (desiredOnly.length) {
     return desiredOnly[positiveModulo(teamIndex + leg - 1, desiredOnly.length)].variation;
   }
 
-  return decoratedVariations[positiveModulo(teamIndex * legs + (leg - 1) + teamIndex, decoratedVariations.length)].variation;
+  return eligibleVariations[
+    positiveModulo(teamIndex * legs + (leg - 1) + teamIndex, eligibleVariations.length)
+  ].variation;
+}
+
+function relayVariationAllowedForLeg(candidate, branchRules, leg) {
+  const legNumber = Math.max(1, Math.round(Number(leg) || 1));
+  for (const branchCode of candidate?.signature?.values?.() || []) {
+    const allowedLegs = branchRules.get(String(branchCode || ""));
+    if (allowedLegs && !allowedLegs.has(legNumber)) return false;
+  }
+  return true;
 }
 
 function decorateRelayVariations(variations, branchGroups) {

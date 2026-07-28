@@ -5,23 +5,23 @@ import {
   getCourse,
   controlsUsedByCourse,
   isTeamFreeCourseControl
-} from "../domain/course-service.js?v=20260726-83";
-import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260726-83";
-import { resolveTextConstants } from "../domain/constants.js?v=20260726-83";
+} from "../domain/course-service.js?v=20260729-85";
+import { descriptionBounds, drawControlDescriptionBlock } from "../domain/control-descriptions.js?v=20260729-85";
+import { resolveTextConstants } from "../domain/constants.js?v=20260729-85";
 import {
   militaryGrid,
   militaryGridBelongsToCourse,
   militaryGridBounds,
   militaryGridSpacingMap
-} from "../domain/military-orienteering.js?v=20260726-83";
-import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260726-83";
+} from "../domain/military-orienteering.js?v=20260729-85";
+import { allCourseVariations, courseHasVariations, relayEntryLabel, relayVariationForLeg, variationForCode } from "../domain/relay-variations.js?v=20260729-85";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance,
   defaultControlLabelPoint,
   directionAngle,
   symbolApparentRadius
-} from "./course-symbols.js?v=20260726-83";
+} from "./course-symbols.js?v=20260729-85";
 
 export const PURPLE = "rgba(166, 38, 255, 0.82)";
 export const LOWER_PURPLE = "rgba(166, 38, 255, 0.82)";

@@ -490,6 +490,9 @@ ${chineseBranchTree}
     else if (selection.type === "leg-gap") {
       panel.innerHTML = `<p class="muted">${escapeHtml(this.t("Line cut selected. Drag either blue handle on the map to adjust the cut range."))}</p>`;
     }
+    else if (selection.type === "control-circle-gap") {
+      panel.innerHTML = `<p class="muted">${escapeHtml(this.t("Circle cut selected. Drag either blue handle on the map to adjust the cut range."))}</p>`;
+    }
     else if (selection.type === "control-number") {
       const courseControl = getCourseControl(eventModel, selection.courseControl);
       const control = getControl(eventModel, courseControl?.control || selection.control);

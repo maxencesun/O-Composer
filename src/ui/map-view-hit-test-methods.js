@@ -1,3 +1,9 @@
+import {
+  circleGapMidAngle,
+  circlePointAtAngle,
+  parseControlCircleGaps
+} from "../domain/control-circle-gaps.js?v=20260729-85";
+
 export function createMapViewHitTestMethods(deps) {
   const {
     allControlsView,
@@ -134,9 +140,17 @@ export function createMapViewHitTestMethods(deps) {
     if (gapHandle) {
       return gapHandle;
     }
+    const circleGapHandle = this.hitTestSelectedControlCircleGap(point, state, baseThreshold);
+    if (circleGapHandle) {
+      return circleGapHandle;
+    }
     const gapSelection = this.hitTestManualLegGap(point, state, baseThreshold);
     if (gapSelection) {
       return gapSelection;
+    }
+    const circleGapSelection = this.hitTestManualControlCircleGap(point, state, baseThreshold);
+    if (circleGapSelection) {
+      return circleGapSelection;
     }
     const controlNumber = this.hitTestControlNumber(point, state, baseThreshold);
     if (controlNumber) {
@@ -157,6 +171,15 @@ export function createMapViewHitTestMethods(deps) {
     const selectedCourseId = state.ui.selectedCourseId || "all";
     const allControls = selectedCourseId === "all";
     const selectedCourse = allControls ? null : getCourse(state.eventModel, selectedCourseId);
+    const controlMetrics = typeof createCourseSymbolMetrics === "function"
+      ? createCourseSymbolMetrics(
+        state.eventModel,
+        selectedCourse,
+        state.eventModel.event?.courseAppearance,
+        scale,
+        allControls
+      )
+      : null;
     const displayOptions = mapCourseDisplayOptions(state.eventModel, state.ui);
     const controlRows = allControls
       ? allControlsView(state.eventModel)
@@ -182,8 +205,13 @@ export function createMapViewHitTestMethods(deps) {
     for (const control of state.eventModel.controls) {
       if (!selectableControlIds.has(Number(control.id))) continue;
       const dist = Math.hypot(control.location.x - point.x, control.location.y - point.y);
-      // Use a larger threshold for controls — include clicking within the control circle
-      const controlThreshold = Math.max(baseThreshold, symbolApparentRadiusControl(control, scale) + baseThreshold * 0.5);
+      // Select against the symbol that is actually drawn. The previous fixed
+      // 12px approximation only covered the center when a course circle was
+      // rendered at 30–40px radius.
+      const drawnRadius = controlMetrics && typeof symbolApparentRadius === "function"
+        ? symbolApparentRadius(control, controlMetrics) / Math.max(0.0001, scale)
+        : symbolApparentRadiusControl(control, scale);
+      const controlThreshold = Math.max(baseThreshold, drawnRadius + baseThreshold * 0.5);
       if (dist < controlThreshold) {
         let effectiveDist = dist;
         if (currentSelection?.type === "control" && Number(currentSelection.id) === Number(control.id)) {
@@ -430,7 +458,61 @@ export function createMapViewHitTestMethods(deps) {
       }
     }
     return best;
+  },
+
+  hitTestSelectedControlCircleGap(point, state, threshold) {
+    const selection = state.ui.selection;
+    if (selection?.type !== "control-circle-gap") return null;
+    const control = getControl(state.eventModel, selection.id);
+    const gap = parseControlCircleGaps(control)[selection.gapIndex];
+    if (!control || !gap) return null;
+    const radius = controlCircleMapRadius(control, state, this.scale(state.ui), getCourse, createCourseSymbolMetrics, symbolApparentRadius);
+    for (const [handle, angle] of [["gap-start", gap.start], ["gap-end", gap.stop]]) {
+      if (distance(point, circlePointAtAngle(control.location, radius, angle)) <= threshold * 1.5) {
+        return { ...selection, handle };
+      }
+    }
+    return null;
+  },
+
+  hitTestManualControlCircleGap(point, state, threshold) {
+    const selectedCourseId = state.ui.selectedCourseId || "all";
+    const rows = selectedCourseId === "all"
+      ? allControlsView(state.eventModel)
+      : courseView(state.eventModel, selectedCourseId, mapCourseDisplayOptions(state.eventModel, state.ui));
+    let best = null;
+    let bestDistance = Infinity;
+    for (const row of rows) {
+      const control = row?.control;
+      if (!control || !["normal", "finish"].includes(control.kind)) continue;
+      const gaps = parseControlCircleGaps(control);
+      if (!gaps.length) continue;
+      const radius = controlCircleMapRadius(control, state, this.scale(state.ui), getCourse, createCourseSymbolMetrics, symbolApparentRadius);
+      for (let index = 0; index < gaps.length; index += 1) {
+        const gap = gaps[index];
+        const center = circlePointAtAngle(control.location, radius, circleGapMidAngle(gap));
+        const candidateDistance = distance(point, center);
+        if (candidateDistance < threshold * 1.6 && candidateDistance < bestDistance) {
+          best = { type: "control-circle-gap", id: control.id, gapIndex: index };
+          bestDistance = candidateDistance;
+        }
+      }
+    }
+    return best;
   }
 
   };
+}
+
+function controlCircleMapRadius(control, state, pixelsPerMapUnit, getCourse, createCourseSymbolMetrics, symbolApparentRadius) {
+  const allControls = state.ui.selectedCourseId === "all";
+  const course = allControls ? null : getCourse(state.eventModel, state.ui.selectedCourseId);
+  const metrics = createCourseSymbolMetrics(
+    state.eventModel,
+    course,
+    state.eventModel.event?.courseAppearance,
+    pixelsPerMapUnit,
+    allControls
+  );
+  return symbolApparentRadius(control, metrics) / Math.max(0.0001, pixelsPerMapUnit);
 }

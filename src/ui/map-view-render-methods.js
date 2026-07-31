@@ -1,6 +1,11 @@
 import { resolveTextConstants } from "../domain/constants.js?v=20260729-85";
 import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260729-85";
 import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260729-85";
+import {
+  circleGapSpan,
+  circlePointAtAngle,
+  parseControlCircleGaps
+} from "../domain/control-circle-gaps.js?v=20260729-85";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));
@@ -672,6 +677,30 @@ export function createMapViewRenderMethods(deps) {
         const handleScale = Math.min(1, ui.zoom || 1);
         drawHandleDot(ctx, startScreen, "start", handleScale);
         drawHandleDot(ctx, endScreen, "end", handleScale);
+      }
+    }
+    else if (ui.selection.type === "control-circle-gap") {
+      const control = getControl(eventModel, ui.selection.id);
+      const gap = parseControlCircleGaps(control)[ui.selection.gapIndex];
+      if (control && gap) {
+        const selectedCourse = ui.selectedCourseId === "all" ? null : getCourse(eventModel, ui.selectedCourseId);
+        const metrics = createCourseSymbolMetrics(eventModel, selectedCourse, eventModel.event.courseAppearance, this.scale(ui), ui.selectedCourseId === "all");
+        const radius = symbolApparentRadius(control, metrics) / Math.max(0.0001, this.scale(ui));
+        const span = circleGapSpan(gap);
+        const pointCount = Math.max(2, Math.ceil(span / 6) + 1);
+        const arc = Array.from({ length: pointCount }, (_, index) =>
+          circlePointAtAngle(control.location, radius, Number(gap.start) + span * index / (pointCount - 1))
+        ).map(point => this.toScreen(point, ui));
+        ctx.setLineDash([]);
+        ctx.strokeStyle = "#2477c9";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(arc[0].x, arc[0].y);
+        for (const point of arc.slice(1)) ctx.lineTo(point.x, point.y);
+        ctx.stroke();
+        const handleScale = Math.min(1, ui.zoom || 1);
+        drawHandleDot(ctx, arc[0], "start", handleScale);
+        drawHandleDot(ctx, arc[arc.length - 1], "end", handleScale);
       }
     }
     else if (ui.selection.type === "control-number") {

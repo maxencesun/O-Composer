@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createMapViewHitTestMethods } from "../src/ui/map-view-hit-test-methods.js";
+import { cuttableControlCircleHit } from "../src/ui/map-view-pointer-methods.js";
 
 const visibleControl = { id: 1, kind: "normal", location: { x: 0, y: 0 } };
 const unusedControl = { id: 2, kind: "normal", location: { x: 100, y: 100 } };
@@ -34,6 +35,8 @@ const methods = createMapViewHitTestMethods({
   courseView: (model, courseId) => model.rowsByCourse.get(Number(courseId)) || [],
   getCourse: (model, courseId) => model.courses.find(course => Number(course.id) === Number(courseId)),
   mapCourseDisplayOptions: () => ({}),
+  createCourseSymbolMetrics: () => ({ unit: 1 }),
+  symbolApparentRadius: () => 40,
   symbolApparentRadiusControl: () => 6,
   nearestLeg: () => null,
   legSelection: () => null
@@ -62,6 +65,8 @@ const stateFor = (selectedCourseId, extraUi = {}) => ({
 });
 
 assert.deepEqual(mapView.hitTest(visibleControl.location, stateFor(7)), { type: "control", id: 1, courseControl: 70 });
+assert.deepEqual(mapView.hitTest({ x: 40, y: 0 }, stateFor(7)), { type: "control", id: 1, courseControl: 70 },
+  "clicking the rendered control circle must select the control, not only clicks near its center");
 assert.deepEqual(mapView.hitTest(visibleControl.location, stateFor(9)), { type: "control", id: 1 },
   "a control reused by multiple visible relay occurrences must remain occurrence-ambiguous on the map");
 assert.equal(mapView.hitTest(unusedControl.location, stateFor(7)), null,
@@ -76,5 +81,21 @@ assert.deepEqual(mapView.hitTest(windowControl.location, stateFor(8)), { type: "
   "a visible military window guide remains selectable while editing");
 assert.equal(mapView.hitTest(windowControl.location, stateFor(8, { militaryWindowPreview: true })), null,
   "a hidden military window guide must not leave an invisible hit target");
+
+assert.equal(
+  cuttableControlCircleHit({ x: 40, y: 0 }, [{ control: visibleControl }], () => 40, 1)?.id,
+  visibleControl.id,
+  "the cut tool must hit the actual rendered circle even when generic control hit testing only covers its center"
+);
+assert.equal(
+  cuttableControlCircleHit({ x: 0, y: 0 }, [{ control: visibleControl }], () => 40, 1),
+  null,
+  "clicking the control center must not be mistaken for clicking its circle"
+);
+assert.equal(
+  cuttableControlCircleHit({ x: 40, y: 0 }, [{ control: visibleControl, suppressControlSymbol: true }], () => 40, 1),
+  null,
+  "a suppressed control symbol must not expose a circle-cut target"
+);
 
 console.log("map hit-testing smoke test passed");

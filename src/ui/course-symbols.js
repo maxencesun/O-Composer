@@ -1,3 +1,5 @@
+import { parseControlCircleGaps } from "../domain/control-circle-gaps.js?v=20260729-85";
+
 const COURSE_PURPLE_ALPHA = 0.82;
 const COURSE_PURPLE = `rgba(166, 38, 255, ${COURSE_PURPLE_ALPHA})`;
 const WHITE = "#ffffff";
@@ -122,7 +124,7 @@ export function drawCourseControl(ctx, control, center, metrics, options = {}) {
       }
       break;
     case "finish":
-      drawFinish(ctx, center, metrics, options.circleGaps || []);
+      drawFinish(ctx, center, metrics, control, options.circleGaps || []);
       break;
     case "crossing-point":
       drawCrossing(ctx, center, metrics, degreesToRadians(control.orientation || 0), control.stretch || 0);
@@ -220,7 +222,7 @@ function drawControlCircle(ctx, center, metrics, control, automaticGaps = []) {
   ctx.lineWidth = lw;
   ctx.lineCap = "butt";
   ctx.lineJoin = "round";
-  drawCircleWithGaps(ctx, center, radius, [...parseCircleGaps(control), ...automaticGaps]);
+  drawCircleWithGaps(ctx, center, radius, [...parseControlCircleGaps(control), ...automaticGaps]);
   if ((metrics.appearance?.centerDotDiameter || 0) > 0) {
     ctx.fillStyle = metrics.color;
     ctx.beginPath();
@@ -263,11 +265,11 @@ function drawExchangeStart(ctx, center, metrics, control, direction, automaticGa
   ctx.restore();
 }
 
-function drawFinish(ctx, center, metrics, automaticGaps = []) {
+function drawFinish(ctx, center, metrics, control, automaticGaps = []) {
   const lw = lineWidth(metrics);
   const outer = screenSize((finishOutsideDiameter(metrics) * metrics.unit - lw) / 2);
   const inner = screenSize((finishInsideDiameter(metrics) * metrics.unit - lw) / 2);
-  const gaps = automaticGaps || [];
+  const gaps = [...parseControlCircleGaps(control), ...(automaticGaps || [])];
   ctx.save();
   ctx.strokeStyle = metrics.color;
   ctx.lineWidth = lw;
@@ -473,19 +475,6 @@ function drawArcDegrees(ctx, center, radius, startDeg, stopDeg) {
   ctx.beginPath();
   ctx.arc(center.x, center.y, radius, degreesToCanvasRadians(startDeg), degreesToCanvasRadians(stopDeg), true);
   ctx.stroke();
-}
-
-function parseCircleGaps(control) {
-  const encoded = control?.circleGaps?.[0]?.value || control?.gaps?.[0]?.value || "";
-  return String(encoded)
-    .split(",")
-    .map(item => item.trim())
-    .filter(Boolean)
-    .map(item => {
-      const [start, stop] = item.split(":").map(Number);
-      return Number.isFinite(start) && Number.isFinite(stop) ? { start, stop } : null;
-    })
-    .filter(Boolean);
 }
 
 function normalizeGaps(gaps) {

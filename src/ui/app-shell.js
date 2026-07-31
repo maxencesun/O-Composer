@@ -373,6 +373,8 @@ export class OComposerApp extends HTMLElement {
       onPrintAreaFrameMove: point => this.movePrintAreaFrame(point),
       onManualLegCut: (point, legHit) => this.addManualLegCut(point, legHit),
       onLegGapHandleMove: (selection, point) => this.moveLegGapHandle(selection, point),
+      onManualCircleCut: (point, controlId) => this.addManualCircleCut(point, controlId),
+      onControlCircleGapHandleMove: (selection, point) => this.moveControlCircleGapHandle(selection, point),
       onAddLegBend: (selection, point) => this.addLegBend(selection, point),
       onLegBendMove: (selection, point) => this.moveLegBend(selection, point),
       onDeleteLegBend: selection => this.deleteLegBend(selection),

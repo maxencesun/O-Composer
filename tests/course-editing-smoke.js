@@ -76,6 +76,49 @@ addExistingControlToCourse(blankCourseModel, reuseCourse.id, 1);
 addExistingControlToCourse(blankCourseModel, reuseCourse.id, 2);
 assert.deepEqual(courseView(blankCourseModel, reuseCourse.id).map(row => row.control.id), [1, 2], "clicking existing start/finish controls should still reuse them");
 
+const endpointPlacementModel = {
+  event: { map: { scale: 10000 }, numbering: { start: 31, disallowInvertible: false } },
+  controls: [],
+  courses: [],
+  courseControls: [],
+  legs: [],
+  specials: []
+};
+const endpointCourse = addCourse(endpointPlacementModel, "Endpoint placement");
+const middleOne = addControlAt(endpointPlacementModel, "normal", { x: 20, y: 0 }, endpointCourse.id);
+const middleTwo = addControlAt(endpointPlacementModel, "normal", { x: 40, y: 0 }, endpointCourse.id, {
+  afterCourseControl: middleOne.courseControl
+});
+addControlAt(endpointPlacementModel, "start", { x: 0, y: 0 }, endpointCourse.id, {
+  afterCourseControl: middleTwo.courseControl,
+  beforeCourseControl: middleTwo.courseControl
+});
+addControlAt(endpointPlacementModel, "finish", { x: 60, y: 0 }, endpointCourse.id);
+assert.deepEqual(
+  courseView(endpointPlacementModel, endpointCourse.id).map(row => row.control.kind),
+  ["start", "normal", "normal", "finish"],
+  "explicit insertion anchors must never place a start inside a course"
+);
+
+const reusedEndpointModel = {
+  event: { map: { scale: 10000 }, numbering: { start: 31, disallowInvertible: false } },
+  controls: [{ id: 10, kind: "start", code: "S1", location: { x: 0, y: 0 }, gaps: [], circleGaps: [] }],
+  courses: [],
+  courseControls: [],
+  legs: [],
+  specials: []
+};
+const reusedEndpointCourse = addCourse(reusedEndpointModel, "Reused endpoint placement");
+const reusedMiddle = addControlAt(reusedEndpointModel, "normal", { x: 20, y: 0 }, reusedEndpointCourse.id);
+addExistingControlToCourse(reusedEndpointModel, reusedEndpointCourse.id, 10, {
+  afterCourseControl: reusedMiddle.courseControl
+});
+assert.deepEqual(
+  courseView(reusedEndpointModel, reusedEndpointCourse.id).map(row => row.control.kind),
+  ["start", "normal"],
+  "a reused start ignores a non-initial insertion anchor"
+);
+
 const branchModel = {
   event: { map: { scale: 10000 }, numbering: { start: 31, disallowInvertible: false } },
   controls: [

@@ -288,6 +288,9 @@ export function selectionKey(selection) {
   if (selection.type === "leg-gap") {
     return `${selection.type}:${selection.startControl}:${selection.endControl}:${selection.gapIndex}:${selection.handle || ""}`;
   }
+  if (selection.type === "control-circle-gap") {
+    return `${selection.type}:${selection.id}:${selection.gapIndex}:${selection.handle || ""}`;
+  }
   if (selection.type === "control-number") {
     return `${selection.type}:${selection.courseControl}`;
   }

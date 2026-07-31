@@ -7,6 +7,7 @@ import {
   nextId
 } from "./event-model.js?v=20260729-85";
 import { cloneDeep } from "./clone.js?v=20260729-85";
+import { parseControlCircleGaps, setControlCircleGaps } from "./control-circle-gaps.js?v=20260729-85";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -31,7 +32,7 @@ export function addControlAt(eventModel, kind, location, selectedCourseId = null
     || options.variationEndOwnerCourseControl
     || (options.fromCourseControl && options.toCourseControl)
   );
-  const coursePlacement = hasExplicitCourseInsertion ? null : automaticCoursePlacement;
+  const coursePlacement = endpointCoursePlacement(kind, automaticCoursePlacement, hasExplicitCourseInsertion);
   const id = nextId(eventModel.controls);
   const code = kind === "normal"
     ? nextAvailableCode(eventModel)
@@ -81,7 +82,7 @@ export function addExistingControlToCourse(eventModel, courseId, controlId, opti
     || options.variationEndOwnerCourseControl
     || (options.fromCourseControl && options.toCourseControl)
   );
-  const coursePlacement = hasExplicitCourseInsertion ? null : automaticCoursePlacement;
+  const coursePlacement = endpointCoursePlacement(control?.kind, automaticCoursePlacement, hasExplicitCourseInsertion);
   const courseControl = appendControlToCourse(eventModel, Number(courseId), Number(controlId), {
     afterCourseControl: coursePlacement ? null : options.afterCourseControl,
     beforeCourseControl: coursePlacement ? null : options.beforeCourseControl,
@@ -429,6 +430,14 @@ export function controlCoursePlacement(kind, eventModel, selectedCourseId) {
   return null;
 }
 
+function endpointCoursePlacement(kind, automaticPlacement, hasExplicitCourseInsertion) {
+  // A start is a structural course endpoint. A selected leg, topology node, or
+  // stale insertion anchor must never move it into the course body. Finish
+  // insertion remains topology-aware so it can close an open variation.
+  if (kind === "start") return automaticPlacement;
+  return hasExplicitCourseInsertion ? null : automaticPlacement;
+}
+
 function courseHasControlKind(eventModel, courseId, kind) {
   return courseView(eventModel, courseId, { allBranches: true })
     .some(row => row.control?.kind === kind);
@@ -492,6 +501,12 @@ export function deleteSelection(eventModel, selection, options = {}) {
     if (leg?.gaps) {
       leg.gaps.splice(selection.gapIndex, 1);
     }
+  }
+  else if (selection.type === "control-circle-gap") {
+    const control = getControl(eventModel, selection.id);
+    const gaps = parseControlCircleGaps(control);
+    gaps.splice(selection.gapIndex, 1);
+    setControlCircleGaps(control, gaps);
   }
   return null;
 }

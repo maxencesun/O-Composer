@@ -40,6 +40,31 @@ export function militaryGridEdgeHit(point, locations, threshold) {
   return best;
 }
 
+export function cuttableControlCircleHit(point, rows, radiusForControl, pixelsPerMapUnit, tolerancePixels = 10) {
+  const scale = Math.max(0.0001, Number(pixelsPerMapUnit) || 0);
+  const tolerance = Math.max(1, Number(tolerancePixels) || 0) / scale;
+  const seen = new Set();
+  let best = null;
+  let bestDistance = Infinity;
+  for (const row of rows || []) {
+    const control = row?.control;
+    if (!control || !["normal", "finish"].includes(control.kind)) continue;
+    if (row.suppressControlSymbol || row.courseControl?.timeWindow) continue;
+    if (seen.has(String(control.id))) continue;
+    seen.add(String(control.id));
+    const radius = Math.max(0, Number(radiusForControl(control)) || 0) / scale;
+    const radialDistance = Math.abs(Math.hypot(
+      Number(point?.x) - Number(control.location?.x),
+      Number(point?.y) - Number(control.location?.y)
+    ) - radius);
+    if (radialDistance <= tolerance && radialDistance < bestDistance) {
+      best = control;
+      bestDistance = radialDistance;
+    }
+  }
+  return best;
+}
+
 export function createMapViewPointerMethods(deps) {
   const {
     allControlsView,
@@ -459,6 +484,11 @@ export function createMapViewPointerMethods(deps) {
       return;
     }
 
+    if (this.drag.hit?.type === "control-circle-gap" && this.drag.hit.handle && this.drag.moved && state.ui.tool === "select") {
+      this.callbacks.onControlCircleGapHandleMove?.(this.drag.hit, mapPoint);
+      return;
+    }
+
     if (this.drag.hit?.type === "leg-bend" && this.drag.moved && state.ui.tool === "select") {
       this.callbacks.onLegBendMove?.(this.drag.hit, mapPoint);
       return;
@@ -577,6 +607,10 @@ export function createMapViewPointerMethods(deps) {
       this.callbacks.onLegGapHandleMove?.(this.drag.hit, mapPoint);
       this.drag.hit = null;
     }
+    else if (this.drag.hit?.type === "control-circle-gap" && this.drag.hit.handle && this.drag.moved && state.ui.tool === "select") {
+      this.callbacks.onControlCircleGapHandleMove?.(this.drag.hit, mapPoint);
+      this.drag.hit = null;
+    }
     else if (this.drag.hit?.type === "leg-bend" && this.drag.moved && state.ui.tool === "select") {
       this.callbacks.onLegBendMove?.(this.drag.hit, mapPoint);
       this.drag.hit = null;
@@ -606,8 +640,25 @@ export function createMapViewPointerMethods(deps) {
       this.drag.hit = null;
     }
     else if (state.ui.tool === "line-cut") {
-      const legHit = nearestLeg(mapPoint, state, 16 / this.scale(state.ui));
-      this.callbacks.onManualLegCut?.(mapPoint, legHit);
+      const allControls = state.ui.selectedCourseId === "all";
+      const selectedCourse = allControls ? null : getCourse(state.eventModel, state.ui.selectedCourseId);
+      const metrics = createCourseSymbolMetrics(state.eventModel, selectedCourse, state.eventModel.event.courseAppearance, this.scale(state.ui), allControls);
+      const rows = allControls
+        ? allControlsView(state.eventModel)
+        : courseView(state.eventModel, state.ui.selectedCourseId, mapCourseDisplayOptions(state.eventModel, state.ui));
+      const controlHit = cuttableControlCircleHit(
+        mapPoint,
+        rows,
+        control => symbolApparentRadius(control, metrics),
+        this.scale(state.ui)
+      );
+      if (controlHit) {
+        this.callbacks.onManualCircleCut?.(mapPoint, controlHit.id);
+      }
+      else {
+        const legHit = nearestLeg(mapPoint, state, 16 / this.scale(state.ui));
+        this.callbacks.onManualLegCut?.(mapPoint, legHit);
+      }
     }
     else if (state.ui.tool === "leg-bend-add") {
       const legHit = nearestLeg(mapPoint, state, 16 / this.scale(state.ui));

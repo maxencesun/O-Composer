@@ -3,6 +3,13 @@ import {
   setCourseControlMapChange
 } from "../domain/course-pages.js?v=20260729-85";
 import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260729-85";
+import {
+  circleAngleAtPoint,
+  circleGapSpan,
+  normalizeCircleAngle,
+  parseControlCircleGaps,
+  setControlCircleGaps
+} from "../domain/control-circle-gaps.js?v=20260729-85";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -571,6 +578,7 @@ export function createAppShellCommandMethods(deps) {
         };
       }
       if (mapped === "measure") ui.status = this.t("Measurement mode");
+      if (mapped === "line-cut") ui.status = this.t("Click a purple course line or control circle to cut it.");
       if (mapped === "control:map-exchange") {
         ui.status = this.t("Click the map to place a standalone map exchange. Select a course leg first to insert it on that leg.");
       }
@@ -1121,7 +1129,7 @@ export function createAppShellCommandMethods(deps) {
 
   addManualLegCut(point, legHit) {
     if (!legHit?.leg) {
-      this.store.updateUi(ui => { ui.status = "Click a purple course line to cut it."; }, "Cut line");
+      this.store.updateUi(ui => { ui.status = "Click a purple course line or control circle to cut it."; }, "Cut line or circle");
       return;
     }
     const state = this.store.snapshot();
@@ -1149,6 +1157,35 @@ export function createAppShellCommandMethods(deps) {
       ui.selection = pending;
       ui.tool = "select";
     }, "Select cut");
+  },
+
+  addManualCircleCut(point, controlId) {
+    this.store.updateEvent(model => {
+      model.metadata.pendingSelection = null;
+      const control = getControl(model, controlId);
+      if (!control || !["normal", "finish"].includes(control.kind)) return;
+      const angle = circleAngleAtPoint(control.location, point);
+      const gaps = parseControlCircleGaps(control);
+      gaps.push({
+        start: normalizeCircleAngle(angle - 22.5),
+        stop: normalizeCircleAngle(angle + 22.5)
+      });
+      setControlCircleGaps(control, gaps);
+      model.metadata.pendingSelection = {
+        type: "control-circle-gap",
+        id: control.id,
+        gapIndex: gaps.length - 1
+      };
+    }, "Cut circle");
+    const pending = this.store.snapshot().eventModel.metadata.pendingSelection;
+    if (!pending) {
+      this.store.updateUi(ui => { ui.status = this.t("Click a control or finish circle to cut it."); }, "Cut circle");
+      return;
+    }
+    this.store.updateUi(ui => {
+      ui.selection = pending;
+      ui.tool = "select";
+    }, "Select circle cut");
   },
 
   moveLegGapHandle(selection, point) {
@@ -1179,6 +1216,37 @@ export function createAppShellCommandMethods(deps) {
         gapIndex: selection.gapIndex
       };
     }, "Select cut");
+  },
+
+  moveControlCircleGapHandle(selection, point) {
+    this.store.updateEvent(model => {
+      const control = getControl(model, selection.id);
+      const gaps = parseControlCircleGaps(control);
+      const gap = gaps[selection.gapIndex];
+      if (!control || !gap) return;
+      const angle = circleAngleAtPoint(control.location, point);
+      const minimumSpan = 2;
+      if (selection.handle === "gap-start") {
+        const span = normalizeCircleAngle(gap.stop - angle);
+        gap.start = span < minimumSpan
+          ? normalizeCircleAngle(gap.stop - minimumSpan)
+          : angle;
+      }
+      else if (selection.handle === "gap-end") {
+        const span = circleGapSpan({ start: gap.start, stop: angle });
+        gap.stop = span < minimumSpan
+          ? normalizeCircleAngle(gap.start + minimumSpan)
+          : angle;
+      }
+      setControlCircleGaps(control, gaps);
+    }, "Adjust circle cut");
+    this.store.updateUi(ui => {
+      ui.selection = {
+        type: "control-circle-gap",
+        id: selection.id,
+        gapIndex: selection.gapIndex
+      };
+    }, "Select circle cut");
   },
 
   addLegBend(selection, point) {

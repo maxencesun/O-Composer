@@ -274,6 +274,12 @@ export function createAppShellDialogMethods(deps) {
 
   handleKey(event) {
     const key = event.key.toLowerCase();
+    const userGuideDialog = this.querySelector("#userGuideDialog");
+    if (event.key === "Escape" && userGuideDialog?.open && !userGuideDialog.hasAttribute("hidden")) {
+      event.preventDefault();
+      this.closeUserGuide();
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && key === "o") {
       event.preventDefault();
       this.runCommand("open");
@@ -979,7 +985,7 @@ export function createAppShellDialogMethods(deps) {
   },
 
   enablePanelDrag(dialog) {
-    const header = dialog?.querySelector(".dialog-heading");
+    const header = dialog?.querySelector(".dialog-heading, .user-guide-heading");
     if (!dialog || !header) return;
     header.addEventListener("pointerdown", event => {
       if (event.button !== 0 || event.target.closest("button,input,select,textarea")) {
@@ -996,12 +1002,23 @@ export function createAppShellDialogMethods(deps) {
     const drag = {
       dialog,
       offsetX: event.clientX - rect.left,
-      offsetY: event.clientY - rect.top
+      offsetY: event.clientY - rect.top,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false
     };
-    const move = moveEvent => this.movePanelDrag(moveEvent, drag);
+    const move = moveEvent => {
+      if (!drag.moved && Math.hypot(moveEvent.clientX - drag.startX, moveEvent.clientY - drag.startY) < 4) return;
+      drag.moved = true;
+      drag.dialog.dataset.userPositioned = "true";
+      this.movePanelDrag(moveEvent, drag);
+    };
     const stop = stopEvent => {
       stopEvent?.preventDefault?.();
       dialog.classList.remove("dragging");
+      if (drag.moved && dialog.id === "userGuideDialog") {
+        this.userGuideSuppressTitleRestoreUntil = Date.now() + 350;
+      }
       handle.releasePointerCapture?.(stopEvent?.pointerId ?? event.pointerId);
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", stop);
@@ -1012,15 +1029,16 @@ export function createAppShellDialogMethods(deps) {
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", stop);
     document.addEventListener("pointercancel", stop);
-    this.movePanelDrag(event, drag);
   },
 
   movePanelDrag(event, drag) {
     event.preventDefault();
     const margin = 8;
     const rect = drag.dialog.getBoundingClientRect();
-    const left = clamp(event.clientX - drag.offsetX, margin, window.innerWidth - rect.width - margin);
-    const top = clamp(event.clientY - drag.offsetY, margin, window.innerHeight - rect.height - margin);
+    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    const left = clamp(event.clientX - drag.offsetX, margin, maxLeft);
+    const top = clamp(event.clientY - drag.offsetY, margin, maxTop);
     drag.dialog.style.left = `${left}px`;
     drag.dialog.style.top = `${top}px`;
     drag.dialog.style.right = "auto";

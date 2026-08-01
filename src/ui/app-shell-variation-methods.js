@@ -1,4 +1,4 @@
-import { debugError } from "./debug-log.js?v=20260729-85";
+import { debugError } from "./debug-log.js?v=20260802-90";
 import {
   addMilitaryGrid,
   ensureMilitaryGrid,
@@ -10,7 +10,7 @@ import {
   moveMilitaryTimeWindow,
   removeMilitaryGrid,
   setMilitaryCourseGrid
-} from "../domain/military-orienteering.js?v=20260729-85";
+} from "../domain/military-orienteering.js?v=20260802-90";
 
 export function normalizeMilitaryWindowTime(value, fallback = "00:00") {
   const match = String(value || "").trim().match(/^(\d{1,2}):(\d{1,2})$/);

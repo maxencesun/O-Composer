@@ -1,11 +1,11 @@
-import { resolveTextConstants } from "../domain/constants.js?v=20260729-85";
-import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260729-85";
-import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260729-85";
+import { resolveTextConstants } from "../domain/constants.js?v=20260802-90";
+import { measurementLabelPoint, measurementMetrics } from "../domain/measurement.js?v=20260802-90";
+import { militaryGrid, militaryGridBelongsToCourse } from "../domain/military-orienteering.js?v=20260802-90";
 import {
   circleGapSpan,
   circlePointAtAngle,
   parseControlCircleGaps
-} from "../domain/control-circle-gaps.js?v=20260729-85";
+} from "../domain/control-circle-gaps.js?v=20260802-90";
 
 export function zoomScreenSize(basePixels, zoom) {
   const editorScale = Math.min(1, Math.max(0, Number(zoom) || 0));

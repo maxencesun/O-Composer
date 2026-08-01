@@ -30,6 +30,8 @@ def main() -> None:
     shutil.copy2(ROOT / "index.html", DIST / "index.html")
     shutil.copy2(ROOT / "styles.css", DIST / "styles.css")
     shutil.copy2(ROOT / "README.md", DIST / "README.md")
+    shutil.copy2(ROOT / "USER_GUIDE.md", DIST / "USER_GUIDE.md")
+    shutil.copy2(ROOT / "USER_GUIDE.en.md", DIST / "USER_GUIDE.en.md")
     print(f"Built static app at {DIST}")
 
 

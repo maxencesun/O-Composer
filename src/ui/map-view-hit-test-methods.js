@@ -2,7 +2,7 @@ import {
   circleGapMidAngle,
   circlePointAtAngle,
   parseControlCircleGaps
-} from "../domain/control-circle-gaps.js?v=20260729-85";
+} from "../domain/control-circle-gaps.js?v=20260802-90";
 
 export function createMapViewHitTestMethods(deps) {
   const {

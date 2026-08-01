@@ -985,6 +985,7 @@ export function createAppShellTemplateMethods(deps) {
             ["report-load", "Control and Leg Load"]
           ])}
           ${this.menu("Help", [
+            ["user-guide", "User Guide"],
             ["about", "About O-Composer"],
             ["help", "Frontend Limitations"]
           ])}
@@ -1242,6 +1243,46 @@ export function createAppShellTemplateMethods(deps) {
               <button id="commandApplyButton" type="submit" class="primary-button">${escapeHtml(this.t("Apply"))}</button>
             </footer>
           </form>
+        </dialog>
+        <dialog id="userGuideDialog" class="user-guide-dialog" aria-labelledby="userGuideTitle" aria-modal="false" hidden>
+          <section class="user-guide-window">
+            <header class="user-guide-heading">
+              <div class="user-guide-title" data-user-guide-title-restore>
+                <span>O-Composer</span>
+                <h2 id="userGuideTitle">${escapeHtml(this.t("User Guide"))}</h2>
+              </div>
+              <div class="user-guide-window-actions">
+                <button type="button" class="icon-button" data-user-guide-minimize aria-label="${escapeAttr(this.t("Minimize guide"))}" title="${escapeAttr(this.t("Minimize guide"))}"><span data-user-guide-minimize-icon>−</span></button>
+                <button type="button" class="icon-button" data-user-guide-compact aria-pressed="false" aria-label="${escapeAttr(this.t("Small window"))}" title="${escapeAttr(this.t("Small window"))}"><span data-user-guide-compact-icon aria-hidden="true">◲</span></button>
+                <button type="button" class="icon-button" data-user-guide-close aria-label="${escapeAttr(this.t("Close"))}" title="${escapeAttr(this.t("Close"))}">×</button>
+              </div>
+            </header>
+            <div class="user-guide-tools" role="search">
+              <label>
+                <span>${escapeHtml(this.t("Search guide"))}</span>
+                <input id="userGuideSearch" type="search" autocomplete="off" placeholder="${escapeAttr(this.t("Search features, formats, or questions"))}">
+              </label>
+              <span id="userGuideSearchStatus" class="user-guide-search-status" aria-live="polite">${escapeHtml(this.t("Enter at least two characters"))}</span>
+              <div class="user-guide-search-actions">
+                <button type="button" data-user-guide-search-direction="-1" disabled aria-label="${escapeAttr(this.t("Previous match"))}">↑</button>
+                <button type="button" data-user-guide-search-direction="1" disabled aria-label="${escapeAttr(this.t("Next match"))}">↓</button>
+                <button type="button" data-user-guide-top>${escapeHtml(this.t("Back to top"))}</button>
+              </div>
+            </div>
+            <div class="user-guide-body">
+              <aside id="userGuideSidebar" class="user-guide-sidebar" aria-label="${escapeAttr(this.t("Contents"))}">
+                <strong>${escapeHtml(this.t("Contents"))}</strong>
+                <nav id="userGuideSidebarLinks">
+                  <span class="user-guide-sidebar-loading">${escapeHtml(this.t("Loading user guide…"))}</span>
+                </nav>
+              </aside>
+              <div id="userGuideScroll" class="user-guide-scroll">
+                <article id="userGuideContent" class="user-guide-content" tabindex="0">
+                  <p class="user-guide-loading">${escapeHtml(this.t("Loading user guide…"))}</p>
+                </article>
+              </div>
+            </div>
+          </section>
         </dialog>
         <div id="symbolTooltip" class="symbol-tooltip" hidden></div>
         <div id="cookieBanner" class="cookie-banner" ${hasCookieConsent() ? "hidden" : ""}>

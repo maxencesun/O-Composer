@@ -291,6 +291,44 @@ export function createAppShellMenuMethods(deps) {
     });
 
     this.addEventListener("click", event => {
+      if (event.target.closest("[data-user-guide-minimize]")) {
+        this.toggleUserGuideMinimize();
+        return;
+      }
+      if (event.target.closest("[data-user-guide-compact]")) {
+        this.toggleUserGuideCompact();
+        return;
+      }
+      if (event.target.closest("[data-user-guide-title-restore]") && Date.now() < (this.userGuideSuppressTitleRestoreUntil || 0)) {
+        this.userGuideSuppressTitleRestoreUntil = 0;
+        return;
+      }
+      if (event.target.closest("[data-user-guide-title-restore]") && this.querySelector("#userGuideDialog")?.classList.contains("minimized")) {
+        this.toggleUserGuideMinimize();
+        return;
+      }
+      if (event.target.closest("[data-user-guide-close]")) {
+        this.closeUserGuide();
+        return;
+      }
+      if (event.target.closest("[data-user-guide-retry]")) {
+        this.openUserGuide();
+        return;
+      }
+      const guideSearchButton = event.target.closest("[data-user-guide-search-direction]");
+      if (guideSearchButton) {
+        this.updateUserGuideSearch(Number(guideSearchButton.dataset.userGuideSearchDirection) || 0);
+        return;
+      }
+      if (event.target.closest("[data-user-guide-top]")) {
+        this.querySelector(".user-guide-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      const guideAnchor = event.target.closest("#userGuideContent a[href^='#'], #userGuideSidebarLinks a[href^='#']");
+      if (guideAnchor && this.navigateUserGuideAnchor(guideAnchor)) {
+        event.preventDefault();
+        return;
+      }
       if (event.target.closest("[data-print-area-cancel]")) {
         this.closePrintAreaDialog();
         return;
@@ -327,6 +365,19 @@ export function createAppShellMenuMethods(deps) {
         this.closeToolbarGroups();
       }
     });
+
+    const userGuideDialog = this.querySelector("#userGuideDialog");
+    userGuideDialog?.addEventListener("cancel", event => {
+      event.preventDefault();
+      this.closeUserGuide();
+    });
+    this.querySelector("#userGuideSearch")?.addEventListener("input", () => this.updateUserGuideSearch());
+    this.querySelector("#userGuideSearch")?.addEventListener("keydown", event => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      this.updateUserGuideSearch(event.shiftKey ? -1 : 1);
+    });
+    this.querySelector("#userGuideScroll")?.addEventListener("scroll", () => this.scheduleUserGuideSidebarSelection(), { passive: true });
 
     this.querySelector("#ppenInput").addEventListener("change", event => this.openPpenFile(event.target.files?.[0]));
     this.querySelector("#mapInput").addEventListener("change", event => this.openMapFile(event.target.files?.[0]));
@@ -455,12 +506,17 @@ export function createAppShellMenuMethods(deps) {
     this.enablePanelDrag(this.querySelector("#printAreaDialog"));
     this.enablePanelDrag(this.querySelector("#pdfExportDialog"));
     this.enablePanelDrag(this.querySelector("#commandDialog"));
+    this.enablePanelDrag(this.querySelector("#userGuideDialog"));
     window.addEventListener("keydown", event => this.handleKey(event));
     window.addEventListener("pointerdown", () => this.ensureMobileLandscapeMode(), { passive: true });
     window.addEventListener("touchstart", () => this.ensureMobileLandscapeMode(), { passive: true });
     window.addEventListener("resize", () => {
       this.syncResponsiveUiClass();
       this.deferMapLayoutRefresh();
+      const guideDialog = this.querySelector("#userGuideDialog");
+      if (guideDialog?.open && guideDialog.dataset.userPositioned === "true") {
+        requestAnimationFrame(() => this.clampUserGuideToViewport(guideDialog));
+      }
     });
     window.addEventListener("orientationchange", () => {
       this.syncResponsiveUiClass();

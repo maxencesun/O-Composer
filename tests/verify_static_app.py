@@ -47,6 +47,8 @@ def verify_app_files() -> None:
     assert (ROOT / "src" / "ui" / "course-symbols.js").exists()
     assert (ROOT / "src" / "ui" / "icons.js").exists()
     assert (ROOT / "src" / "ui" / "i18n.js").exists()
+    assert (ROOT / "src" / "ui" / "user-guide.js").exists()
+    assert (ROOT / "USER_GUIDE.en.md").exists()
     assert (ROOT / "src" / "workers" / "omap-render-worker.js").exists()
     assert (ROOT / "tests" / "omap-renderer-smoke.js").exists()
     assert (ROOT / "tests" / "background-calibration-smoke.js").exists()
@@ -55,6 +57,9 @@ def verify_app_files() -> None:
     assert (ROOT / "tests" / "pdf-compression-smoke.js").exists()
     assert (ROOT / "tests" / "python-page-worker-smoke.js").exists()
     assert (ROOT / "tests" / "special-symbols-smoke.js").exists()
+    assert (ROOT / "tests" / "user-guide-window-smoke.js").exists()
+    assert (ROOT / "tests" / "user-guide-drag-smoke.js").exists()
+    assert (ROOT / "tests" / "user-guide-language-smoke.js").exists()
     assert (ROOT / "assets" / "iscd-symbols.xml").exists()
 
     app_shell_entry = (ROOT / "src" / "ui" / "app-shell.js").read_text(encoding="utf-8")
@@ -82,9 +87,30 @@ def verify_app_files() -> None:
     assert "./icons.js" in imported
     assert "./i18n.js" in imported
     assert "./map-view.js" in imported
+    assert "./user-guide.js" in imported
     assert "controlKindLabel" in app_shell
     for token in ["commandDialog", "openCommandDialog", "moveCourseOrderDraft", "enablePanelDrag", "startPanelDrag", "TEXT_PRESETS", "MAP_SCALES", "syncDescriptionLanguageWithApp"]:
         assert token in app_shell, f"missing command palette UI: {token}"
+    user_guide = (ROOT / "src" / "ui" / "user-guide.js").read_text(encoding="utf-8")
+    guide_markdown = (ROOT / "USER_GUIDE.md").read_text(encoding="utf-8")
+    english_guide_markdown = (ROOT / "USER_GUIDE.en.md").read_text(encoding="utf-8")
+    guide_i18n = (ROOT / "src" / "ui" / "i18n.js").read_text(encoding="utf-8")
+    for token in ['["user-guide", "User Guide"]', 'id="userGuideDialog"', 'aria-modal="false"', 'data-user-guide-minimize', 'data-user-guide-compact', 'id="userGuideSidebar"', 'id="userGuideSidebarLinks"', "openUserGuide()", "fetch(guideUrl)", "USER_GUIDE_URLS", "userGuideUrlForLanguage", "userGuideLoadedLanguage", "toggleUserGuideMinimize", "toggleUserGuideCompact", "updateUserGuideWindowButtons", "finishUserGuideWindowAnimation", "updateUserGuideSearch", "populateUserGuideSidebar", "updateUserGuideSidebarSelection", "navigateUserGuideAnchor", 'enablePanelDrag(this.querySelector("#userGuideDialog"))', "clampUserGuideToViewport", "userGuideSuppressTitleRestoreUntil"]:
+        assert token in app_shell, f"missing in-app user guide reader: {token}"
+    assert "if (dialog.show) dialog.show();" in app_shell, "the guide must be non-modal so users can keep editing"
+    for token in ["renderUserGuideMarkdown", "safeGuideHref", "highlightUserGuideMatches", "user-guide-search-match"]:
+        assert token in user_guide, f"missing safe searchable guide rendering: {token}"
+    for token in ["使用说明", '"Contents": "目录"', "最小化使用说明", "恢复使用说明", "小窗口", "恢复大窗口", "搜索使用说明", "正在加载使用说明"]:
+        assert token in guide_i18n, f"missing user-guide translation: {token}"
+    for token in [".user-guide-body", ".user-guide-sidebar", ".user-guide-sidebar-link.active", ".user-guide-dialog.compact", ".user-guide-dialog.minimized", ".user-guide-dialog.dragging", "cursor: grab", "@keyframes user-guide-minimize", "@keyframes user-guide-restore"]:
+        assert token in styles, f"missing user-guide sidebar styling: {token}"
+    for token in ["打开内置的悬浮指南阅读页", "指南是非模态窗口", "播放缩向右下角的动画", "一边阅读步骤、一边在地图上操作", "拖动紫色标题栏的空白区域"]:
+        assert token in guide_markdown, f"the guide should document its window controls: {token}"
+    for token in ["O-Composer Project User Guide", "Ten-minute quick start", "Score courses", "Team courses", "Military orienteering", "Forks, variations, and relays", "Map exchange, map flip, and map pages", "Troubleshooting and FAQ", "Pre-delivery checklist"]:
+        assert token in english_guide_markdown, f"the English guide is missing a required chapter: {token}"
+    assert len(english_guide_markdown) >= 60000, "the English guide should be project-level, not a short overview"
+    assert 'shutil.copy2(ROOT / "USER_GUIDE.md", DIST / "USER_GUIDE.md")' in (ROOT / "build.py").read_text(encoding="utf-8"), "the production build must include USER_GUIDE.md"
+    assert 'shutil.copy2(ROOT / "USER_GUIDE.en.md", DIST / "USER_GUIDE.en.md")' in (ROOT / "build.py").read_text(encoding="utf-8"), "the production build must include USER_GUIDE.en.md"
     control_descriptions = (ROOT / "src" / "domain" / "control-descriptions.js").read_text(encoding="utf-8")
     course_service = (ROOT / "src" / "domain" / "course-service.js").read_text(encoding="utf-8")
     print_area = (ROOT / "src" / "domain" / "print-area.js").read_text(encoding="utf-8")
@@ -126,6 +152,12 @@ def verify_app_files() -> None:
     i18n = (ROOT / "src" / "ui" / "i18n.js").read_text(encoding="utf-8")
     for token in ["SUPPORTED_LANGUAGES", "setLanguage", "getLanguage", "t(", "oComposerLanguage", "中文", "All Controls", "所有检查点", "Description Standard 2024"]:
         assert token in i18n, f"missing multilingual support: {token}"
+    for token in ['"Course": "线路"', '"Add Course": "添加线路"', '"Normal course": "普通线路"', '"Score course": "积分线路"']:
+        assert token in i18n, f"course terminology must consistently use 线路: {token}"
+    for key, translation in re.findall(r'^\s*"([^"]*[Cc]ourse[^"]*)":\s*"([^"]*)"', i18n, flags=re.MULTILINE):
+        assert "路线" not in translation, f"course translation must use 线路, not 路线: {key} -> {translation}"
+    for token in ['"Forbidden Route": "禁止路线"', '"Finish route": "终点路线"', '"forbidden-route": "禁止路线"']:
+        assert token in i18n, f"route terminology must remain distinct from course: {token}"
     for token in ["appLanguage", "this.t(", "SUPPORTED_LANGUAGES", "applyApplicationLanguage(event.target.value)", "forceWholePageLanguageReload"]:
         assert token in app_shell, f"missing app i18n hook: {token}"
     assert '["open-measure", "Measurement"]' in app_shell, "measurement should be opened from the Add menu"
@@ -199,7 +231,7 @@ def verify_app_files() -> None:
     app_config = (ROOT / "src" / "ui" / "app-shell-config.js").read_text(encoding="utf-8")
     assert 'export const APP_VERSION = "0.0.4"' in app_config, "app version should be centrally maintained at 0.0.4"
     assert re.search(r'export const APP_VERSION = "\d+\.\d+\.\d+"', app_config), "app version must be three numeric levels"
-    assert 'export const APP_CODE_VERSION = "20260729-85"' in app_config, "browser modules should use the current code cachebuster"
+    assert 'export const APP_CODE_VERSION = "20260802-90"' in app_config, "browser modules should use the current code cachebuster"
     assert 'export const APP_CACHE_VERSION = "20260711-4"' in app_config, "unchanged app resources should retain their existing cache"
     for token in ["app-brand", "`O-Composer ${APP_VERSION}`", "{ version: APP_VERSION }", "O-Composer {version}"]:
         assert token in app_shell + i18n + (ROOT / "styles.css").read_text(encoding="utf-8"), f"missing visible app version branding/help: {token}"
@@ -466,7 +498,7 @@ def verify_ocd_import_support() -> None:
 
     controller = (ROOT / "src" / "ocd" / "ocd-import-controller.js").read_text(encoding="utf-8")
     official_adapter = (ROOT / "src" / "ocd" / "official-mapper-adapter.js").read_text(encoding="utf-8")
-    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260729-85", "ocd-convert-worker.js?v=20260729-85", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
+    for token in ["ocadImportController", "async preload(", "subscribe(listener)", "async convertFile(file", "OCD_IMPORT_BUSY", "LARGE_OCD_FILE_BYTES", "MAX_OCD_FILE_BYTES", "official-mapper-adapter.js?v=20260802-90", "ocd-convert-worker.js?v=20260802-90", "engineLoadedBytes", "engineTotalBytes", "engineDownloadComplete", "MAPPER_BUNDLE_TOTAL_BYTES"]:
         assert token in controller, f"missing OCAD import controller API: {token}"
 
     map_import = (ROOT / "src" / "ui" / "app-shell-map-import-methods.js").read_text(encoding="utf-8")

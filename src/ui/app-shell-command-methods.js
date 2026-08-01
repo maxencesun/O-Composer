@@ -1,15 +1,15 @@
 import {
   courseControlMapChangeKind,
   setCourseControlMapChange
-} from "../domain/course-pages.js?v=20260729-85";
-import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260729-85";
+} from "../domain/course-pages.js?v=20260802-90";
+import { ensureMilitaryGrid } from "../domain/military-orienteering.js?v=20260802-90";
 import {
   circleAngleAtPoint,
   circleGapSpan,
   normalizeCircleAngle,
   parseControlCircleGaps,
   setControlCircleGaps
-} from "../domain/control-circle-gaps.js?v=20260729-85";
+} from "../domain/control-circle-gaps.js?v=20260802-90";
 
 export function createAppShellCommandMethods(deps) {
   const {
@@ -121,6 +121,9 @@ export function createAppShellCommandMethods(deps) {
     PDF_EXPORT_DONE_HOLD_MS,
     MAP_SCALES,
     APP_VERSION,
+    USER_GUIDE_URL,
+    USER_GUIDE_URLS,
+    userGuideUrlForLanguage,
     APP_RESOURCE_CACHE_PREFIX,
     APP_RESOURCE_CACHE_NAME,
     APP_RESOURCE_URLS,
@@ -273,7 +276,10 @@ export function createAppShellCommandMethods(deps) {
     precacheAppResources,
     formatBytes,
     escapeHtml,
-    escapeAttr
+    escapeAttr,
+    focusUserGuideMatch,
+    highlightUserGuideMatches,
+    renderUserGuideMarkdown
   } = deps;
   return {
   createNewEvent() {
@@ -294,7 +300,7 @@ export function createAppShellCommandMethods(deps) {
 
   runCommand(command) {
     const state = this.store.snapshot();
-    if (backgroundCalibrationRequired?.(state.ui.background) === true) {
+    if (backgroundCalibrationRequired?.(state.ui.background) === true && !["user-guide", "about", "help"].includes(command)) {
       this.store.updateUi(ui => {
         ui.tool = "background-calibration";
         ui.selection = { type: "background" };
@@ -511,6 +517,9 @@ export function createAppShellCommandMethods(deps) {
       case "about":
         alert(this.t("O-Composer {version}\nA browser-only app for creating, editing, viewing, and exporting orienteering event files.\n\nLicensed under the GNU AGPLv3.", { version: APP_VERSION }));
         break;
+      case "user-guide":
+        this.openUserGuide();
+        break;
       case "help":
         alert(this.t("O-Composer {version}\n\nThis version runs entirely in the browser. It can read and write .ocp files, import and export compatible .ppen files, convert OCAD maps locally with bundled Mapper WebAssembly, render uncompressed .omap/.xmap XML maps, import high-resolution PDF basemaps, and export browser-generated files. Installed-font checks and Livelox API publishing still require desktop/runtime capabilities that browsers do not expose.", { version: APP_VERSION }));
         break;
@@ -520,6 +529,295 @@ export function createAppShellCommandMethods(deps) {
         }
         break;
     }
+  },
+
+  async openUserGuide() {
+    const dialog = this.querySelector("#userGuideDialog");
+    const content = this.querySelector("#userGuideContent");
+    if (!dialog || !content) return;
+    dialog.removeAttribute("hidden");
+    if (!dialog.open) {
+      if (dialog.show) dialog.show();
+      else dialog.setAttribute("open", "");
+    }
+    if (dialog.classList.contains("minimized")) this.toggleUserGuideMinimize();
+    this.updateUserGuideWindowButtons();
+    const guideLanguage = this.language === "zh" ? "zh" : "en";
+    const guideUrl = userGuideUrlForLanguage?.(guideLanguage) || USER_GUIDE_URLS?.[guideLanguage] || USER_GUIDE_URL;
+    if (this.userGuideLoaded && this.userGuideLoadedLanguage === guideLanguage) {
+      this.querySelector("#userGuideSearch")?.focus();
+      return;
+    }
+    if (this.userGuideLoadedLanguage !== guideLanguage) {
+      this.userGuideLoaded = false;
+      this.userGuideLoadPromise = null;
+      this.userGuideLoadedLanguage = guideLanguage;
+      this.userGuideSearchQuery = "";
+      this.userGuideMatches = [];
+      this.userGuideMatchIndex = -1;
+    }
+    if (!this.userGuideLoadPromise) {
+      content.classList.add("loading");
+      content.innerHTML = `<p class="user-guide-loading">${escapeHtml(this.t("Loading user guide…"))}</p>`;
+      this.userGuideLoadPromise = fetch(guideUrl)
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.text();
+        })
+        .then(markdown => {
+          content.innerHTML = renderUserGuideMarkdown(markdown);
+          content.classList.remove("loading");
+          this.userGuideLoaded = true;
+          this.userGuideMatches = [];
+          this.userGuideMatchIndex = -1;
+          this.populateUserGuideSidebar();
+        })
+        .catch(error => {
+          content.classList.remove("loading");
+          content.innerHTML = `
+            <div class="user-guide-load-error" role="alert">
+              <h3>${escapeHtml(this.t("Could not load the user guide."))}</h3>
+              <p>${escapeHtml(this.t("Check the connection and try again."))}</p>
+              <button type="button" data-user-guide-retry>${escapeHtml(this.t("Retry"))}</button>
+            </div>`;
+          const sidebarLinks = this.querySelector("#userGuideSidebarLinks");
+          if (sidebarLinks) sidebarLinks.textContent = this.t("Could not load the user guide.");
+          this.userGuideLoadPromise = null;
+          throw error;
+        });
+    }
+    try {
+      await this.userGuideLoadPromise;
+      this.querySelector("#userGuideSearch")?.focus();
+    }
+    catch {}
+  },
+
+  closeUserGuide() {
+    const dialog = this.querySelector("#userGuideDialog");
+    clearTimeout(this.userGuideAnimationTimer);
+    this.userGuideAnimationTimer = null;
+    dialog?.classList.remove("compact", "minimized", "is-minimizing", "is-restoring");
+    if (dialog?.open && dialog.close) dialog.close();
+    else dialog?.removeAttribute("open");
+    dialog?.setAttribute("hidden", "");
+    this.resetUserGuidePosition(dialog);
+    this.userGuideWasCompactBeforeMinimize = false;
+    this.userGuideRestorePosition = null;
+    this.updateUserGuideWindowButtons();
+  },
+
+  finishUserGuideWindowAnimation(callback, duration = 240) {
+    clearTimeout(this.userGuideAnimationTimer);
+    const reducedMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+    this.userGuideAnimationTimer = setTimeout(() => {
+      this.userGuideAnimationTimer = null;
+      callback?.();
+    }, reducedMotion ? 0 : duration);
+  },
+
+  resetUserGuidePosition(dialog) {
+    if (!dialog) return;
+    for (const property of ["left", "top", "right", "bottom", "--user-guide-minimize-x", "--user-guide-minimize-y", "--user-guide-restore-x", "--user-guide-restore-y"]) {
+      dialog.style.removeProperty(property);
+    }
+    delete dialog.dataset.userPositioned;
+  },
+
+  clampUserGuideToViewport(dialog = this.querySelector("#userGuideDialog")) {
+    if (!dialog?.open) return;
+    const margin = 8;
+    const rect = dialog.getBoundingClientRect();
+    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    dialog.style.left = `${Math.max(margin, Math.min(maxLeft, rect.left))}px`;
+    dialog.style.top = `${Math.max(margin, Math.min(maxTop, rect.top))}px`;
+    dialog.style.right = "auto";
+    dialog.style.bottom = "auto";
+  },
+
+  setUserGuideAnimationOffset(dialog, prefix, target = null) {
+    const rect = dialog.getBoundingClientRect();
+    const edge = window.innerWidth <= 720 || window.innerHeight <= 520 ? 6 : 14;
+    const targetRight = target?.right ?? window.innerWidth - edge;
+    const targetBottom = target?.bottom ?? window.innerHeight - edge;
+    dialog.style.setProperty(`--user-guide-${prefix}-x`, `${targetRight - rect.right}px`);
+    dialog.style.setProperty(`--user-guide-${prefix}-y`, `${targetBottom - rect.bottom}px`);
+  },
+
+  toggleUserGuideMinimize() {
+    const dialog = this.querySelector("#userGuideDialog");
+    if (!dialog || dialog.classList.contains("is-minimizing") || dialog.classList.contains("is-restoring")) return;
+    if (dialog.classList.contains("minimized")) {
+      const minimizedRect = dialog.getBoundingClientRect();
+      dialog.classList.remove("minimized");
+      dialog.classList.toggle("compact", this.userGuideWasCompactBeforeMinimize === true);
+      if (this.userGuideRestorePosition) {
+        dialog.style.left = `${this.userGuideRestorePosition.left}px`;
+        dialog.style.top = `${this.userGuideRestorePosition.top}px`;
+        dialog.style.right = "auto";
+        dialog.style.bottom = "auto";
+      }
+      this.clampUserGuideToViewport(dialog);
+      this.setUserGuideAnimationOffset(dialog, "restore", minimizedRect);
+      dialog.classList.add("is-restoring");
+      this.updateUserGuideWindowButtons();
+      this.finishUserGuideWindowAnimation(() => {
+        dialog.classList.remove("is-restoring");
+        this.updateUserGuideWindowButtons();
+        this.scheduleUserGuideSidebarSelection();
+        this.querySelector("#userGuideSearch")?.focus();
+      });
+      return;
+    }
+    this.userGuideWasCompactBeforeMinimize = dialog.classList.contains("compact");
+    const rect = dialog.getBoundingClientRect();
+    this.userGuideRestorePosition = { left: rect.left, top: rect.top };
+    this.setUserGuideAnimationOffset(dialog, "minimize");
+    dialog.classList.add("is-minimizing");
+    this.updateUserGuideWindowButtons();
+    this.finishUserGuideWindowAnimation(() => {
+      dialog.classList.remove("is-minimizing");
+      dialog.classList.add("minimized");
+      for (const property of ["left", "top", "right", "bottom"]) dialog.style.removeProperty(property);
+      this.updateUserGuideWindowButtons();
+    });
+  },
+
+  toggleUserGuideCompact() {
+    const dialog = this.querySelector("#userGuideDialog");
+    if (!dialog || dialog.classList.contains("minimized") || dialog.classList.contains("is-minimizing") || dialog.classList.contains("is-restoring")) return;
+    const wasPositioned = dialog.dataset.userPositioned === "true";
+    const rect = dialog.getBoundingClientRect();
+    dialog.classList.toggle("compact");
+    if (wasPositioned) {
+      dialog.style.left = `${rect.left}px`;
+      dialog.style.top = `${rect.top}px`;
+      dialog.style.right = "auto";
+      dialog.style.bottom = "auto";
+    }
+    this.updateUserGuideWindowButtons();
+    requestAnimationFrame(() => {
+      if (wasPositioned) this.clampUserGuideToViewport(dialog);
+      this.updateUserGuideSidebarSelection();
+    });
+  },
+
+  updateUserGuideWindowButtons() {
+    const dialog = this.querySelector("#userGuideDialog");
+    const minimizeButton = this.querySelector("[data-user-guide-minimize]");
+    const compactButton = this.querySelector("[data-user-guide-compact]");
+    if (!dialog || !minimizeButton || !compactButton) return;
+    const minimized = dialog.classList.contains("minimized");
+    const compact = dialog.classList.contains("compact") && !minimized;
+    const animating = dialog.classList.contains("is-minimizing") || dialog.classList.contains("is-restoring");
+    const minimizeLabel = this.t(minimized ? "Restore guide" : "Minimize guide");
+    const compactLabel = this.t(compact ? "Full-size window" : "Small window");
+    minimizeButton.setAttribute("aria-label", minimizeLabel);
+    minimizeButton.title = minimizeLabel;
+    minimizeButton.disabled = animating;
+    const minimizeIcon = minimizeButton.querySelector("[data-user-guide-minimize-icon]");
+    if (minimizeIcon) minimizeIcon.textContent = minimized ? "▢" : "−";
+    compactButton.setAttribute("aria-label", compactLabel);
+    compactButton.title = compactLabel;
+    compactButton.setAttribute("aria-pressed", String(compact));
+    compactButton.disabled = animating;
+    const compactIcon = compactButton.querySelector("[data-user-guide-compact-icon]");
+    if (compactIcon) compactIcon.textContent = compact ? "▣" : "◲";
+  },
+
+  updateUserGuideSearch(direction = 0) {
+    const content = this.querySelector("#userGuideContent");
+    const input = this.querySelector("#userGuideSearch");
+    const status = this.querySelector("#userGuideSearchStatus");
+    if (!content || !input || !status || !this.userGuideLoaded) return;
+    const query = input.value.trim();
+    if (query !== this.userGuideSearchQuery) {
+      this.userGuideSearchQuery = query;
+      this.userGuideMatches = highlightUserGuideMatches(content, query);
+      this.userGuideMatchIndex = this.userGuideMatches.length ? 0 : -1;
+    }
+    else if (this.userGuideMatches?.length && direction) {
+      this.userGuideMatchIndex += direction;
+    }
+    if (this.userGuideMatches?.length) {
+      this.userGuideMatchIndex = focusUserGuideMatch(this.userGuideMatches, this.userGuideMatchIndex);
+      status.textContent = this.t("Match {current} of {count}", {
+        current: this.userGuideMatchIndex + 1,
+        count: this.userGuideMatches.length
+      });
+    }
+    else {
+      status.textContent = query.length >= 2 ? this.t("No matches") : this.t("Enter at least two characters");
+    }
+    for (const button of this.querySelectorAll("[data-user-guide-search-direction]")) {
+      button.disabled = !this.userGuideMatches?.length;
+    }
+  },
+
+  populateUserGuideSidebar() {
+    const content = this.querySelector("#userGuideContent");
+    const sidebarLinks = this.querySelector("#userGuideSidebarLinks");
+    if (!content || !sidebarLinks) return;
+    const headings = [...content.querySelectorAll("h1[id], h2[id]")];
+    this.userGuideSidebarHeadings = headings;
+    sidebarLinks.innerHTML = headings.map((heading, index) => `
+      <a href="#${escapeAttr(heading.id)}" class="user-guide-sidebar-link level-${heading.tagName.toLowerCase()}${index === 0 ? " active" : ""}" data-user-guide-sidebar-link="${escapeAttr(heading.id)}">
+        ${escapeHtml(heading.textContent || heading.id)}
+      </a>`).join("");
+    this.updateUserGuideSidebarSelection();
+  },
+
+  scheduleUserGuideSidebarSelection() {
+    if (this.userGuideSidebarFrame) return;
+    this.userGuideSidebarFrame = requestAnimationFrame(() => {
+      this.userGuideSidebarFrame = 0;
+      this.updateUserGuideSidebarSelection();
+    });
+  },
+
+  updateUserGuideSidebarSelection() {
+    const scroll = this.querySelector("#userGuideScroll");
+    const headings = this.userGuideSidebarHeadings || [];
+    if (!scroll || !headings.length) return;
+    const readingTop = scroll.getBoundingClientRect().top + 28;
+    let activeHeading = headings[0];
+    for (const heading of headings) {
+      if (heading.getBoundingClientRect().top > readingTop) break;
+      activeHeading = heading;
+    }
+    let activeLink = null;
+    for (const link of this.querySelectorAll("[data-user-guide-sidebar-link]")) {
+      const active = link.dataset.userGuideSidebarLink === activeHeading.id;
+      link.classList.toggle("active", active);
+      if (active) {
+        link.setAttribute("aria-current", "location");
+        activeLink = link;
+      }
+      else link.removeAttribute("aria-current");
+    }
+    const sidebar = this.querySelector("#userGuideSidebar");
+    if (activeLink && sidebar) {
+      const sidebarRect = sidebar.getBoundingClientRect();
+      const linkRect = activeLink.getBoundingClientRect();
+      if (linkRect.top < sidebarRect.top + 42) sidebar.scrollTop -= sidebarRect.top + 42 - linkRect.top;
+      else if (linkRect.bottom > sidebarRect.bottom - 8) sidebar.scrollTop += linkRect.bottom - sidebarRect.bottom + 8;
+    }
+  },
+
+  navigateUserGuideAnchor(anchor) {
+    const href = anchor?.getAttribute("href") || "";
+    if (!href.startsWith("#")) return false;
+    let id = "";
+    try { id = decodeURIComponent(href.slice(1)); }
+    catch { id = href.slice(1); }
+    const content = this.querySelector("#userGuideContent");
+    const target = document.getElementById(id);
+    if (!content || !target || !content.contains(target)) return false;
+    for (let details = target.closest("details"); details; details = details.parentElement?.closest("details")) details.open = true;
+    target.scrollIntoView({ block: "start", behavior: "smooth" });
+    this.scheduleUserGuideSidebarSelection();
+    return true;
   },
 
   setTool(command) {

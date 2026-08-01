@@ -33,7 +33,15 @@ export const PDF_EXPORT_DONE_HOLD_MS = 650;
 
 export const MAP_SCALES = Object.freeze([4000, 5000, 7500, 10000, 15000]);
 export const APP_VERSION = "0.0.4";
-export const APP_CODE_VERSION = "20260729-85";
+export const APP_CODE_VERSION = "20260802-90";
+export const USER_GUIDE_URLS = Object.freeze({
+  en: `./USER_GUIDE.en.md?guide=${APP_CODE_VERSION}`,
+  zh: `./USER_GUIDE.md?guide=${APP_CODE_VERSION}`
+});
+export const USER_GUIDE_URL = USER_GUIDE_URLS.zh;
+export function userGuideUrlForLanguage(language) {
+  return USER_GUIDE_URLS[language === "zh" ? "zh" : "en"];
+}
 // Keep the existing cache generation so returning users retain the 9.7 MB
 // fonts/symbols and only fetch the newly added Pyodide runtime entries.
 export const APP_CACHE_VERSION = "20260711-4";

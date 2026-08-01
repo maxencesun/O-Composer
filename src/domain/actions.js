@@ -5,9 +5,9 @@ import {
   createSpecial,
   findById,
   nextId
-} from "./event-model.js?v=20260729-85";
-import { cloneDeep } from "./clone.js?v=20260729-85";
-import { parseControlCircleGaps, setControlCircleGaps } from "./control-circle-gaps.js?v=20260729-85";
+} from "./event-model.js?v=20260802-90";
+import { cloneDeep } from "./clone.js?v=20260802-90";
+import { parseControlCircleGaps, setControlCircleGaps } from "./control-circle-gaps.js?v=20260802-90";
 import {
   controlsUsedByCourse,
   courseGraphCourseControlIds,
@@ -16,13 +16,13 @@ import {
   getCourse,
   getCourseControl,
   sortedCourses
-} from "./course-service.js?v=20260729-85";
+} from "./course-service.js?v=20260802-90";
 import {
   courseControlMapChangeKind,
   remapPageBreakFormulaCourseControls,
   setCourseControlMapChange
-} from "./course-pages.js?v=20260729-85";
-import { isPythonPageScript } from "./python-page-script.js?v=20260729-85";
+} from "./course-pages.js?v=20260802-90";
+import { isPythonPageScript } from "./python-page-script.js?v=20260802-90";
 
 export function addControlAt(eventModel, kind, location, selectedCourseId = null, options = {}) {
   const automaticCoursePlacement = controlCoursePlacement(kind, eventModel, selectedCourseId);

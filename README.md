@@ -10,7 +10,7 @@ Live site:
 https://maxencesun.github.io/O-Composer/
 ```
 
-User guide: [USER_GUIDE.md](USER_GUIDE.md)
+User guides: [English](USER_GUIDE.en.md) · [简体中文](USER_GUIDE.md)
 
 ## What It Does
 

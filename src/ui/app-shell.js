@@ -1,4 +1,4 @@
-import { Store } from "../state/store.js?v=20260729-85";
+import { Store } from "../state/store.js?v=20260802-90";
 import {
   acceptCookieConsent,
   hasCookieConsent,
@@ -6,20 +6,20 @@ import {
   loadCachedSession,
   saveCachedPdfBasemap,
   saveCachedSession
-} from "../state/cookie-cache.js?v=20260729-85";
-import { parseOmap } from "../domain/omap-parser.js?v=20260729-85";
-import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260729-85";
-import { migrateLegacyMilitaryData } from "../domain/military-orienteering.js?v=20260729-85";
+} from "../state/cookie-cache.js?v=20260802-90";
+import { parseOmap } from "../domain/omap-parser.js?v=20260802-90";
+import { parsePpen, serializeNativePpen, serializeOcp, serializePpen } from "../domain/ppen-parser.js?v=20260802-90";
+import { migrateLegacyMilitaryData } from "../domain/military-orienteering.js?v=20260802-90";
 import {
   preloadPythonPageRuntime,
   subscribePythonPageResults
-} from "../domain/python-page-script.js?v=20260729-85";
+} from "../domain/python-page-script.js?v=20260802-90";
 import {
   CONTROL_KINDS,
   cloneEvent,
   createBlankEvent,
   findById
-} from "../domain/event-model.js?v=20260729-85";
+} from "../domain/event-model.js?v=20260802-90";
 import {
   addControlAt,
   addExistingControlToCourse,
@@ -38,7 +38,7 @@ import {
   setCourseOrder,
   updateControlCode,
   updateControlDescription
-} from "../domain/actions.js?v=20260729-85";
+} from "../domain/actions.js?v=20260802-90";
 import {
   DESCRIPTION_KINDS,
   ISCD_COLUMNS,
@@ -59,7 +59,7 @@ import {
   scoreCourseDescriptionRows,
   storageForIscdSelection,
   resizedDescriptionSpecial
-} from "../domain/control-descriptions.js?v=20260729-85";
+} from "../domain/control-descriptions.js?v=20260802-90";
 import {
   PRINT_AREA_SCOPES,
   effectivePrintArea,
@@ -70,16 +70,16 @@ import {
   printAreaFromPoints,
   printAreaTargetLabel,
   setPrintArea
-} from "../domain/print-area.js?v=20260729-85";
-import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260729-85";
-import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260729-85";
+} from "../domain/print-area.js?v=20260802-90";
+import { createVectorMapPdfBlob } from "../domain/pdf-exporter.js?v=20260802-90";
+import { isPdfFile, renderPdfBasemap } from "../domain/pdf-basemap.js?v=20260802-90";
 import {
   measurementMetrics,
   formatGroundLength,
   formatPaperLength,
   formatGroundArea,
   formatPaperArea
-} from "../domain/measurement.js?v=20260729-85";
+} from "../domain/measurement.js?v=20260802-90";
 import {
   allControlsView,
   controlKindLabel,
@@ -102,18 +102,18 @@ import {
   getCourseControl,
   isTeamFreeCourseControl,
   sortedCourses
-} from "../domain/course-service.js?v=20260729-85";
+} from "../domain/course-service.js?v=20260802-90";
 import {
   exportCourseSvg,
   exportGpx,
   exportIofXml,
   exportKml,
   exportRouteGadgetXml
-} from "../domain/exporters.js?v=20260729-85";
+} from "../domain/exporters.js?v=20260802-90";
 import {
   createCourseSymbolMetrics,
   courseSymbolMmToMapDistance
-} from "./course-symbols.js?v=20260729-85";
+} from "./course-symbols.js?v=20260802-90";
 import {
   allCourseVariations,
   courseHasVariations,
@@ -133,29 +133,34 @@ import {
   variationBranchCodeMap,
   variationDisplayLabel,
   variationForCode
-} from "../domain/relay-variations.js?v=20260729-85";
-import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260729-85";
-import { iconSvg } from "./icons.js?v=20260729-85";
-import { MapView } from "./map-view.js?v=20260729-85";
-import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260729-85";
-import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260729-85";
-import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260729-85";
-import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260729-85";
-import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260729-85";
-import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260729-85";
-import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260729-85";
-import { createAppShellMapImportMethods } from "./app-shell-map-import-methods.js?v=20260729-85";
-import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260729-85";
-import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260729-85";
+} from "../domain/relay-variations.js?v=20260802-90";
+import { SUPPORTED_LANGUAGES, getLanguage, optionLabel, setLanguage, t } from "./i18n.js?v=20260802-90";
+import { iconSvg } from "./icons.js?v=20260802-90";
+import { MapView } from "./map-view.js?v=20260802-90";
+import { createAppShellTemplateMethods } from "./app-shell-template-methods.js?v=20260802-90";
+import { createAppShellMenuMethods } from "./app-shell-menu-methods.js?v=20260802-90";
+import { createAppShellCoursePanelMethods } from "./app-shell-course-panel-methods.js?v=20260802-90";
+import { createAppShellVariationMethods } from "./app-shell-variation-methods.js?v=20260802-90";
+import { createAppShellSelectionEditorMethods } from "./app-shell-selection-editor-methods.js?v=20260802-90";
+import { createAppShellCommandMethods } from "./app-shell-command-methods.js?v=20260802-90";
+import { createAppShellFileExportMethods } from "./app-shell-file-export-methods.js?v=20260802-90";
+import { createAppShellMapImportMethods } from "./app-shell-map-import-methods.js?v=20260802-90";
+import { createAppShellDialogMethods } from "./app-shell-dialog-methods.js?v=20260802-90";
+import { createAppShellPrintCourseDialogMethods } from "./app-shell-print-course-dialog-methods.js?v=20260802-90";
+import {
+  focusUserGuideMatch,
+  highlightUserGuideMatches,
+  renderUserGuideMarkdown
+} from "./user-guide.js?v=20260802-90";
 import {
   RENDER_QUALITIES,
   isRenderQualityId,
   readRenderQualityPreference,
   setRenderQualityPreference,
   renderQualityHighQuality
-} from "./render-quality.js?v=20260729-85";
-import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260729-85";
-import { debugWarn } from "./debug-log.js?v=20260729-85";
+} from "./render-quality.js?v=20260802-90";
+import { hasCompletedMetaSetup, saveMetaSetupPreference } from "./app-meta-setup.js?v=20260802-90";
+import { debugWarn } from "./debug-log.js?v=20260802-90";
 
 import {
   PAPER_SIZES,
@@ -167,6 +172,9 @@ import {
   PDF_EXPORT_DONE_HOLD_MS,
   MAP_SCALES,
   APP_VERSION,
+  USER_GUIDE_URL,
+  USER_GUIDE_URLS,
+  userGuideUrlForLanguage,
   APP_RESOURCE_CACHE_PREFIX,
   APP_RESOURCE_CACHE_NAME,
   APP_RESOURCE_URLS,
@@ -183,7 +191,7 @@ import {
   FONT_CHOICES,
   SPECIAL_COLOR_CHOICES,
   LEGACY_COLOR_ALIASES
-} from "./app-shell-config.js?v=20260729-85";
+} from "./app-shell-config.js?v=20260802-90";
 import {
   teamAddControlRoleFromSelection,
   objectForSelection,
@@ -327,7 +335,7 @@ import {
   formatBytes,
   escapeHtml,
   escapeAttr
-} from "./app-shell-helpers.js?v=20260729-85";
+} from "./app-shell-helpers.js?v=20260802-90";
 
 function updateBootLoadingProgress(percent, detail) {
   const determinate = percent !== null && percent !== undefined && Number.isFinite(Number(percent));
@@ -1271,6 +1279,9 @@ const APP_SHELL_METHOD_DEPS = {
   PDF_EXPORT_DONE_HOLD_MS,
   MAP_SCALES,
   APP_VERSION,
+  USER_GUIDE_URL,
+  USER_GUIDE_URLS,
+  userGuideUrlForLanguage,
   APP_RESOURCE_CACHE_PREFIX,
   APP_RESOURCE_CACHE_NAME,
   APP_RESOURCE_URLS,
@@ -1428,6 +1439,9 @@ const APP_SHELL_METHOD_DEPS = {
   formatBytes,
   escapeHtml,
   escapeAttr,
+  focusUserGuideMatch,
+  highlightUserGuideMatches,
+  renderUserGuideMarkdown,
   RENDER_QUALITIES,
   isRenderQualityId,
   readRenderQualityPreference,

@@ -1,5 +1,5 @@
-import { defaultPrintArea } from "./event-model.js?v=20260729-85";
-import { getCourse } from "./course-service.js?v=20260729-85";
+import { defaultPrintArea } from "./event-model.js?v=20260802-90";
+import { getCourse } from "./course-service.js?v=20260802-90";
 
 export const PRINT_AREA_SCOPES = Object.freeze({
   ALL: "all",

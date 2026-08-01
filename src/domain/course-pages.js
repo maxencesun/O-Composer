@@ -3,7 +3,7 @@ import {
   isPythonPageScript,
   pythonPageExecutionState,
   validatePythonPageScript
-} from "./python-page-script.js?v=20260729-85";
+} from "./python-page-script.js?v=20260802-90";
 
 const FORMULA_VARIABLES = new Set([
   "variation",

@@ -1,6 +1,6 @@
-import { coursePageCount } from "../domain/course-service.js?v=20260729-85";
-import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260729-85";
-import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260729-85";
+import { coursePageCount } from "../domain/course-service.js?v=20260802-90";
+import { validatePageBreakFormula } from "../domain/course-pages.js?v=20260802-90";
+import { PAGE_PYTHON_SAMPLE } from "../domain/python-page-script.js?v=20260802-90";
 
 function representativeIndexes(length, limit) {
   const count = Math.max(0, Number(length) || 0);

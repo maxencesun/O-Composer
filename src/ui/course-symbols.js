@@ -1,4 +1,4 @@
-import { parseControlCircleGaps } from "../domain/control-circle-gaps.js?v=20260729-85";
+import { parseControlCircleGaps } from "../domain/control-circle-gaps.js?v=20260802-90";
 
 const COURSE_PURPLE_ALPHA = 0.82;
 const COURSE_PURPLE = `rgba(166, 38, 255, ${COURSE_PURPLE_ALPHA})`;
